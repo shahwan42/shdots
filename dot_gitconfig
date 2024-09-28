@@ -1,0 +1,5 @@
+[user]
+	email = a.shahwan42@gmail.com
+	name = Ahmed Shahwan
+[core]
+	editor = nvim

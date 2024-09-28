@@ -1,0 +1,45 @@
+#source ~/.profile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# Setting PATH for Python 3.10
+# The original version is saved in .zprofile.pysave
+PATH="/Library/Frameworks/Python.framework/Versions/3.10/bin:${PATH}"
+export PATH
+
+# Path for PHP Composer Packages
+#
+PATH="/Users/as/.composer/vendor/bin:${PATH}"
+export PATH
+
+# Path for User's Ruby gems
+#
+PATH="/Users/as/.gem/ruby/2.6.0/bin:${PATH}"
+export PATH
+
+# Pyenv
+#eval "$(pyenv init --path)"
+
+# virtuanlenvwrapper
+#export WORKON_HOME=$HOME/.virtualenvs
+#export VIRTUALENVWRAPPER_PYTHON=$HOME/.pyenv/shims/python
+#export VIRTUALENVWRAPPER_VIRTUALENV=$HOME/.pyenv/shims/virtualenv
+#source $HOME/.pyenv/shims/virtualenvwrapper.sh
+
+# pyenv-virtualenvwrapper
+export PYENV_VIRTUALENVWRAPPER_PREFER_PYVENV="true"
+
+# Go
+PATH="${HOME}/go/bin:${PATH}"
+export PATH
+
+# 1password ssh agent
+#export SSH_AUTH_SOCK=$HOME/.1password/agent.sock
+
+# Added by OrbStack: command-line tools and integration
+#source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+
+# export nvim as my editor
+export EDITOR=nvim
+
+# Aliases defined by me
+
