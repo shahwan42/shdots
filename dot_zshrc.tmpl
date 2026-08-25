@@ -1,0 +1,70 @@
+# Interactive Zsh configuration managed by chezmoi.
+
+# History
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=50000
+SAVEHIST=10000
+
+setopt extended_history
+setopt hist_expire_dups_first
+setopt hist_ignore_dups
+setopt hist_ignore_space
+setopt hist_verify
+setopt share_history
+
+# Completion. Homebrew's extra completion functions must be added before the
+# single compinit call.
+if [[ -n ${HOMEBREW_PREFIX:-} ]]; then
+  [[ -d "$HOMEBREW_PREFIX/share/zsh-completions" ]] && \
+    fpath=("$HOMEBREW_PREFIX/share/zsh-completions" $fpath)
+  [[ -d "$HOMEBREW_PREFIX/share/zsh/site-functions" ]] && \
+    fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
+fi
+
+autoload -Uz compinit
+compinit
+
+# Git aliases retained from observed use of the Oh My Zsh git plugin.
+alias g='git'
+alias ga='git add'
+alias gc='git commit -v'
+alias gco='git checkout'
+alias gcb='git checkout -b'
+alias gd='git diff'
+alias gl='git pull'
+alias glo='git log --oneline --decorate'
+alias gp='git push'
+alias gst='git status'
+alias gcp='git cherry-pick'
+alias gbd='git branch -d'
+alias gbD='git branch -D'
+alias gts='git tag -s'
+alias gsts='git stash show --text'
+
+# Personal aliases.
+alias n='nvim'
+alias mp='multipass'
+(( $+commands[eza] )) && alias ls='eza --color=always --icons=always'
+
+# Interactive tools. Each guard keeps the same config portable to minimal VMs.
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
+if (( $+commands[fzf] )) && [[ -t 0 && -t 1 ]]; then
+  source <(fzf --zsh)
+fi
+(( $+commands[mise] )) && eval "$(mise activate zsh)"
+if (( $+commands[starship] )) && [[ ${TERM:-dumb} != dumb ]]; then
+  eval "$(starship init zsh)"
+fi
+
+# mise can restore PATH entries inherited by its parent shell. Normalize once
+# more after activation while migrating away from the retired installer.
+path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
+typeset -U path PATH
+
+# UI plugins. Syntax highlighting must remain the final sourced plugin.
+if [[ -n ${HOMEBREW_PREFIX:-} ]]; then
+  [[ -r "$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
+    source "$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  [[ -r "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
+    source "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi

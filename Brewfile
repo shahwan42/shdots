@@ -185,6 +185,12 @@ brew "wget"
 brew "xonsh"
 # General-purpose lossless data-compression library
 brew "zlib"
+# Fish-like autosuggestions for Zsh
+brew "zsh-autosuggestions"
+# Additional completion definitions for Zsh
+brew "zsh-completions"
+# Fish-like syntax highlighting for Zsh
+brew "zsh-syntax-highlighting"
 # Shell extension to navigate your filesystem faster
 brew "zoxide"
 # Kubernetes CLI To Manage Your Clusters In Style!

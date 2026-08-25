@@ -1,0 +1,23 @@
+# Login-shell environment managed by chezmoi.
+
+{{ if eq .kind "mac" -}}
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+{{ end }}
+
+export EDITOR=nvim
+export VISUAL=nvim
+
+if [[ -d "$HOME/.local/bin" ]]; then
+  path=("$HOME/.local/bin" $path)
+fi
+# Remove the path inherited from the retired SnowflakeCLI.app installer.
+path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
+typeset -U path PATH
+
+{{ if eq .kind "mac" -}}
+if [[ -d /Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home ]]; then
+  export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home
+fi
+{{ end -}}
