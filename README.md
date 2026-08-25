@@ -25,6 +25,11 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42
 After apply, open a fresh login shell. On a Mac, run `brew bundle --file=~/Brewfile`
 once for the native/GUI packages that stay outside mise.
 
+> **`GITHUB_TOKEN`**: mise's `github:`/`ubi:` backends call the GitHub API, which is
+> rate-limited to 60/hr unauthenticated — a full `mise install` will 403 partway.
+> Export `GITHUB_TOKEN` (a read-scoped PAT, e.g. from 1Password) before `mise install`
+> on work machines. The `aqua:`/`core:`/`pipx:` tools install fine without it.
+
 ## How installs are split
 
 - **mise** (`~/.config/mise/config.toml`) — the cross-platform CLI toolchain, shared

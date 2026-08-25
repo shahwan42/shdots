@@ -43,7 +43,9 @@ deno = "latest"
 "aqua:jesseduffield/lazydocker" = "latest"
 "github:yt-dlp/yt-dlp" = "latest"
 "github:AlexsJones/llmfit" = "latest"
-"npm:@mermaid-js/mermaid-cli" = "latest"
+# mermaid-cli stays on Homebrew (Mac): its npm tree tripped mise's supply-chain
+# trust policy (cytoscape lost trusted-publisher evidence), and mmdc is only used
+# by the diagram-validation workflow on the Mac. Do not add it here without review.
 "pipx:commitizen" = "latest"
 "pipx:mycli" = "latest"
 "pipx:pgcli" = "latest"
