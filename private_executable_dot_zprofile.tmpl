@@ -1,0 +1,30 @@
+#source ~/.profile
+{{ if eq .kind "mac" }}eval "$(/opt/homebrew/bin/brew shellenv)"
+{{ end }}
+# Path for User's Ruby gems
+#
+#PATH="{{ .chezmoi.homeDir }}/.gem/ruby/2.6.0/bin:${PATH}"
+#export PATH
+
+# 1password ssh agent
+#export SSH_AUTH_SOCK=$HOME/.1password/agent.sock
+
+# Added by OrbStack: command-line tools and integration
+#source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+
+# export nvim as my editor
+export EDITOR=nvim
+
+# Aliases defined by me
+
+
+# ngrok completions
+#f command -v ngrok &>/dev/null; then
+#   eval "$(ngrok completion)"
+#fi
+
+
+
+# added by Snowflake SnowflakeCLI installer v1.0
+{{ if eq .kind "mac" }}export PATH=/Applications/SnowflakeCLI.app/Contents/MacOS/:$PATH
+{{ end -}}

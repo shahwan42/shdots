@@ -1,0 +1,26 @@
+[user]
+{{ if eq .role "work" }}	email = a.shahwan@foodics.com
+{{ else }}	email = a.shahwan42@gmail.com
+{{ end }}	name = Ahmed Shahwan
+{{ if eq .role "personal" }}	signingkey = 5E6FDBD5F9D11C70
+{{ end }}[core]
+	editor = nvim
+	excludesfile = {{ .chezmoi.homeDir }}/.gitignore_global
+[pull]
+	rebase = false
+[push]
+	autoSetupRemote = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+{{ if eq .kind "mac" }}[difftool "sourcetree"]
+	cmd = opendiff \"$LOCAL\" \"$REMOTE\"
+	path = 
+[mergetool "sourcetree"]
+	cmd = {{ .chezmoi.homeDir }}/Applications/Sourcetree.app/Contents/Resources/opendiff-w.sh \"$LOCAL\" \"$REMOTE\" -ancestor \"$BASE\" -merge \"$MERGED\"
+	trustExitCode = true
+{{ end }}{{ if eq .role "personal" }}[commit]
+	gpgsign = true
+{{ end -}}

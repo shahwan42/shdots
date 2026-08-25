@@ -1,0 +1,51 @@
+# vim: filetype=sshconfig
+
+{{ if eq .kind "mac" -}}
+# Include configurations from other files.
+Include ~/.colima/ssh_config
+{{ end -}}
+Include ~/.ssh/config.d/*
+# -- Orbstack config
+# Include ~/.orbstack/ssh/config
+
+
+# Keep SSH connections alive by sending keepalive messages every 60 seconds.
+# Try 3 times.
+Host *
+	ServerAliveInterval 60
+	ServerAliveCountMax 3
+
+
+# ------------------------------------------------------------
+# Example configurations for some cases.
+
+#Host github.com
+#	HostName github.com
+#	User git
+#	IdentityFile ~/.ssh/id_foodics
+#	IdentitiesOnly yes
+#
+#Host me.github.com
+#	HostName github.com
+#	User git
+#	IdentityFile ~/.ssh/id_ed25519
+#	IdentitiesOnly yes
+#
+#Host web-tunnel
+#	HostName 192.168.0.57
+#	User root
+#	Port 2222
+#	LocalForward 8888 localhost:80
+#	SessionType none
+#
+#Host proxy
+#	Hostname 193.122.83.23
+#	User ubuntu
+#	IdentityFile ~/.ssh/id_foodics
+#	DynamicForward 1080
+#
+
+{{ if eq .kind "mac" -}}
+Host *
+	IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+{{ end -}}
