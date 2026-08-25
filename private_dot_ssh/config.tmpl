@@ -9,6 +9,11 @@ Include ~/.ssh/config.d/*
 # Include ~/.orbstack/ssh/config
 
 
+# Ghostty sets TERM=xterm-ghostty, which most remote hosts lack terminfo for
+# (garbled ncurses apps, "terminal is not fully functional"). Send a safe TERM.
+Host fdx-dev
+	SetEnv TERM=xterm-256color
+
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
 Host *
