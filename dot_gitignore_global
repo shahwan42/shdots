@@ -1,0 +1,33 @@
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
+
+backups/
+
+# Logs and temporary files
+*.log
+temp/
+
+# local
+local/
+local_testing/
+modular_monolith_plan/
+temporary_artifacts/
+
+# local claude settings
+settings.local.json
+.claude/settings.json
+.claude/claude-only/
+.claude/hooks/
+.ai/rules/
+
+
+.sonarlint/
+
+# envrc for ghcli to determine the origin host
+.envrc
+
