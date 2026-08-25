@@ -38,7 +38,8 @@ zellij = "latest"
 cmake = "latest"
 deno = "latest"
 "aqua:kovetskiy/mark" = "latest"
-"aqua:linebender/resvg" = "latest"
+{{ if eq .kind "mac" }}"aqua:linebender/resvg" = "latest"  # no linux/arm64 prebuilt
+{{ end -}}
 "aqua:SonarSource/sonar-scanner-cli" = "latest"
 "aqua:jesseduffield/lazydocker" = "latest"
 "github:yt-dlp/yt-dlp" = "latest"
