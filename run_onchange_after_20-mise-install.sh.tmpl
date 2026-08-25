@@ -2,10 +2,15 @@
 # Re-run whenever the managed mise config changes, so the toolchain is
 # self-provisioning. Hash below forces re-run on config edits.
 # mise config hash: {{ include "dot_config/mise/config.toml.tmpl" | sha256sum }}
-set -eu
+#
+# Non-fatal on purpose: github:/ubi: backends need GITHUB_TOKEN to avoid the
+# 60/hr unauthenticated API limit. Without it some tools won't resolve — that
+# must not fail `chezmoi apply`. Export GITHUB_TOKEN and re-run to finish.
+set -u
 
 MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
 if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
-  "$MISE" install -y || mise install -y
+  "$MISE" install -y || echo "mise install: some tools did not install (set GITHUB_TOKEN and re-run 'mise install')."
 fi
+exit 0
