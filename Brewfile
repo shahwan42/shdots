@@ -256,4 +256,3 @@ cask "vlc"
 # OpenJDK distribution from Azul
 cask "zulu@17"
 uv "browser-harness"
-npm "corepack"
