@@ -15,19 +15,26 @@ APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 run() { if [ "$APPLY" -eq 1 ]; then echo "+ $*"; "$@"; else echo "would: $*"; fi; }
 
 # Formulae/packages moved to mise — remove the Homebrew/apt copies.
+# NOTE: btop stays native on the Mac (mise's aqua btop is linux-only), so it is
+# deliberately absent from this list.
 BREW_REMOVE=(
   awscli bat eza fd fzf gh git-delta gitleaks jq lazygit neovim ripgrep starship
   zoxide zsh-autosuggestions zsh-completions zsh-syntax-highlighting
-  actionlint alexsjones/llmfit/llmfit btop cmake commitizen csvlens deno direnv
+  actionlint alexsjones/llmfit/llmfit cmake commitizen csvlens deno direnv
   glow harlequin herdr jesseduffield/lazydocker/lazydocker jira-cli lazysql mark
-  mermaid-cli mycli node node@22 fnm pgcli pygments ranger resvg sonar-scanner
+  mycli node node@22 fnm pgcli pygments ranger sonar-scanner
   tealdeer uv watchexec yazi yt-dlp zellij
   chezmoi          # now bootstrapped via curl
   colima           # retiring (user decision 2026-08-25)
   tailscale        # provided by the tailscale-app cask
 )
-APT_REMOVE=(fd-find zoxide zsh-autosuggestions zsh-syntax-highlighting)
-BIN_SYMLINKS=("$HOME/.local/bin/fd" "$HOME/.local/bin/starship")
+# fdx-dev (Ubuntu) residuals from the dev-env setup, now owned by mise/externals.
+APT_REMOVE=(fd-find ripgrep fzf zoxide zsh-autosuggestions zsh-syntax-highlighting)
+BIN_SYMLINKS=(
+  "$HOME/.local/bin/fd"        # symlink to fdfind
+  "$HOME/.local/bin/starship"  # curl-installed
+  "$HOME/.local/bin/herdr"     # curl-installed (now mise)
+)
 
 echo "=== cleanup-after-unification ($([ "$APPLY" -eq 1 ] && echo APPLY || echo DRY-RUN)) ==="
 
@@ -52,6 +59,10 @@ case "$(uname -s)" in
     for l in "${BIN_SYMLINKS[@]}"; do
       [ -e "$l" ] && run rm -f "$l"
     done
+    # The manually-installed Neovim (mise now provides neovim).
+    [ -L /usr/local/bin/nvim ] && run sudo rm -f /usr/local/bin/nvim
+    [ -d /opt/nvim-linux-arm64 ] && run sudo rm -rf /opt/nvim-linux-arm64
+    echo "--- kept on the VM: php8.3* apt modules (herdr/native PHP), docker, zsh."
     ;;
 esac
 

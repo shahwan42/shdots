@@ -30,7 +30,8 @@ gitleaks = "latest"
 actionlint = "latest"
 direnv = "latest"
 glow = "latest"
-btop = "latest"
+{{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
+{{ end -}}
 tealdeer = "latest"
 watchexec = "latest"
 yazi = "latest"
@@ -53,7 +54,7 @@ deno = "latest"
 "pipx:harlequin" = "latest"
 "pipx:Pygments" = "latest"
 "pipx:ranger-fm" = "latest"
-"ubi:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
-"ubi:jorgerojas26/lazysql" = "latest"
-"ubi:YS-L/csvlens" = "latest"
+"github:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
+"github:jorgerojas26/lazysql" = "latest"
+"github:YS-L/csvlens" = "latest"
 {{ end -}}
