@@ -1,0 +1,59 @@
+# mise — the single cross-platform toolchain, chezmoi-managed and shared across
+# all machine classes. Prefer aqua:/ubi:/github: backends (prebuilt binaries, no
+# compiler). Machine-specific runtime pins, if ever needed, go in an unmanaged
+# ~/.config/mise/conf.d/*.toml drop-in, not here.
+
+[tools]
+# --- shared everywhere (mac + vm, personal + work) ---
+node = "22"
+pnpm = "latest"
+yarn = "latest"
+herdr = "latest"
+eza = "latest"
+bat = "latest"
+fd = "latest"
+ripgrep = "latest"
+fzf = "latest"
+zoxide = "latest"
+starship = "latest"
+jq = "latest"
+lazygit = "latest"
+neovim = "latest"
+"aqua:dandavison/delta" = "latest"
+"aqua:cli/cli" = "latest"
+uv = "latest"
+age = "latest"
+{{ if eq .role "work" }}
+# --- work only ---
+awscli = "latest"
+gitleaks = "latest"
+actionlint = "latest"
+direnv = "latest"
+glow = "latest"
+btop = "latest"
+tealdeer = "latest"
+watchexec = "latest"
+yazi = "latest"
+zellij = "latest"
+cmake = "latest"
+deno = "latest"
+"aqua:kovetskiy/mark" = "latest"
+{{ if eq .kind "mac" }}"aqua:linebender/resvg" = "latest"  # no linux/arm64 prebuilt
+{{ end -}}
+"aqua:SonarSource/sonar-scanner-cli" = "latest"
+"aqua:jesseduffield/lazydocker" = "latest"
+"github:yt-dlp/yt-dlp" = "latest"
+"github:AlexsJones/llmfit" = "latest"
+# mermaid-cli stays on Homebrew (Mac): its npm tree tripped mise's supply-chain
+# trust policy (cytoscape lost trusted-publisher evidence), and mmdc is only used
+# by the diagram-validation workflow on the Mac. Do not add it here without review.
+"pipx:commitizen" = "latest"
+"pipx:mycli" = "latest"
+"pipx:pgcli" = "latest"
+"pipx:harlequin" = "latest"
+"pipx:Pygments" = "latest"
+"pipx:ranger-fm" = "latest"
+"ubi:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
+"ubi:jorgerojas26/lazysql" = "latest"
+"ubi:YS-L/csvlens" = "latest"
+{{ end -}}

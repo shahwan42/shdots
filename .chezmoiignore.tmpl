@@ -1,6 +1,7 @@
 # Repository-only assets (never applied to $HOME).
 provision
 AGENTS.md
+README.md
 
 # Secrets and host-generated SSH state are deliberately unmanaged.
 .npmrc
@@ -20,8 +21,7 @@ Brewfile
 Library
 {{ end -}}
 
-{{ if eq .kind "vm" -}}
-# mise global tool selection is machine-specific on VMs (node/php/eza installed
-# via mise here vs. Homebrew on Macs); let `mise use` manage it, not chezmoi.
-.config/mise/config.toml
+{{ if ne .role "work" -}}
+# Work SSH hosts are age-encrypted and only decryptable/relevant on work machines.
+.ssh/config.d/foodics
 {{ end -}}

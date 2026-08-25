@@ -1,33 +1,35 @@
-# OS specific
+# Global gitignore — shared across all machines (chezmoi-managed).
+# Referenced by ~/.gitconfig core.excludesfile.
+
+# macOS
 .DS_Store
-Thumbs.db
+.AppleDouble
+.LSOverride
+._*
 
-# IDE specific
-.vscode/
+# Linux
+*~
+.directory
+.Trash-*
+
+# Editors / IDEs
 .idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-*
+.nvim.lua
+.exrc
 
-backups/
-
-# Logs and temporary files
+# Tooling / env
+.direnv/
+.env.local
 *.log
-temp/
+.mise.local.toml
 
-# local
-local/
-local_testing/
-modular_monolith_plan/
-temporary_artifacts/
-
-# local claude settings
-settings.local.json
-.claude/settings.json
-.claude/claude-only/
-.claude/hooks/
-.ai/rules/
-
-
-.sonarlint/
-
-# envrc for ghcli to determine the origin host
-.envrc
-
+# Language / build cruft that should never be committed globally
+.venv/
+__pycache__/
+node_modules/
+.pytest_cache/
+.ruff_cache/

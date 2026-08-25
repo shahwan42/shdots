@@ -1,5 +1,0 @@
-[tools]
-herdr = "latest"
-node = "22"
-pnpm = "11"
-yarn = "latest"

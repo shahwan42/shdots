@@ -1,35 +1,21 @@
-# Intentional top-level command-line tools. Homebrew manages their dependencies.
-brew "awscli"
-brew "bat"
-brew "chezmoi"
-brew "coreutils"
-brew "eza"
-brew "fd"
-brew "ffmpeg"
-brew "fzf"
-brew "gh"
-brew "git-delta"
-brew "gitleaks"
+# Homebrew now holds ONLY what mise/chezmoi shouldn't: behavior-sensitive native
+# libraries, system services, and GUI apps. The cross-platform CLI toolchain
+# lives in ~/.config/mise/config.toml (shared). chezmoi and mise are installed
+# via their curl bootstrappers (see README), not here.
+
+# --- behavior-sensitive natives (shared across Macs) ---
+brew "coreutils"        # GNU coreutils; mise only offers the Rust uutils rewrite
+brew "ffmpeg"           # heavy codec/delegate chain — leave to the OS pkg mgr
+brew "git"
 brew "gnupg"
-brew "jq"
-brew "lazygit"
 brew "lsof"
-brew "neovim"
 brew "pinentry-mac"
 brew "qemu"
-brew "ripgrep"
 brew "sevenzip"
-brew "starship"
 brew "tree"
 brew "wget"
-brew "zoxide"
 
-# Zsh completions and interactive UI plugins.
-brew "zsh-autosuggestions"
-brew "zsh-completions"
-brew "zsh-syntax-highlighting"
-
-# Intentional macOS applications and command-line casks.
+# --- GUI apps / casks (shared across Macs) ---
 cask "1password-cli"
 cask "alt-tab"
 cask "codex"
@@ -41,66 +27,30 @@ cask "tailscale-app"
 cask "vlc"
 cask "zulu@17"
 
-# Python tool used by the managed browser-testing workflow.
-uv "browser-harness"
-
 {{- if eq .role "work" }}
-# --- Work Mac additions (reconciled from shahwans-foodics-macbook-1, 2026-08-25).
-# Under review before merge to main; personal Mac is unaffected while role=personal.
-brew "actionlint"
-brew "alexsjones/llmfit/llmfit", trusted: true
+
+# --- work Mac: native services, PHP/iOS stack, heavy libs, GUI apps ---
 brew "autossh"
-brew "btop"
 brew "chafa"
 brew "cliclick"
-brew "cmake"
 brew "cocoapods"
-brew "colima", restart_service: :changed
-brew "commitizen"
 brew "container-compose"
-brew "csvlens"
-brew "deno"
-brew "direnv"
 brew "dnsmasq"
-brew "docker-compose"
 brew "docker"
+brew "docker-compose"
 brew "ffmpeg-full"
-brew "fnm"
-brew "git"
-brew "glow"
 brew "gromgit/brewtils/taproom", trusted: true
-brew "harlequin"
-brew "herdr"
 brew "imagemagick-full", link: true
-brew "jesseduffield/lazydocker/lazydocker"
-brew "jira-cli"
-brew "lazysql"
 brew "leaf-markdown-viewer"
-brew "mark"
-brew "mermaid-cli"
+brew "mermaid-cli"     # kept native: mise's npm trust policy flags its dep tree
 brew "mole"
-brew "mycli"
 brew "nginx"
-brew "node"
-brew "node@22"
 brew "pcre2"
-brew "pgcli"
 brew "php", link: false
 brew "php@8.3", link: true
 brew "poppler"
-brew "pygments"
-brew "ranger"
-brew "resvg"
 brew "ruby"
-brew "sonar-scanner"
-brew "tailscale"
-brew "tealdeer"
-brew "uv"
-brew "watchexec"
 brew "watchman"
-brew "yazi"
-brew "yt-dlp"
-brew "zellij"
 
 cask "1password"
 cask "appcleaner"
