@@ -23,6 +23,11 @@ neovim = "latest"
 "aqua:cli/cli" = "latest"
 uv = "latest"
 age = "latest"
+{{ if eq .kind "vm" }}
+# --- VM only: coding agents live in the dev box (Macs get them via cask/npm) ---
+"npm:@anthropic-ai/claude-code" = "latest"
+"npm:@openai/codex" = "latest"
+{{ end -}}
 {{ if eq .role "work" }}
 # --- work only ---
 awscli = "latest"

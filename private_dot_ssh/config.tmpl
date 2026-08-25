@@ -48,6 +48,10 @@ Host *
 #
 
 {{ if eq .kind "mac" -}}
-Host *
-	IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+# GitHub via on-disk key. The 1Password SSH agent is retired: it's gated by the
+# desktop app's GUI unlock, which breaks headless/SSH sessions.
+Host github.com github.foodics.com
+	IdentityAgent none
+	IdentityFile ~/.ssh/id_ed25519
+	IdentitiesOnly yes
 {{ end -}}
