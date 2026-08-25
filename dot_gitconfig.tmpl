@@ -2,10 +2,12 @@
 {{ if eq .role "work" }}	email = a.shahwan@foodics.com
 {{ else }}	email = a.shahwan42@gmail.com
 {{ end }}	name = Ahmed Shahwan
-{{ if eq .role "personal" }}	signingkey = 5E6FDBD5F9D11C70
+{{ if eq .kind "mac" }}	signingkey = 5E6FDBD5F9D11C70
 {{ end }}[core]
 	editor = nvim
 	excludesfile = {{ .chezmoi.homeDir }}/.gitignore_global
+[init]
+	defaultBranch = main
 [pull]
 	rebase = false
 [push]
@@ -15,12 +17,30 @@
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
 	required = true
-{{ if eq .kind "mac" }}[difftool "sourcetree"]
+{{ if eq .kind "mac" }}[core]
+	pager = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	line-numbers = true
+	side-by-side = true
+	hyperlinks = true
+[merge]
+	conflictstyle = zdiff3
+[diff]
+	colorMoved = default
+{{ if eq .role "work" }}[alias]
+	dft = -c diff.external=difft diff
+{{ end }}
+[difftool "sourcetree"]
 	cmd = opendiff \"$LOCAL\" \"$REMOTE\"
 	path =
 [mergetool "sourcetree"]
 	cmd = {{ .chezmoi.homeDir }}/Applications/Sourcetree.app/Contents/Resources/opendiff-w.sh \"$LOCAL\" \"$REMOTE\" -ancestor \"$BASE\" -merge \"$MERGED\"
 	trustExitCode = true
-{{ end }}{{ if eq .role "personal" }}[commit]
+{{ end }}{{ if eq .kind "mac" }}[commit]
 	gpgsign = true
+[gpg]
+	format = openpgp
 {{ end -}}
