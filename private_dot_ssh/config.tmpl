@@ -1,5 +1,10 @@
 # vim: filetype=sshconfig
 
+# Skip options a platform doesn't know (e.g. UseKeychain is macOS-only) instead
+# of aborting the whole parse. Global, set before any Include.
+Host *
+	IgnoreUnknown UseKeychain
+
 # Include configurations from other files (work SSH hosts arrive here, decrypted).
 Include ~/.ssh/config.d/*
 # -- Orbstack config
