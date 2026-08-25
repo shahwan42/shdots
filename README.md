@@ -27,8 +27,73 @@ once for the native/GUI packages that stay outside mise.
 
 > **`GITHUB_TOKEN`**: mise's `github:`/`ubi:` backends call the GitHub API, which is
 > rate-limited to 60/hr unauthenticated — a full `mise install` will 403 partway.
-> Export `GITHUB_TOKEN` (a read-scoped PAT, e.g. from 1Password) before `mise install`
-> on work machines. The `aqua:`/`core:`/`pipx:` tools install fine without it.
+> Put a read-only PAT in the unmanaged **`~/.zshrc.local`** (where machine-local
+> secrets already live), which the shell sources:
+>
+> ```sh
+> export GITHUB_TOKEN="$(op read 'op://Private/GitHub PAT/token')"   # or a literal on the VM
+> ```
+>
+> `mise install` then picks it up from the environment. The `aqua:`/`core:`/`pipx:`
+> tools install fine without it.
+
+## Machine topology
+
+Every box is a first-class Tailscale node; the personal MacBook reaches the VM and the
+Host directly by tailnet name. Inside `fdx-dev`, the cashflow stack binds web ports to
+the tailnet but keeps datastores on loopback.
+
+```mermaid
+flowchart TB
+  personal["Personal MacBook<br/>role=personal · kind=mac"]
+
+  subgraph host["Work MacBook — the Host (role=work · kind=mac)"]
+    chrome["Chrome + browser-harness (CDP)"]
+    mp["Multipass CLI"]
+    colima["colima (stopped, preserved)"]
+  end
+
+  subgraph vm["fdx-dev — Ubuntu VM (role=work · kind=vm)"]
+    herdr["herdr sessions"]
+    misevm["mise toolchain"]
+    subgraph stack["cashflow — docker compose"]
+      web["web ports (tailnet-reachable)<br/>api 8080 · console 8081 · vite 15173"]
+      data["datastores (loopback-only, via ssh -L)<br/>mysql · redis · microcks"]
+    end
+  end
+
+  personal -->|tailscale ssh| vm
+  personal -->|"tailscale ssh · Screen Sharing"| host
+  personal -->|"browser → http://fdx-dev:8080"| web
+  mp -.->|launches / manages| vm
+  personal -.->|"ssh host browser-harness"| chrome
+```
+
+## How every machine gets provisioned
+
+One public repo, one `chezmoi apply`; the `role × kind` answers decide what each machine
+receives. The cross-platform CLI toolchain comes from mise (shared), Homebrew is trimmed
+to Mac-only natives and GUIs, and zsh plugins are pulled as chezmoi externals.
+
+```mermaid
+flowchart TB
+  bootstrap["Bootstrap (curl, no Homebrew)<br/>get.chezmoi.io → mise.run"]
+  repo["shdots — public GitHub repo"]
+  bootstrap --> repo
+  repo --> chezmoi{"chezmoi apply<br/>keyed by role × kind"}
+
+  chezmoi --> shared["Shared everywhere<br/>zsh · git · nvim · gitignore_global"]
+  chezmoi --> mac["kind=mac only<br/>Brewfile natives/GUI · GPG signing · Sourcetree"]
+  chezmoi --> work["role=work only<br/>work mise tools · AWS/JIRA env"]
+
+  chezmoi --> ext["zsh plugins<br/>.chezmoiexternal (git-repo)"]
+  chezmoi --> mise["mise install<br/>aqua · ubi · pipx · github backends"]
+  mise --> tools["one cross-platform toolchain<br/>Mac + VM, ~40 shared tools"]
+
+  age["age-encrypted work SSH hosts<br/>identity: ~/.config/chezmoi/key.txt"] --> work
+  secrets["Unmanaged secrets<br/>.npmrc · ssh keys · .zshrc.local"] -.->|never committed| repo
+  hook["gitleaks pre-commit hook<br/>wired on every machine"] -.->|guards| repo
+```
 
 ## How installs are split
 
@@ -40,7 +105,11 @@ once for the native/GUI packages that stay outside mise.
   the PHP/iOS stack. Not the general CLI toolchain.
 - **chezmoi externals** (`.chezmoiexternal.toml`) — zsh plugins, pulled from git into
   `~/.local/share/zsh/plugins` identically everywhere.
-- **herdr** — PHP/composer environment (kept off mise; native extension matrix).
+- **PHP / composer** — kept native (Homebrew `php@8.3` on Mac, apt php modules on the
+  VM), not routed through mise, so the extension matrix comes ready-built.
+
+[herdr](https://herdr.dev) — the terminal multiplexer — is just another shared mise
+tool (`aqua:herdrdev/herdr`), the same on Mac and VM.
 
 ## Secrets & the work SSH sync
 
