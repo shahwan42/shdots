@@ -44,6 +44,28 @@ alias gsts='git stash show --text'
 # Personal aliases.
 alias n='nvim'
 alias mp='multipass'
+{{ if eq .role "work" }}
+# Work aliases and environment.
+alias a='php artisan'
+alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
+export AWS_PROFILE=foodics_pay_export
+{{ if eq .kind "mac" -}}
+export JIRA_API_TOKEN="$(security find-generic-password -s jira-cli -a a.shahwan@foodics.com -w 2>/dev/null)"
+{{ end -}}
+{{ end }}
+# Fuzzy repo jumper.
+if (( $+commands[fzf] )) && (( $+commands[fd] )); then
+  cw() {
+    local repo
+    repo=$(fd -HI -t d '^\.git$' ~/Code ~/code --max-depth 4 2>/dev/null \
+          | sed 's|/\.git/$||' \
+          | grep -v '/\.claude/worktrees/' | sort -u \
+          | fzf --prompt='repo> ' --height=40% --reverse \
+                --preview 'git -C {} log --oneline -8 --color=always' \
+                --preview-window=right:50%) || return
+    cd "$repo"
+  }
+fi
 (( $+commands[eza] )) && alias ls='eza --color=always --icons=always'
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
@@ -68,3 +90,9 @@ if [[ -n ${HOMEBREW_PREFIX:-} ]]; then
   [[ -r "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
     source "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 fi
+
+# 1Password CLI completion.
+(( $+commands[op] )) && eval "$(op completion zsh)" && compdef _op op
+
+# Machine-local, unmanaged extras (secrets, one-off installs).
+[[ -r "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
