@@ -12,9 +12,11 @@ export VISUAL=nvim
 if [[ -d "$HOME/.local/bin" ]]; then
   path=("$HOME/.local/bin" $path)
 fi
+{{ if eq .role "work" -}}
 if [[ -d "$HOME/.composer/vendor/bin" ]]; then
   path=("$HOME/.composer/vendor/bin" $path)
 fi
+{{ end -}}
 # Remove the path inherited from the retired SnowflakeCLI.app installer.
 path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
 typeset -U path PATH

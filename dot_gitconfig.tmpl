@@ -30,8 +30,9 @@
 	conflictstyle = zdiff3
 [diff]
 	colorMoved = default
-[alias]
+{{ if eq .role "work" }}[alias]
 	dft = -c diff.external=difft diff
+{{ end }}
 [difftool "sourcetree"]
 	cmd = opendiff \"$LOCAL\" \"$REMOTE\"
 	path =

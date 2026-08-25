@@ -8,6 +8,7 @@ brew "fd"
 brew "ffmpeg"
 brew "fzf"
 brew "gh"
+brew "git-delta"
 brew "gitleaks"
 brew "gnupg"
 brew "jq"
@@ -43,7 +44,7 @@ cask "zulu@17"
 # Python tool used by the managed browser-testing workflow.
 uv "browser-harness"
 
-{{ if eq .role "work" }}
+{{- if eq .role "work" }}
 # --- Work Mac additions (reconciled from shahwans-foodics-macbook-1, 2026-08-25).
 # Under review before merge to main; personal Mac is unaffected while role=personal.
 brew "actionlint"
@@ -66,7 +67,6 @@ brew "docker-compose"
 brew "docker"
 brew "ffmpeg-full"
 brew "fnm"
-brew "git-delta"
 brew "git"
 brew "glow"
 brew "gromgit/brewtils/taproom", trusted: true
