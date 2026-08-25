@@ -19,9 +19,3 @@ Brewfile
 .config/aerospace
 Library
 {{ end -}}
-
-{{ if eq .kind "vm" -}}
-# mise global tool selection is machine-specific on VMs (node/php/eza installed
-# via mise here vs. Homebrew on Macs); let `mise use` manage it, not chezmoi.
-.config/mise/config.toml
-{{ end -}}

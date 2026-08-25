@@ -1,0 +1,11 @@
+#!/bin/sh
+# Wire the repo's gitleaks pre-commit hook on every machine (not just the one
+# that authored it). Without this a fresh clone commits to a public repo with
+# no secret gate.
+set -eu
+
+SRC="{{ .chezmoi.sourceDir }}"
+if [ -d "$SRC/.githooks" ]; then
+  git -C "$SRC" config core.hooksPath .githooks
+  echo "core.hooksPath set to .githooks in $SRC"
+fi

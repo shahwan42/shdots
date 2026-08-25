@@ -1,0 +1,11 @@
+#!/bin/sh
+# Re-run whenever the managed mise config changes, so the toolchain is
+# self-provisioning. Hash below forces re-run on config edits.
+# mise config hash: {{ include "dot_config/mise/config.toml.tmpl" | sha256sum }}
+set -eu
+
+MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
+if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
+  echo "mise install (from managed config)…"
+  "$MISE" install -y || mise install -y
+fi

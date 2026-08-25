@@ -1,18 +1,10 @@
 # vim: filetype=sshconfig
 
-{{ if eq .kind "mac" -}}
-# Include configurations from other files.
-Include ~/.colima/ssh_config
-{{ end -}}
+# Include configurations from other files (work SSH hosts arrive here, decrypted).
 Include ~/.ssh/config.d/*
 # -- Orbstack config
 # Include ~/.orbstack/ssh/config
 
-
-# Ghostty sets TERM=xterm-ghostty, which most remote hosts lack terminfo for
-# (garbled ncurses apps, "terminal is not fully functional"). Send a safe TERM.
-Host fdx-dev
-	SetEnv TERM=xterm-256color
 
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
@@ -37,14 +29,14 @@ Host *
 #	IdentitiesOnly yes
 #
 #Host web-tunnel
-#	HostName 192.168.0.57
+#	HostName 203.0.113.20
 #	User root
 #	Port 2222
 #	LocalForward 8888 localhost:80
 #	SessionType none
 #
 #Host proxy
-#	Hostname 193.122.83.23
+#	Hostname 203.0.113.10
 #	User ubuntu
 #	IdentityFile ~/.ssh/id_foodics
 #	DynamicForward 1080

@@ -12,13 +12,15 @@ setopt hist_ignore_space
 setopt hist_verify
 setopt share_history
 
-# Completion. Homebrew's extra completion functions must be added before the
-# single compinit call.
-if [[ -n ${HOMEBREW_PREFIX:-} ]]; then
-  [[ -d "$HOMEBREW_PREFIX/share/zsh-completions" ]] && \
-    fpath=("$HOMEBREW_PREFIX/share/zsh-completions" $fpath)
-  [[ -d "$HOMEBREW_PREFIX/share/zsh/site-functions" ]] && \
-    fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
+# zsh plugins are chezmoi-managed externals (same path on every machine).
+ZSH_PLUGIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
+
+# Completion. Add plugin completions and Homebrew's site-functions (if present)
+# to fpath before the single compinit call.
+[[ -d "$ZSH_PLUGIN_DIR/zsh-completions/src" ]] && \
+  fpath=("$ZSH_PLUGIN_DIR/zsh-completions/src" $fpath)
+if [[ -n ${HOMEBREW_PREFIX:-} && -d "$HOMEBREW_PREFIX/share/zsh/site-functions" ]]; then
+  fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
 fi
 
 autoload -Uz compinit
@@ -83,22 +85,12 @@ fi
 path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
 typeset -U path PATH
 
-# UI plugins. Portable across Homebrew (macOS) and apt (Linux) install paths.
-# Syntax highlighting must remain the final sourced plugin.
-_zsh_plugin_dirs=(
-  "${HOMEBREW_PREFIX:-/opt/homebrew}/share"
-  /usr/share
-  /usr/local/share
-)
-for _d in $_zsh_plugin_dirs; do
-  [[ -r "$_d/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
-    source "$_d/zsh-autosuggestions/zsh-autosuggestions.zsh" && break
-done
-for _d in $_zsh_plugin_dirs; do
-  [[ -r "$_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
-    source "$_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" && break
-done
-unset _d _zsh_plugin_dirs
+# UI plugins from the chezmoi-managed external dir. Syntax highlighting must
+# remain the final sourced plugin.
+[[ -r "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
+  source "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+[[ -r "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
+  source "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 
 # 1Password CLI installs its static `_op` completion into Homebrew's
 # site-functions directory, which compinit loaded above.
