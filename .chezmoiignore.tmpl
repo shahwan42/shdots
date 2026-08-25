@@ -19,3 +19,8 @@ Brewfile
 .config/aerospace
 Library
 {{ end -}}
+
+{{ if ne .role "work" -}}
+# Work SSH hosts are age-encrypted and only decryptable/relevant on work machines.
+.ssh/config.d/foodics
+{{ end -}}
