@@ -24,10 +24,12 @@ BREW_REMOVE=(
   glow harlequin herdr jesseduffield/lazydocker/lazydocker jira-cli lazysql mark
   mycli node node@22 fnm pgcli pygments ranger sonar-scanner
   tealdeer uv watchexec yazi yt-dlp zellij
-  chezmoi          # now bootstrapped via curl
   colima           # retiring (user decision 2026-08-25)
   tailscale        # provided by the tailscale-app cask
 )
+# NOT removed: chezmoi and mise. On an existing machine the brew copy may be the
+# ONLY chezmoi present — uninstalling it strands the machine. Fresh machines
+# bootstrap both via curl and never have a brew copy. Leave them be.
 # fdx-dev (Ubuntu) residuals from the dev-env setup, now owned by mise/externals.
 APT_REMOVE=(fd-find ripgrep fzf zoxide zsh-autosuggestions zsh-syntax-highlighting)
 BIN_SYMLINKS=(
