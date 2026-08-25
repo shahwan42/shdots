@@ -11,6 +11,10 @@ Include ~/.ssh/config.d/*
 # Include ~/.orbstack/ssh/config
 
 
+# Multipass dev VMs (tailnet names) — default user so `ssh fdx-dev` just works.
+Host fdx-dev
+	User ubuntu
+
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
 Host *

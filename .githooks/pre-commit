@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# gitleaks is mise-managed; make its shims visible in non-interactive shells.
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH"
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "gitleaks is required; install it before committing" >&2
   exit 1
