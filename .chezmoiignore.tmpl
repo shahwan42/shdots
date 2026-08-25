@@ -1,0 +1,20 @@
+# Repository-only provisioning assets.
+provision
+
+# Secrets and host-generated SSH state are deliberately unmanaged.
+.npmrc
+.ssh/id_*
+.ssh/known_hosts*
+
+# herdr runtime state is not reproducible configuration.
+.config/herdr/.plugins.lock
+.config/herdr/*.log
+.config/herdr/session.json
+.config/herdr/*.sock
+
+{{ if ne .kind "mac" -}}
+# macOS-only configuration.
+Brewfile
+.config/aerospace
+Library
+{{ end -}}

@@ -1,0 +1,5 @@
+{{- $role := promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
+{{- $kind := promptChoiceOnce . "kind" "Machine kind" (list "mac" "vm") -}}
+[data]
+role = {{ $role | quote }}
+kind = {{ $kind | quote }}
