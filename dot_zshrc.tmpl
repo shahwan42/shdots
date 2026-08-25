@@ -83,13 +83,22 @@ fi
 path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
 typeset -U path PATH
 
-# UI plugins. Syntax highlighting must remain the final sourced plugin.
-if [[ -n ${HOMEBREW_PREFIX:-} ]]; then
-  [[ -r "$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
-    source "$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-  [[ -r "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
-    source "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-fi
+# UI plugins. Portable across Homebrew (macOS) and apt (Linux) install paths.
+# Syntax highlighting must remain the final sourced plugin.
+_zsh_plugin_dirs=(
+  "${HOMEBREW_PREFIX:-/opt/homebrew}/share"
+  /usr/share
+  /usr/local/share
+)
+for _d in $_zsh_plugin_dirs; do
+  [[ -r "$_d/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
+    source "$_d/zsh-autosuggestions/zsh-autosuggestions.zsh" && break
+done
+for _d in $_zsh_plugin_dirs; do
+  [[ -r "$_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
+    source "$_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" && break
+done
+unset _d _zsh_plugin_dirs
 
 # 1Password CLI installs its static `_op` completion into Homebrew's
 # site-functions directory, which compinit loaded above.
