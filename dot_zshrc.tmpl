@@ -71,11 +71,13 @@ fi
 (( $+commands[eza] )) && alias ls='eza --color=always --icons=always'
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
+# mise first: the tools below must resolve to mise-managed versions, not
+# whatever stale OS-package copies are still on the base PATH.
+(( $+commands[mise] )) && eval "$(mise activate zsh)"
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 if (( $+commands[fzf] )) && [[ -t 0 && -t 1 ]]; then
   source <(fzf --zsh)
 fi
-(( $+commands[mise] )) && eval "$(mise activate zsh)"
 if (( $+commands[starship] )) && [[ ${TERM:-dumb} != dumb ]]; then
   eval "$(starship init zsh)"
 fi
