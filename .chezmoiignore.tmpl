@@ -23,6 +23,11 @@ Brewfile
 Library
 {{ end -}}
 
+{{ if ne .kind "vm" -}}
+# systemd user units are VM-only; macs schedule via launchd.
+.config/systemd
+{{ end -}}
+
 {{ if ne .role "work" -}}
 # Work SSH hosts are only relevant on work machines.
 # (chezmoiignore matches TARGET paths — the encrypted_/.age source decorations

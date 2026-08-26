@@ -115,6 +115,11 @@ typeset -U path PATH
 # `op run` work headless on every machine — no GUI unlock, no `op signin`.
 [[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
 
+# Auto-update marker: the chezmoi-autoupdate timer writes this only when it
+# could NOT safely fast-forward (divergence, local edits, failed apply). One
+# stat() — zero startup cost when the fleet is converged.
+[[ -f "$HOME/.cache/chezmoi-stale" ]] && cat "$HOME/.cache/chezmoi-stale" >&2
+
 # Machine-local, unmanaged extras (secrets, one-off installs).
 if [[ -r "$HOME/.zshrc.local" ]]; then
   source "$HOME/.zshrc.local"

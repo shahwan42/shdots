@@ -1,0 +1,6 @@
+[Unit]
+Description=chezmoi auto-update (safe fast-forward only)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/chezmoi-autoupdate

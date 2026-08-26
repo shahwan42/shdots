@@ -1,0 +1,47 @@
+#!/bin/sh
+# Keep the fleet converged without touching shell startup: run from launchd
+# (mac) / a systemd user timer (vm), auto-apply only when it is provably safe,
+# and otherwise leave a marker that zshrc surfaces as a one-line warning.
+#
+# Safe to auto-apply means: source clone has no local edits AND origin is a
+# strict fast-forward ahead. Anything else (divergence, dirty tree, failed
+# apply) writes ~/.cache/chezmoi-stale with the reason and leaves the human
+# in the loop. Never modifies a diverged clone.
+set -u
+
+MARKER="$HOME/.cache/chezmoi-stale"
+mkdir -p "$HOME/.cache"
+
+CZ=""
+for c in "$HOME/.local/bin/chezmoi" /opt/homebrew/bin/chezmoi /usr/local/bin/chezmoi; do
+  [ -x "$c" ] && CZ="$c" && break
+done
+command -v git >/dev/null 2>&1 || exit 0
+[ -n "$CZ" ] || exit 0
+
+SRC="$("$CZ" source-path 2>/dev/null)" || exit 0
+[ -d "$SRC/.git" ] || exit 0
+
+warn() { printf '%s\n' "$1" > "$MARKER"; exit 0; }
+
+git -C "$SRC" fetch -q origin || warn "chezmoi: could not fetch origin (offline?) — run 'chezmoi update' manually"
+
+UPSTREAM="$(git -C "$SRC" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo origin/main)"
+BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null || echo 0)"
+
+if [ "$BEHIND" -eq 0 ]; then
+  rm -f "$MARKER"
+  exit 0
+fi
+if [ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]; then
+  warn "chezmoi: source repo has local edits and is $BEHIND commit(s) behind $UPSTREAM — reconcile, then 'chezmoi update'"
+fi
+if ! git -C "$SRC" merge-base --is-ancestor HEAD "$UPSTREAM" 2>/dev/null; then
+  warn "chezmoi: source repo has diverged from $UPSTREAM — reconcile, then 'chezmoi update'"
+fi
+
+if "$CZ" update --no-tty >/dev/null 2>&1; then
+  rm -f "$MARKER"
+else
+  warn "chezmoi: automatic 'chezmoi update' failed — run it manually to see why"
+fi
