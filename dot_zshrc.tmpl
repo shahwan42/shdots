@@ -72,7 +72,9 @@ fi
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
 # mise first: the tools below must resolve to mise-managed versions, not
-# whatever stale OS-package copies are still on the base PATH.
+# whatever stale OS-package copies are still on the base PATH. Non-login shells
+# (et, some terminal emulators) skip zprofile, so put ~/.local/bin back ourselves.
+[[ -x $HOME/.local/bin/mise ]] && path=($HOME/.local/bin $path)
 (( $+commands[mise] )) && eval "$(mise activate zsh)"
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 if (( $+commands[fzf] )) && [[ -t 0 && -t 1 ]]; then
