@@ -15,6 +15,12 @@ Include ~/.ssh/config.d/*
 Host fdx-dev
 	User ubuntu
 
+# Work Mac (host of fdx-dev). Stable alias so tailnet node renames never bite —
+# uses the Tailscale IP directly (survives MagicDNS name churn).
+Host fdx-host
+	HostName 100.86.247.101
+	User as
+
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
 Host *
