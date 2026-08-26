@@ -1,0 +1,104 @@
+# Cloud-init for the dev VM (fdx-dev on the work Host; reuse verbatim for the
+# personal MacBook's VM — nothing in here is machine-specific; the identity is set
+# later by `tailscale up --hostname=<name>` and the multipass --name flag).
+#
+# Launch with:
+#   multipass launch 24.04 --name fdx-dev --cpus 6 --memory 10G --disk 160G \
+#     --cloud-init fdx-dev-cloud-init.yaml
+#
+# NOTE: `package_upgrade: true` means two launches weeks apart get different package
+# sets — "reproducible" here means same shape, not bit-identical.
+#
+# Deliberately NOT in this file (interactive or decision-gated):
+#   - `tailscale up --ssh --hostname=...`  (needs browser auth + admin approval)
+#   - `ufw enable`                          (enabled manually AFTER tailscale0 exists
+#                                            and after verifying the multipass NIC
+#                                            allow rule — see handover step 4)
+#   - herdr                                 (install path to be verified; stop-and-ask)
+#   - Neovim dotfiles                       (user-confirmed copy from Host)
+#   - PHP/Node versions via mise            (pinned from the repo's constraints after clone)
+#   - git/npm credentials                   (handover step 6.5)
+
+timezone: Asia/Riyadh
+
+# Direct SSH from the Host (ubuntu@<vm-ip>) — do not depend on `multipass exec`:
+# with Docker installed in the guest, the multipass client can pick the docker0
+# bridge IP (172.17.0.1) and fail with "No route to host". Field-tested 2026-08-25.
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKdvXIPdFlQHPsGTNhiZH8PfKIyOG71d6HLv+F+4FmLE
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - build-essential
+  - ufw
+  - chrony
+
+swap:
+  filename: /swapfile
+  size: 4G
+  maxsize: 4G
+
+apt:
+  sources:
+    docker:
+      source: "deb [signed-by=$KEY_FILE] https://download.docker.com/linux/ubuntu $RELEASE stable"
+      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
+write_files:
+  # Host sleep freezes the guest clock; on wake it can be behind by hours and
+  # timesyncd's backed-off polling leaves a long wrong-clock window (TLS/apt/token
+  # failures). chrony with unrestricted makestep fixes it promptly.
+  - path: /etc/chrony/conf.d/99-vm.conf
+    content: |
+      makestep 1.0 -1
+  # Security updates only is the Ubuntu default; never auto-reboot — a surprise
+  # reboot takes down the whole stack (see architecture doc, Day-2 operations).
+  - path: /etc/apt/apt.conf.d/51-no-auto-reboot
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "false";
+  # ufw does NOT filter Docker-published ports (they bypass INPUT via DOCKER chains).
+  # This unit drops new inbound connections to containers arriving on the multipass
+  # NAT NIC; tailscale0/lo/bridge traffic is untouched. Interface name is looked up
+  # at runtime rather than hardcoded.
+  - path: /etc/systemd/system/docker-user-fw.service
+    content: |
+      [Unit]
+      Description=Drop container-published ports on the multipass NAT interface
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'IF=$(ip -br link | awk "/^enp/{print \$1; exit}"); iptables -C DOCKER-USER -i $IF -m conntrack --ctstate NEW -j DROP 2>/dev/null || iptables -I DOCKER-USER -i $IF -m conntrack --ctstate NEW -j DROP'
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Docker Engine + Compose plugin (native, no colima on Linux)
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker ubuntu
+  - systemctl daemon-reload
+  - systemctl enable --now docker-user-fw.service
+  # Tailscale from its signed apt repo (no curl|sh); `tailscale up` stays manual
+  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+  - apt-get update && apt-get install -y tailscale
+  # mise for the default user (runtime versions pinned later from the repo)
+  - su - ubuntu -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh'
+  - su - ubuntu -c 'echo '\''eval "$(~/.local/bin/mise activate bash)"'\'' >> ~/.bashrc'
+  # ufw rules staged but NOT enabled (see header). The multipass NIC port-22 allow
+  # keeps `multipass shell/exec/stop` working after enable — losing it turns every
+  # `multipass stop` into a hard power-off.
+  - ufw default deny incoming
+  - ufw allow in on lo
+  - ufw allow in on tailscale0
+  - ufw allow 41641/udp comment 'tailscale direct (avoids DERP relay)'
+  - sh -c 'IF=$(ip -br link | awk "/^enp/{print \$1; exit}"); ufw allow in on $IF to any port 22 proto tcp comment "multipass control channel"'
+
+final_message: "cloud-init done. Manual next steps: tailscale up --ssh --hostname=<name>; tailscale set --auto-update; ufw enable (verify multipass shell still works!); herdr; credentials (step 6.5); mise install of PHP/Node per repo constraints."
