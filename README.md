@@ -111,6 +111,13 @@ flowchart TB
 [herdr](https://herdr.dev) — the terminal multiplexer — is just another shared mise
 tool (`aqua:herdrdev/herdr`), the same on Mac and VM.
 
+Remote shells use [Eternal Terminal](https://eternalterminal.dev) (`et fdx-host`,
+`et fdx-dev`): it authenticates over plain SSH (aliases and keys carry over), then
+survives sleep, IP changes, and outages on TCP :2022. Macs get it from the Brewfile
+(`brew services start mistertea/et/et` on machines that accept connections; the
+user-level service starts at login); the VM runs the `et` systemd service from
+`ppa:jgmath2000/et`. et keeps the connection alive; herdr keeps the sessions alive.
+
 ## Secrets & the work SSH sync
 
 Never committed: `~/.npmrc`, `~/.ssh/id_*`, `~/.zshrc.local` (machine-local exports),
