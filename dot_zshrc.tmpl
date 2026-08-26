@@ -12,10 +12,15 @@ setopt hist_ignore_space
 setopt hist_verify
 setopt share_history
 
-# mise first — everything below (aliases, completions, tool integrations) must
-# see the mise-managed tools on PATH. Non-login shells (et, some terminals)
-# skip zprofile, so put ~/.local/bin back ourselves.
-[[ -x $HOME/.local/bin/mise ]] && path=($HOME/.local/bin $path)
+# Shared environment first — non-login shells (et, some terminals) skip
+# zprofile, so re-source the same fragment it uses (idempotent: brew guard,
+# typeset -U). Restores brew/EDITOR/JAVA_HOME/composer in et sessions, and
+# makes the HOMEBREW_PREFIX fpath guard below work in every interactive mode.
+[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/env.zsh" ]] && \
+  source "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/env.zsh"
+
+# mise next — everything below (aliases, completions, tool integrations) must
+# see the mise-managed tools on PATH during this same sourcing pass.
 (( $+commands[mise] )) && eval "$(mise activate zsh)"
 
 # zsh plugins are chezmoi-managed externals (same path on every machine).
@@ -56,9 +61,13 @@ alias mp='multipass'
 # Work aliases and environment.
 alias a='php artisan'
 alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
-export AWS_PROFILE=foodics_pay_export
 {{ if eq .kind "mac" -}}
-export JIRA_API_TOKEN="$(security find-generic-password -s jira-cli -a a.shahwan@foodics.com -w 2>/dev/null)"
+# Export only on keychain success and non-empty: a failed security(1) call
+# (ssh/et sessions with no keychain) must not export an empty token, which
+# jira-cli would prefer over its own config and fail auth confusingly.
+_jt="$(security find-generic-password -s jira-cli -a a.shahwan@foodics.com -w 2>/dev/null)" \
+  && [[ -n $_jt ]] && export JIRA_API_TOKEN=$_jt
+unset _jt
 {{ end -}}
 {{ end }}
 # Fuzzy repo jumper.
@@ -86,9 +95,10 @@ if (( $+commands[starship] )) && [[ ${TERM:-dumb} != dumb ]]; then
   eval "$(starship init zsh)"
 fi
 
-# mise can restore PATH entries inherited by its parent shell. Normalize once
-# more after activation while migrating away from the retired installer.
-path=(${path:#/Applications/SnowflakeCLI.app/Contents/MacOS/})
+# mise can restore PATH entries inherited by its parent shell (__MISE_ORIG_PATH),
+# so this post-activation filter is the one place the retired SnowflakeCLI
+# installer's entry is scrubbed. Pattern match: tolerant of trailing slash.
+path=(${path:#/Applications/SnowflakeCLI.app/*})
 typeset -U path PATH
 
 # UI plugins from the chezmoi-managed external dir. Syntax highlighting must
