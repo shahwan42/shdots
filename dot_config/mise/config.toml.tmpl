@@ -26,6 +26,7 @@ age = "latest"
 # gitleaks everywhere: the pre-commit hook is wired on every machine class and
 # fails closed without it (darwin/linux arm64+amd64 prebuilts all exist).
 gitleaks = "latest"
+yazi = "latest"
 {{ if eq .kind "vm" }}
 # --- VM only: coding agents live in the dev box (Macs: codex via cask;
 # claude-code via its self-updating native installer, deliberately unmanaged) ---
@@ -45,7 +46,6 @@ glow = "latest"
 {{ end -}}
 tealdeer = "latest"
 watchexec = "latest"
-yazi = "latest"
 zellij = "latest"
 cmake = "latest"
 deno = "latest"
@@ -64,7 +64,6 @@ deno = "latest"
 "pipx:pgcli" = "latest"
 "pipx:harlequin" = "latest"
 "pipx:Pygments" = "latest"
-"pipx:ranger-fm" = "latest"
 "github:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
 "github:jorgerojas26/lazysql" = "latest"
 "github:YS-L/csvlens" = "latest"
