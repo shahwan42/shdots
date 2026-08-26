@@ -23,8 +23,12 @@ neovim = "latest"
 "aqua:cli/cli" = "latest"
 uv = "latest"
 age = "latest"
+# gitleaks everywhere: the pre-commit hook is wired on every machine class and
+# fails closed without it (darwin/linux arm64+amd64 prebuilts all exist).
+gitleaks = "latest"
 {{ if eq .kind "vm" }}
-# --- VM only: coding agents live in the dev box (Macs get them via cask/npm) ---
+# --- VM only: coding agents live in the dev box (Macs: codex via cask;
+# claude-code via its self-updating native installer, deliberately unmanaged) ---
 "npm:@anthropic-ai/claude-code" = "latest"
 "npm:@openai/codex" = "latest"
 # op CLI: Macs get it from the 1password-cli cask; VMs via the vfox plugin
@@ -34,7 +38,6 @@ age = "latest"
 {{ if eq .role "work" }}
 # --- work only ---
 awscli = "latest"
-gitleaks = "latest"
 actionlint = "latest"
 direnv = "latest"
 glow = "latest"

@@ -18,11 +18,16 @@ README.md
 # macOS-only configuration.
 Brewfile
 .config/aerospace
+.config/ghostty
+.config/flameshot
 Library
 {{ end -}}
 
 {{ if ne .role "work" -}}
 # Work SSH hosts are only relevant on work machines.
+# (chezmoiignore matches TARGET paths — the encrypted_/.age source decorations
+# are already stripped, so a foodics.age entry would never match.)
 .ssh/config.d/foodics
-.ssh/config.d/foodics.age
+# flameshot is installed by the work Brewfile only.
+.config/flameshot
 {{ end -}}
