@@ -13,4 +13,18 @@ if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
   "$MISE" install -y || echo "mise install: some tools did not install (set GITHUB_TOKEN and re-run 'mise install')."
 fi
+
+{{ if eq .kind "vm" -}}
+# mise's npm backend skips lifecycle scripts, so claude-code's postinstall
+# (which downloads the platform-native binary) never runs. Run it whenever the
+# installed version can't launch — recurs on every claude-code version bump.
+if command -v claude >/dev/null 2>&1 && ! claude --version >/dev/null 2>&1; then
+  pkg=$(find "$HOME/.local/share/mise/installs/npm-anthropic-ai-claude-code" \
+        -path '*node_modules/@anthropic-ai/claude-code/install.cjs' 2>/dev/null | sort | tail -1)
+  if [ -n "$pkg" ]; then
+    echo "claude-code: running skipped npm postinstall…"
+    (cd "$(dirname "$pkg")" && node install.cjs) || echo "claude-code postinstall failed; run manually: node $pkg"
+  fi
+fi
+{{ end -}}
 exit 0
