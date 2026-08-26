@@ -1,0 +1,5 @@
+# Login-shell pass over the shared environment. Runs after macOS path_helper
+# (/etc/zprofile), so these prepends land on top of its rebuilt PATH; ~/.zshrc
+# sources the same fragment so et/non-login shells get the identical set.
+[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/env.zsh" ]] && \
+  source "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/env.zsh"

@@ -1,0 +1,20 @@
+# Runs for EVERY zsh — including non-interactive `ssh host 'cmd'`, which is how
+# agents and scripts reach these machines and previously got a bare sshd PATH.
+# Keep this file tiny and subprocess-free: it also runs for every zsh script.
+#
+# mise guidance: `mise activate` for interactive shells (done in zshrc), shims
+# for non-interactive. Interactive shells re-prepend mise's real install dirs
+# via `mise activate`, so the shims entry is harmlessly shadowed there.
+# macOS path_helper (/etc/zprofile) runs after this in login shells and only
+# demotes these entries; ~/.zprofile and ~/.zshrc re-prepend afterwards, so
+# interactive PATH order is unchanged.
+[[ -d "$HOME/.local/share/mise/shims" ]] && path=("$HOME/.local/share/mise/shims" $path)
+[[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
+typeset -U path PATH
+
+# 1Password service account: `ssh host 'op read …'` must work headless — that
+# is this token's whole purpose, so it belongs in the every-shell file.
+[[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
+{{ if eq .role "work" }}
+export AWS_PROFILE=foodics_pay_export
+{{ end -}}

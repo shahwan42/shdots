@@ -2,7 +2,17 @@
 # Wire the repo's gitleaks pre-commit hook on every machine (not just the one
 # that authored it). Without this a fresh clone commits to a public repo with
 # no secret gate.
+#
+# run_once_ re-runs when its rendered contents change; the lookPath line below
+# re-renders when git appears or moves, so a machine bootstrapped before git
+# was installed gets the hook wired on the next apply instead of never.
+# git: {{ lookPath "git" }}
 set -eu
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git not found; skipping hooksPath (re-runs once git is installed)"
+  exit 0
+fi
 
 SRC="{{ .chezmoi.sourceDir }}"
 if [ -d "$SRC/.githooks" ]; then
