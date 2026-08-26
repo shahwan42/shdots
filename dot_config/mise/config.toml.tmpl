@@ -27,8 +27,9 @@ age = "latest"
 # --- VM only: coding agents live in the dev box (Macs get them via cask/npm) ---
 "npm:@anthropic-ai/claude-code" = "latest"
 "npm:@openai/codex" = "latest"
-# op CLI: Macs get it from the 1password-cli cask; VMs from aqua.
-"aqua:1password/cli" = { version = "latest", exe = "op" }
+# op CLI: Macs get it from the 1password-cli cask; VMs via the vfox plugin
+# (the aqua backend can't fetch it — op ships from 1Password's own CDN).
+"vfox:mise-plugins/vfox-1password" = "latest"
 {{ end -}}
 {{ if eq .role "work" }}
 # --- work only ---
