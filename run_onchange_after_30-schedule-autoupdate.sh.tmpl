@@ -1,0 +1,27 @@
+#!/bin/sh
+# (Re)wire the chezmoi auto-update schedule whenever its units change.
+# Non-fatal throughout: a scheduling hiccup must not fail `chezmoi apply`.
+#
+# plist hash: {{ include "Library/LaunchAgents/com.shahwan42.chezmoi-update.plist.tmpl" | sha256sum }}
+# units hash: {{ include "dot_config/systemd/user/chezmoi-update.service" | sha256sum }} {{ include "dot_config/systemd/user/chezmoi-update.timer" | sha256sum }}
+set -u
+
+{{ if eq .kind "mac" -}}
+PLIST="$HOME/Library/LaunchAgents/com.shahwan42.chezmoi-update.plist"
+if [ -f "$PLIST" ]; then
+  launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$PLIST" \
+    && echo "launchd: chezmoi-update agent loaded" \
+    || echo "launchd: could not load $PLIST (load it manually)"
+fi
+{{ else -}}
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl --user daemon-reload 2>/dev/null || true
+  systemctl --user enable --now chezmoi-update.timer 2>/dev/null \
+    && echo "systemd: chezmoi-update.timer enabled" \
+    || echo "systemd: could not enable chezmoi-update.timer (enable it manually)"
+  # Keep the user manager alive without an active session (ssh-only boxes).
+  loginctl enable-linger "$(id -un)" 2>/dev/null || true
+fi
+{{ end -}}
+exit 0
