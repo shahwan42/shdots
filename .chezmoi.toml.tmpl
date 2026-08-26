@@ -1,11 +1,12 @@
 {{- $role := promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
 {{- $kind := promptChoiceOnce . "kind" "Machine kind" (list "mac" "vm") -}}
-{{ if eq $role "work" -}}
+# Encryption on every machine class: the 1Password service-account token is a
+# shared capability. Provision ~/.config/chezmoi/key.txt once per machine
+# (out-of-band); role guards decide WHAT decrypts where, not WHO can.
 encryption = "age"
 [age]
     identity = {{ (joinPath .chezmoi.homeDir ".config/chezmoi/key.txt") | quote }}
     recipient = "age1ax3esnk3kmyaqaemwd4kxlzm265yc00stqqmp64mvqtexuqxvsks7ac5xe"
-{{ end -}}
 [data]
 role = {{ $role | quote }}
 kind = {{ $kind | quote }}

@@ -117,11 +117,19 @@ Never committed: `~/.npmrc`, `~/.ssh/id_*`, `~/.zshrc.local` (machine-local expo
 and per-host SSH config. A gitleaks pre-commit hook is wired on every machine by
 `run_once_after_10-configure-git-hooks.sh`.
 
-Work SSH hosts (bastion + internal staging) are **age-encrypted** and sync only to
-`role=work` machines. The decryption identity lives, unmanaged, at
-`~/.config/chezmoi/key.txt` — provision it once per work machine (copy from an existing
-work machine over the tailnet), then `chezmoi init` picks up the encryption config.
-Personal machines ignore the encrypted file entirely.
+Age encryption is enabled on **every** machine class. The decryption identity lives,
+unmanaged, at `~/.config/chezmoi/key.txt` — provision it once per machine (copy from an
+existing machine over the tailnet), then `chezmoi init` picks up the encryption config.
+Role guards decide *what* decrypts *where*:
+
+- Work SSH hosts (bastion + internal staging) — `role=work` only; personal machines
+  ignore the encrypted file entirely.
+- 1Password service-account token (`~/.config/op/env`) — all machines. Sourced by
+  `.zshrc`, it makes `op read op://dev-secrets/<item>/<field>` and
+  `op run --env-file … -- <cmd>` work headless (no GUI unlock, no `op signin`) — the
+  runtime-secrets layer for agents and scripts. The service account is read-only and
+  scoped to the `dev-secrets` vault; rotate/revoke it from the 1Password web console.
+  Macs get `op` from the `1password-cli` cask, VMs from mise (`aqua:1password/cli`).
 
 > This repo is **public**. Anything genuinely secret stays unmanaged or age-encrypted;
 > enable GitHub secret-scanning push protection as a backstop.

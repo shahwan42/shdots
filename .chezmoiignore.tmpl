@@ -22,9 +22,7 @@ Library
 {{ end -}}
 
 {{ if ne .role "work" -}}
-# Work SSH hosts are age-encrypted and only decryptable/relevant on work machines.
-# Non-work machines have no encryption configured, so chezmoi can't strip the .age
-# suffix and computes the target as `foodics.age` — ignore both names.
+# Work SSH hosts are only relevant on work machines.
 .ssh/config.d/foodics
 .ssh/config.d/foodics.age
 {{ end -}}
