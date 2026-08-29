@@ -26,6 +26,8 @@ Library
 {{ if ne .kind "vm" -}}
 # systemd user units are VM-only; macs schedule via launchd.
 .config/systemd
+# The mmdc wrapper works around Linux/arm64 browser gaps; Macs use the mise shim.
+.local/bin/mmdc
 {{ end -}}
 
 {{ if ne .role "work" -}}

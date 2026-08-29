@@ -36,6 +36,22 @@ packages:
   - build-essential
   - ufw
   - chrony
+  # Headless-chromium runtime libs. mermaid-cli (mmdc) renders diagrams through
+  # Playwright's arm64 chromium — Chrome for Testing has no linux-arm64 build —
+  # and that binary is dynamically linked against these. Without them mmdc fails
+  # at launch, not at install, which is a confusing way to find out.
+  - libatk1.0-0t64
+  - libatk-bridge2.0-0t64
+  - libcups2t64
+  - libasound2t64
+  - libgbm1
+  - libcairo2
+  - libpango-1.0-0
+  - libxcomposite1
+  - libxdamage1
+  - libxfixes3
+  - libxrandr2
+  - libatspi2.0-0t64
 
 swap:
   filename: /swapfile

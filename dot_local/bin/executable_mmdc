@@ -1,0 +1,38 @@
+#!/bin/sh
+# mmdc wrapper — VM only. It shadows mise's own `mmdc` shim because ~/.zshenv
+# puts ~/.local/bin ahead of the shim directory on PATH.
+#
+# Two Linux/arm64 facts force it to exist:
+#   1. Chrome for Testing publishes no linux-arm64 build, so puppeteer's bundled
+#      browser download cannot work here. Playwright does build an arm64
+#      chromium, so that stands in via PUPPETEER_EXECUTABLE_PATH.
+#   2. Ubuntu 24.04's AppArmor blocks the unprivileged user namespaces that
+#      chromium's sandbox needs, so the sandbox is disabled. That is scoped to
+#      this one renderer, reading local diagram files that are already on disk —
+#      it does not relax anything system-wide.
+#
+# The snap chromium in the base image is NOT usable: snap confinement denies
+# reads under dot-directories, and mermaid-cli loads its own index.html from
+# ~/.local/share/mise/installs/…
+set -eu
+
+shell=$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell \
+        2>/dev/null | sort -V | tail -1)
+if [ -z "$shell" ]; then
+  echo "mmdc: Playwright chromium is missing. Run: mise x node -- npx -y playwright install chromium" >&2
+  exit 1
+fi
+
+# Fixed path, not mktemp: this script exec's, so an EXIT trap would never fire.
+cfg="$HOME/.cache/mmdc-puppeteer.json"
+mkdir -p "$HOME/.cache"
+printf '{"args":["--no-sandbox"]}\n' >"$cfg"
+
+# Resolve the real binary rather than re-entering the shim, which PATH order
+# would bounce straight back to this wrapper.
+real=$(mise which mmdc) || {
+  echo "mmdc: mise cannot resolve mmdc — is npm:@mermaid-js/mermaid-cli installed?" >&2
+  exit 1
+}
+
+PUPPETEER_EXECUTABLE_PATH="$shell" exec "$real" -p "$cfg" "$@"

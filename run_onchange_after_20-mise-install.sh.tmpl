@@ -31,4 +31,38 @@ if [ -x "$HOME/.local/share/mise/shims/claude" ] && ! "$MISE" x -- claude --vers
   fi
 fi
 {{ end -}}
+{{ if eq .kind "mac" }}
+# mermaid-cli's browser. Same root cause as the claude-code block: the npm
+# backend skips lifecycle scripts, so puppeteer never downloads
+# chrome-headless-shell and mmdc dies at render time. Probe-and-repair — render
+# a throwaway diagram and, on failure, install exactly the build puppeteer named
+# in its own error, so this keeps working across mermaid-cli version bumps.
+if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
+  probe="$(mktemp -d)"
+  printf 'flowchart LR\n  A --> B\n' >"$probe/p.mmd"
+  if ! "$MISE" x -- mmdc -i "$probe/p.mmd" -o "$probe/p.svg" >"$probe/err" 2>&1; then
+    chs=$(sed -n 's/.*chrome-headless-shell (ver\. \([0-9.]*\)).*/\1/p' "$probe/err" | head -1)
+    if [ -n "$chs" ]; then
+      echo "mermaid-cli: installing chrome-headless-shell $chs…"
+      "$MISE" x node -- npx -y @puppeteer/browsers install "chrome-headless-shell@$chs" \
+        --path "$HOME/.cache/puppeteer" >/dev/null 2>&1 \
+        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers install chrome-headless-shell@$chs --path ~/.cache/puppeteer'."
+    fi
+  fi
+  rm -rf "$probe"
+fi
+{{ end -}}
+{{ if eq .kind "vm" }}
+# mermaid-cli's browser on Linux. Chrome for Testing ships no linux/arm64 build,
+# so puppeteer's own download can never satisfy this box — Playwright does build
+# arm64 chromium, and ~/.local/bin/mmdc points at it. The system libraries it
+# needs are installed by cloud-init (see provision/fdx-dev-cloud-init.yaml);
+# this script never sudo's.
+if [ -x "$HOME/.local/share/mise/shims/mmdc" ] && \
+   ! ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/ >/dev/null 2>&1; then
+  echo "mermaid-cli: installing Playwright chromium (arm64)…"
+  "$MISE" x node -- npx -y playwright@latest install chromium >/dev/null 2>&1 \
+    || echo "mermaid-cli: playwright chromium install failed; run 'mise x node -- npx -y playwright install chromium'."
+fi
+{{ end -}}
 exit 0
