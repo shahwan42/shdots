@@ -31,12 +31,25 @@ and is installed by the VM's cloud-init):
 
 ```sh
 # 1. chezmoi installs itself and applies this repo (prompts for role + kind)
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42/shdots
 
 # 2. mise is installed automatically by run_once_before_00-install-mise.sh
 #    (curl https://mise.run | sh) and the toolchain is provisioned by
 #    run_onchange_after_20-mise-install.sh (mise install).
 ```
+
+**Creating the box first, if it's a VM.** Dev VMs come from one cloud-init template plus a
+launcher, run on the Mac that will own the VM:
+
+```sh
+cd ~/.local/share/chezmoi/provision
+./launch-dev-vm.sh as-dev                              # personal VM: 6 cpu / 12G / 200G
+./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G    # work VM, as originally built
+```
+
+That handles everything unattended — Docker, Tailscale, Eternal Terminal, zsh, mise, staged
+ufw rules — and prints the interactive remainder (tailscale auth, age key, SSH key,
+`GITHUB_TOKEN`, then the two commands above). See `provision/README.md`.
 
 After apply, open a fresh login shell. On a Mac, install Homebrew first if the
 machine is truly fresh (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`),
@@ -70,34 +83,41 @@ zsh-plugin externals refresh at most every **168h**; force with
 
 ## Machine topology
 
-Every box is a first-class Tailscale node; the personal MacBook reaches the VM and the
-Host directly by tailnet name. Inside `fdx-dev`, the cashflow stack binds web ports to
-the tailnet but keeps datastores on loopback.
+Two Macs, each hosting one Multipass dev VM, all four first-class Tailscale nodes
+reaching each other by tailnet name. The VMs mirror each other in shape — same cloud-init,
+same mise toolchain — and differ only by `role`, which is what keeps work tooling and work
+SSH hosts off the personal box. Inside `fdx-dev`, the cashflow stack binds web ports to the
+tailnet but keeps datastores on loopback.
 
 ```mermaid
 flowchart TB
-  personal["Personal MacBook<br/>role=personal · kind=mac"]
-
-  subgraph host["Work MacBook — the Host (role=work · kind=mac)"]
-    chrome["Chrome + browser-harness (CDP)"]
-    mp["Multipass CLI"]
-    colima["colima (stopped, preserved)"]
-  end
-
-  subgraph vm["fdx-dev — Ubuntu VM (role=work · kind=vm)"]
-    herdr["herdr sessions"]
-    misevm["mise toolchain"]
-    subgraph stack["cashflow — docker compose"]
-      web["web ports (tailnet-reachable)<br/>api 8080 · console 8081 · vite 15173"]
-      data["datastores (loopback-only, via ssh -L)<br/>mysql · redis · microcks"]
+  subgraph ashost["as-host — personal MacBook (role=personal · kind=mac)"]
+    asmac["macOS desktop"]
+    asmp["Multipass CLI"]
+    subgraph asdev["as-dev — Ubuntu VM (role=personal · kind=vm)"]
+      astools["herdr sessions · mise toolchain"]
     end
   end
 
-  personal -->|tailscale ssh| vm
-  personal -->|"tailscale ssh · Screen Sharing"| host
-  personal -->|"browser → http://fdx-dev:8080"| web
-  mp -.->|launches / manages| vm
-  personal -.->|"ssh host browser-harness"| chrome
+  subgraph fdxhost["fdx-host — work MacBook (role=work · kind=mac)"]
+    fdxmac["macOS desktop"]
+    chrome["Chrome + browser-harness (CDP)"]
+    fdxmp["Multipass CLI"]
+    subgraph fdxdev["fdx-dev — Ubuntu VM (role=work · kind=vm)"]
+      fdxtools["herdr sessions · mise toolchain"]
+      subgraph stack["cashflow — docker compose"]
+        web["web ports (tailnet-reachable)<br/>api 8080 · console 8081 · vite 15173"]
+        data["datastores (loopback-only, via ssh -L)<br/>mysql · redis · microcks"]
+      end
+    end
+  end
+
+  asmp -.->|"launches / manages"| asdev
+  fdxmp -.->|"launches / manages"| fdxdev
+  asmac -->|"tailscale ssh · Screen Sharing"| fdxmac
+  asmac -->|"tailscale ssh"| fdxtools
+  asmac -->|"browser → http://fdx-dev:8080"| web
+  asmac -.->|"ssh fdx-host browser-harness"| chrome
 ```
 
 ## How every machine gets provisioned
@@ -146,8 +166,9 @@ Remote shells use [Eternal Terminal](https://eternalterminal.dev) (`et fdx-host`
 `et fdx-dev`): it authenticates over plain SSH (aliases and keys carry over), then
 survives sleep, IP changes, and outages on TCP :2022. Macs get it from the Brewfile
 (`brew services start mistertea/et/et` on machines that accept connections; the
-user-level service starts at login); the VM runs the `et` systemd service from
-`ppa:jgmath2000/et`. et keeps the connection alive; herdr keeps the sessions alive.
+user-level service starts at login); the VMs run the `et` systemd service from
+`ppa:jgmath2000/et`, installed by `provision/dev-vm-cloud-init.yaml.tmpl`. et keeps the
+connection alive; herdr keeps the sessions alive.
 
 ## Secrets & the work SSH sync
 
@@ -181,7 +202,7 @@ to mise. It is **dry-run by default** — review its output, then run with `--ap
 
 - **`chezmoi apply` fails at `.config/op/env` with an age error** — the identity
   `~/.config/chezmoi/key.txt` is missing. See Bootstrap step 0, then re-run
-  `chezmoi init --apply shahwan42`.
+  `chezmoi init --apply shahwan42/shdots`.
 - **`git commit` fails with a missing-key error** — commit signing is on
   everywhere and the per-class `~/.ssh/id_*` key is unmanaged; generate/copy it
   (Bootstrap step 0b).
@@ -198,5 +219,5 @@ to mise. It is **dry-run by default** — review its output, then run with `--ap
 - **`et fdx-*` / ssh aliases can't resolve** — tailnet names go stale when a
   node is re-registered; check `tailscale status`. Work hosts live in the
   age-encrypted `~/.ssh/config.d/foodics`.
-- **VM has no `et` daemon** — it is not provisioned by this repo yet:
+- **VM has no `et` daemon** — VMs built before cloud-init installed it (fdx-dev):
   `sudo add-apt-repository ppa:jgmath2000/et && sudo apt install et`.

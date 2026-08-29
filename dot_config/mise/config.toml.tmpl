@@ -35,6 +35,16 @@ python = "3.14"
 # puppeteer never downloads one. See the mermaid-cli block in
 # run_onchange_after_20-mise-install.sh.tmpl.
 "npm:@mermaid-js/mermaid-cli" = "latest"
+# Reclassified out of the work-only block 2026-08-29: nothing about these is
+# work-specific — they were simply installed on the work Mac first.
+direnv = "latest"
+glow = "latest"
+tealdeer = "latest"
+watchexec = "latest"
+"github:YS-L/csvlens" = "latest"
+"aqua:jesseduffield/lazydocker" = "latest"
+{{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
+{{ end -}}
 {{ if eq .kind "vm" }}
 # --- VM only: coding agents live in the dev box (Macs: codex via cask;
 # claude-code via its self-updating native installer, deliberately unmanaged) ---
@@ -46,27 +56,19 @@ python = "3.14"
 {{ end -}}
 {{ if eq .role "work" }}
 # --- work only ---
+# zellij and deno were dropped fleet-wide 2026-08-29: herdr is the multiplexer,
+# Eternal Terminal the connection keep-alive, and Node (above) the JS runtime.
 awscli = "latest"
 actionlint = "latest"
-direnv = "latest"
-glow = "latest"
-{{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
-{{ end -}}
-tealdeer = "latest"
-watchexec = "latest"
-zellij = "latest"
 cmake = "latest"
-deno = "latest"
 "aqua:kovetskiy/mark" = "latest"
 {{ if eq .kind "mac" }}"aqua:linebender/resvg" = "latest"  # no linux/arm64 prebuilt
 {{ end -}}
 "aqua:SonarSource/sonar-scanner-cli" = "latest"
-"aqua:jesseduffield/lazydocker" = "latest"
 "github:yt-dlp/yt-dlp" = "latest"
 "github:AlexsJones/llmfit" = "latest"
 "pipx:commitizen" = "latest"
 "pipx:Pygments" = "latest"
 "github:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
 "github:jorgerojas26/lazysql" = "latest"
-"github:YS-L/csvlens" = "latest"
 {{ end -}}
