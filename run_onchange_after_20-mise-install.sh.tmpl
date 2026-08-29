@@ -43,10 +43,12 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
   if ! "$MISE" x -- mmdc -i "$probe/p.mmd" -o "$probe/p.svg" >"$probe/err" 2>&1; then
     chs=$(sed -n 's/.*chrome-headless-shell (ver\. \([0-9.]*\)).*/\1/p' "$probe/err" | head -1)
     if [ -n "$chs" ]; then
-      echo "mermaid-cli: installing chrome-headless-shell $chs…"
-      "$MISE" x node -- npx -y @puppeteer/browsers install "chrome-headless-shell@$chs" \
+      # Braces are load-bearing: bash 3.2 (macOS) folds the following multi-byte
+      # character into the variable name and dies under `set -u`.
+      echo "mermaid-cli: installing chrome-headless-shell ${chs}…"
+      "$MISE" x node -- npx -y @puppeteer/browsers install "chrome-headless-shell@${chs}" \
         --path "$HOME/.cache/puppeteer" >/dev/null 2>&1 \
-        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers install chrome-headless-shell@$chs --path ~/.cache/puppeteer'."
+        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."
     fi
   fi
   rm -rf "$probe"
