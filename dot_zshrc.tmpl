@@ -37,6 +37,13 @@ fi
 autoload -Uz compinit
 compinit
 
+# Emacs keymap — Oh My Zsh did this in lib/key-bindings.zsh and the port
+# dropped it. Without it zsh picks the keymap from $EDITOR/$VISUAL, and "nvim"
+# matches zsh's `*vi*` test, so main aliases to viins and ^A/^E become
+# self-insert instead of beginning/end-of-line. Must stay BEFORE the tool
+# integrations below so fzf/zoxide/autosuggestions bind against emacs.
+bindkey -e
+
 # Git aliases retained from observed use of the Oh My Zsh git plugin.
 alias g='git'
 alias ga='git add'
