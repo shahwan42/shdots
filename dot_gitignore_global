@@ -26,6 +26,7 @@
 .env.local
 *.log
 .mise.local.toml
+.envrc
 
 # Language / build cruft that should never be committed globally
 .venv/
