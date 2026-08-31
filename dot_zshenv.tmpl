@@ -8,6 +8,15 @@
 # macOS path_helper (/etc/zprofile) runs after this in login shells and only
 # demotes these entries; ~/.zprofile and ~/.zshrc re-prepend afterwards, so
 # interactive PATH order is unchanged.
+# Homebrew on the every-shell file too: `op` ships from the 1password-cli cask
+# on Macs, so the headless `ssh host 'op read …'` contract below needs it here.
+# Static prepend, not `brew shellenv` — this file must stay subprocess-free.
+# Sits ABOVE the mise prepends so mise still wins. No-op on VMs (no such dirs).
+for _hb in /opt/homebrew /usr/local; do
+  [[ -d "$_hb/bin" && -x "$_hb/bin/brew" ]] && { path=("$_hb/bin" "$_hb/sbin" $path); export HOMEBREW_PREFIX="$_hb"; break; }
+done
+unset _hb
+
 [[ -d "$HOME/.local/share/mise/shims" ]] && path=("$HOME/.local/share/mise/shims" $path)
 [[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
 typeset -U path PATH

@@ -2,8 +2,8 @@
 
 # History
 HISTFILE="$HOME/.zsh_history"
-HISTSIZE=50000
-SAVEHIST=10000
+HISTSIZE=100000
+SAVEHIST=100000
 
 setopt extended_history
 setopt hist_expire_dups_first
@@ -69,7 +69,8 @@ alias gsts='git stash show --text'
 
 # Personal aliases.
 alias n='nvim'
-alias mp='multipass'
+{{ if eq .kind "mac" }}alias mp='multipass'
+{{ end -}}
 {{ if eq .role "work" }}
 # Work aliases and environment.
 alias a='php artisan'
@@ -129,10 +130,6 @@ if (( $+commands[starship] )) && [[ ${TERM:-dumb} != dumb ]]; then
   eval "$(starship init zsh)"
 fi
 
-# mise can restore PATH entries inherited by its parent shell (__MISE_ORIG_PATH),
-# so this post-activation filter is the one place the retired SnowflakeCLI
-# installer's entry is scrubbed. Pattern match: tolerant of trailing slash.
-path=(${path:#/Applications/SnowflakeCLI.app/*})
 typeset -U path PATH
 
 # UI plugins from the chezmoi-managed external dir. Syntax highlighting must
@@ -144,10 +141,6 @@ typeset -U path PATH
 
 # 1Password CLI installs its static `_op` completion into Homebrew's
 # site-functions directory, which compinit loaded above.
-
-# 1Password service account (age-encrypted in chezmoi). Makes `op read` /
-# `op run` work headless on every machine — no GUI unlock, no `op signin`.
-[[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
 
 # Auto-update marker: the chezmoi-autoupdate timer writes this only when it
 # could NOT safely fast-forward (divergence, local edits, failed apply). One
