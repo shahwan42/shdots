@@ -62,6 +62,12 @@ fi
 if ! git -C "$SRC" merge-base --is-ancestor HEAD "$UPSTREAM" 2>/dev/null; then
   warn "chezmoi: source repo has diverged from $UPSTREAM — reconcile, then 'chezmoi update'"
 fi
+# Supply-chain gate: only auto-apply commits signed by a key in the managed
+# allowed_signers. Merge commits are disabled repo-side, so the tip is always
+# an SSH-signed commit; anything unverifiable waits for a human.
+if ! git -C "$SRC" verify-commit "$UPSTREAM" >/dev/null 2>&1; then
+  warn "chezmoi: $UPSTREAM is not signed by a trusted key — refusing to auto-apply"
+fi
 
 if "$CZ" update --no-tty >"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 && converged; then
   config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
