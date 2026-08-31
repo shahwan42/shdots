@@ -69,7 +69,11 @@ if ! git -C "$SRC" verify-commit "$UPSTREAM" >/dev/null 2>&1; then
   warn "chezmoi: $UPSTREAM is not signed by a trusted key — refusing to auto-apply"
 fi
 
-if "$CZ" update --no-tty >"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 && converged; then
+# Fast-forward to the exact commit that was just verified, then apply — not
+# 'chezmoi update', whose own git pull re-fetches and could apply a newer,
+# unverified tip (verify/apply race).
+if git -C "$SRC" merge --ff-only "$UPSTREAM" >"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 \
+   && "$CZ" apply --no-tty >>"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 && converged; then
   config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
   rm -f "$MARKER"
 else
