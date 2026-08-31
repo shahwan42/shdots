@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Launch a dev VM from provision/dev-vm-cloud-init.yaml.tmpl.
+# Launch a dev VM from provision/dev-vm-cloud-init.yaml.
 #
-# One template serves every dev box; this script fills in the two things that differ:
+# One cloud-init serves every dev box; this script fills in the two things that differ:
 # the VM's name and the launching Host's own SSH public key (so each VM trusts the Mac
 # that created it — work Host = id_ed25519, personal Host = id_rsa).
 #
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE="$SCRIPT_DIR/dev-vm-cloud-init.yaml.tmpl"
+TEMPLATE="$SCRIPT_DIR/dev-vm-cloud-init.yaml"
 
 VM_NAME=""
 CPUS=6

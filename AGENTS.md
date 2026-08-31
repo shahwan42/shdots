@@ -25,6 +25,23 @@ rendered outputs.
 6. After applying, require `chezmoi status` to be clean. Review the source
    diff with `chezmoi git diff`.
 
+## Externals (not chezmoi source)
+
+Some targets are pulled straight from git by `.chezmoiexternal.toml`, not
+rendered from this repo. Do **not** `chezmoi edit`, `chezmoi add`, or `chezmoi
+re-add` them, and do not expect them under `~/.local/share/chezmoi`:
+
+- **`~/.config/nvim`** — the Neovim config lives in its own repo,
+  [`shahwan42/nvim-config`](https://github.com/shahwan42/nvim-config)
+  (`type = "git-repo"`, `refreshPeriod = 0`). To change it, edit the files in
+  place, then `git -C ~/.config/nvim commit` and `git push` to that repo. Every
+  `chezmoi apply` / `chezmoi update` runs `git pull` in it. Its local `origin`
+  is SSH (for pushing); the external URL is HTTPS (so fresh machines clone
+  without a key) — a new machine that needs to push runs
+  `git -C ~/.config/nvim remote set-url origin git@github.com:shahwan42/nvim-config.git`.
+- **`~/.local/share/zsh/plugins/*`** — upstream zsh plugins, refreshed at most
+  every 168h.
+
 For Zsh changes, render and validate before applying:
 
 ```sh

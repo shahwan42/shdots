@@ -2,18 +2,15 @@
 
 Reproducible machine-provisioning files that belong in the repository but must never be
 applied into `$HOME` by chezmoi. The entire directory is excluded in `.chezmoiignore.tmpl`,
-so nothing here is a chezmoi template — the `.tmpl` suffix on the cloud-init marks a file
-with placeholders, filled in by the launcher below.
+so chezmoi never reads anything here.
 
 ## Contents
 
-- `dev-vm-cloud-init.yaml.tmpl` — cloud-init for a dev VM. One template for every dev box;
-  `@@VM_NAME@@` and `@@HOST_SSH_PUBKEY@@` are substituted at launch.
-- `launch-dev-vm.sh` — renders that template and runs `multipass launch`. The only
+- `dev-vm-cloud-init.yaml` — cloud-init for a dev VM. One file for every dev box; the
+  `@@VM_NAME@@` and `@@HOST_SSH_PUBKEY@@` placeholders are substituted at launch by the
+  script below (this is not a chezmoi template — it is never rendered by chezmoi).
+- `launch-dev-vm.sh` — fills in those placeholders and runs `multipass launch`. The only
   supported way to use the cloud-init.
-- `cleanup-after-unification.sh` — removes tools/files made redundant by the mise
-  unification. Dry-run by default; review the output, then re-run with `--apply`.
-  Run manually — chezmoi never executes it.
 
 ## Launching a dev VM
 
@@ -64,6 +61,7 @@ chezmoi data | grep -E 'role|kind'      # the class you answered in step 5
 chezmoi status                          # empty
 chezmoi cat ~/.zshrc | zsh -n           # parses
 mise ls --missing                       # empty — the real completeness test
+git -C ~/.config/nvim remote get-url origin   # nvim-config external cloned
 docker run --rm hello-world             # group membership took effect
 systemctl is-active et
 systemctl --user is-enabled chezmoi-update.timer

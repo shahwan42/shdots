@@ -1,0 +1,21 @@
+# kitty — local overrides.
+#
+# kitty.conf is kept as the pristine upstream reference; its last line is
+# `include kitty-local.conf`, so everything here wins. This is the file to edit,
+# and the one that carries per-machine branches — same pattern as
+# dot_config/ghostty/config.tmpl.
+
+# --- shared ---
+font_size 12.0
+modify_font cell_height 170% # -2px
+remember_window_size  yes
+draw_minimal_borders yes
+window_margin_width 1
+placement_strategy center
+hide_window_decorations yes
+background_opacity 0.80
+
+{{ if eq .kind "mac" -}}
+# --- macOS only ---
+# e.g. macos_option_as_alt yes
+{{ end -}}

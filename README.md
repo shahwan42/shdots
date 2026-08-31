@@ -38,7 +38,7 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42/shdots
 #    run_onchange_after_20-mise-install.sh (mise install).
 ```
 
-**Creating the box first, if it's a VM.** Dev VMs come from one cloud-init template plus a
+**Creating the box first, if it's a VM.** Dev VMs come from one cloud-init file plus a
 launcher, run on the Mac that will own the VM:
 
 ```sh
@@ -66,8 +66,9 @@ is unusable on a Mac until then).
 | `run_once_after_10-configure-git-hooks.sh` | once per machine, after files (wires the gitleaks hook) |
 | `run_onchange_after_20-mise-install.sh` | whenever `~/.config/mise/config.toml` changes (script embeds its sha256) |
 
-zsh-plugin externals refresh at most every **168h**; force with
-`chezmoi apply --refresh-externals`.
+zsh-plugin externals refresh at most every **168h**; the `~/.config/nvim` external
+(`shahwan42/nvim-config`) has `refreshPeriod = 0`, so every apply/update runs `git pull`
+in it. Force a full refresh of all externals with `chezmoi apply --refresh-externals`.
 
 > **`GITHUB_TOKEN`**: mise's `github:`/`ubi:` backends call the GitHub API, which is
 > rate-limited to 60/hr unauthenticated — a full `mise install` will 403 partway.
@@ -124,7 +125,8 @@ flowchart TB
 
 One public repo, one `chezmoi apply`; the `role × kind` answers decide what each machine
 receives. The cross-platform CLI toolchain comes from mise (shared), Homebrew is trimmed
-to Mac-only natives and GUIs, and zsh plugins are pulled as chezmoi externals.
+to Mac-only natives and GUIs, and the zsh plugins plus the Neovim config are pulled as
+chezmoi externals (the latter from its own repo, `shahwan42/nvim-config`).
 
 ```mermaid
 flowchart TB
@@ -133,11 +135,11 @@ flowchart TB
   bootstrap --> repo
   repo --> chezmoi{"chezmoi apply<br/>keyed by role × kind"}
 
-  chezmoi --> shared["Shared everywhere<br/>zsh · git (SSH commit signing) · nvim · gitignore_global"]
+  chezmoi --> shared["Shared everywhere<br/>zsh · git (SSH commit signing) · gitignore_global"]
   chezmoi --> mac["kind=mac only<br/>Brewfile natives/GUI · Sourcetree"]
   chezmoi --> work["role=work only<br/>work mise tools · AWS/JIRA env"]
 
-  chezmoi --> ext["zsh plugins<br/>.chezmoiexternal (git-repo)"]
+  chezmoi --> ext["zsh plugins · nvim config (own repo)<br/>.chezmoiexternal (git-repo)"]
   chezmoi --> mise["mise install<br/>aqua · ubi · pipx · github backends"]
   mise --> tools["one cross-platform toolchain<br/>Mac + VM, ~40 shared tools"]
 
@@ -154,8 +156,12 @@ flowchart TB
 - **Homebrew** (`Brewfile`, macOS only) — only behavior-sensitive natives (GNU
   coreutils, ffmpeg), system services (nginx, dnsmasq, docker), GUI apps/casks, and
   the PHP/iOS stack. Not the general CLI toolchain.
-- **chezmoi externals** (`.chezmoiexternal.toml`) — zsh plugins, pulled from git into
-  `~/.local/share/zsh/plugins` identically everywhere.
+- **chezmoi externals** (`.chezmoiexternal.toml`) — content pulled straight from git,
+  identically everywhere: zsh plugins into `~/.local/share/zsh/plugins` (refreshed at
+  most every 168h), and the Neovim config into `~/.config/nvim` from its own repo
+  [`shahwan42/nvim-config`](https://github.com/shahwan42/nvim-config) (`refreshPeriod = 0`,
+  so every `chezmoi apply`/`update` runs `git pull` there). Edit nvim in place and push
+  to that repo; shdots only points at it.
 - **PHP / composer** — kept native (Homebrew `php@8.3` on Mac, apt php modules on the
   VM), not routed through mise, so the extension matrix comes ready-built.
 
@@ -167,7 +173,7 @@ Remote shells use [Eternal Terminal](https://eternalterminal.dev) (`et fdx-host`
 survives sleep, IP changes, and outages on TCP :2022. Macs get it from the Brewfile
 (`brew services start mistertea/et/et` on machines that accept connections; the
 user-level service starts at login); the VMs run the `et` systemd service from
-`ppa:jgmath2000/et`, installed by `provision/dev-vm-cloud-init.yaml.tmpl`. et keeps the
+`ppa:jgmath2000/et`, installed by `provision/dev-vm-cloud-init.yaml`. et keeps the
 connection alive; herdr keeps the sessions alive.
 
 ## Secrets & the work SSH sync
@@ -193,11 +199,6 @@ Role guards decide *what* decrypts *where*:
 > This repo is **public**. Anything genuinely secret stays unmanaged or age-encrypted;
 > enable GitHub secret-scanning push protection as a backstop.
 
-## Retiring what the unification replaced
-
-`provision/cleanup-after-unification.sh` removes tools/files made redundant by the move
-to mise. It is **dry-run by default** — review its output, then run with `--apply`.
-
 ## Troubleshooting a fresh machine
 
 - **`chezmoi apply` fails at `.config/op/env` with an age error** — the identity
@@ -206,6 +207,11 @@ to mise. It is **dry-run by default** — review its output, then run with `--ap
 - **`git commit` fails with a missing-key error** — commit signing is on
   everywhere and the per-class `~/.ssh/id_*` key is unmanaged; generate/copy it
   (Bootstrap step 0b).
+- **`chezmoi apply` errors on `~/.config/nvim`** — it is a `git-repo` external
+  ([`shahwan42/nvim-config`](https://github.com/shahwan42/nvim-config)), not
+  chezmoi source. On a fresh box chezmoi clones it over HTTPS; if the directory
+  already exists from an unrelated Neovim install, move it aside and re-apply.
+  Local edits there are committed and pushed to that repo, not to shdots.
 - **`mise install` 403s or skips tools** — GitHub API rate limit; set
   `GITHUB_TOKEN` (see above) and re-run `mise install`. The apply script is
   non-fatal on purpose, so a bootstrap can *look* complete — check

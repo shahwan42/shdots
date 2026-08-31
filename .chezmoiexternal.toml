@@ -1,5 +1,15 @@
-# zsh plugins as managed externals — identical on every machine, no Homebrew/apt.
-# Sourced from ~/.local/share/zsh/plugins/* by dot_zshrc.tmpl.
+# Content pulled straight from git as chezmoi externals — identical on every machine,
+# no Homebrew/apt.
+
+# Neovim config — its own repo (personal LazyVim setup). Edit ~/.config/nvim in place
+# and push to shahwan42/nvim-config; shdots only points here. refreshPeriod = 0 means
+# chezmoi runs `git pull` in it on every apply / `chezmoi update`.
+[".config/nvim"]
+    type = "git-repo"
+    url = "https://github.com/shahwan42/nvim-config.git"
+    refreshPeriod = "0"
+
+# zsh plugins — sourced from ~/.local/share/zsh/plugins/* by dot_zshrc.tmpl.
 
 [".local/share/zsh/plugins/zsh-autosuggestions"]
     type = "git-repo"
