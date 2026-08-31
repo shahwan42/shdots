@@ -13,9 +13,28 @@ draw_minimal_borders yes
 window_margin_width 1
 placement_strategy center
 hide_window_decorations yes
-background_opacity 0.80
+
+# ported from ghostty (dot_config/ghostty/config.tmpl).
+# kitty has no inline comments -- keep notes on their own lines.
+
+# ghostty: background-opacity = 0.85
+background_opacity 0.85
+# ghostty: background-blur = true (kitty wants a radius; ~20 approximates it)
+background_blur 20
+# ghostty: window-padding-x/y = 8 (edge->content; window_margin_width is the gap between splits)
+window_padding_width 8
+# ghostty: confirm-close-surface = true (kitty confirms on os-window close only, not per-split)
+confirm_os_window_close 1
+# ghostty: unfocused-split-opacity = 0.6 (kitty dims inactive text, not the whole pane)
+inactive_text_alpha 0.6
+# ghostty: split-divider-color = #3f444a
+active_border_color #3f444a
+inactive_border_color #3f444a
+# ghostty: tabs sit at the top on macOS
+tab_bar_edge top
 
 {{ if eq .kind "mac" -}}
 # --- macOS only ---
-# e.g. macos_option_as_alt yes
+# ghostty: macos-option-as-alt = true
+macos_option_as_alt yes
 {{ end -}}

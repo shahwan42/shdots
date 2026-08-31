@@ -69,6 +69,14 @@ alias gsts='git stash show --text'
 
 # Personal aliases.
 alias n='nvim'
+
+# Inside kitty, route ssh through `kitten ssh` so the remote host gets kitty's
+# terminfo pushed to it (fixes garbled TUIs on hosts with no terminfo-kitty),
+# matching what Ghostty's ssh-terminfo shell integration did. Plain ssh
+# everywhere else.
+if [[ -n ${KITTY_WINDOW_ID:-} ]] && (( $+commands[kitten] )); then
+  alias ssh='kitten ssh'
+fi
 {{ if eq .kind "mac" }}alias mp='multipass'
 {{ end -}}
 {{ if eq .role "work" }}

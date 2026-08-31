@@ -22,6 +22,13 @@ fi
 if [[ -d "$HOME/.local/bin" ]]; then
   path=("$HOME/.local/bin" $path)
 fi
+
+# kitty.app ships its `kitten` / `kitty` CLIs inside the bundle and never puts
+# them on PATH. Add them on macOS so `kitten ssh`, `kitten icat`, etc. resolve
+# from any shell. No-op on machines without the bundle (Linux VMs).
+if [[ -d "/Applications/kitty.app/Contents/MacOS" ]]; then
+  path=($path "/Applications/kitty.app/Contents/MacOS")
+fi
 typeset -U path PATH
 
 if [[ -d /Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home ]]; then
