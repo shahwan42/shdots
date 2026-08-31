@@ -1,6 +1,8 @@
 #!/bin/sh
-# mmdc wrapper — VM only. It shadows mise's own `mmdc` shim because ~/.zshenv
-# puts ~/.local/bin ahead of the shim directory on PATH.
+# mmdc wrapper — VM only. PATH order does NOT reliably select it: mise activate
+# rebuilds PATH on every precmd, re-prepending the mermaid-cli install dir ahead
+# of ~/.local/bin. Interactive shells therefore bind it by name via a zshrc
+# function; scripts must call it by absolute path.
 #
 # Two Linux/arm64 facts force it to exist:
 #   1. Chrome for Testing publishes no linux-arm64 build, so puppeteer's bundled

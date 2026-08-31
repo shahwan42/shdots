@@ -66,4 +66,19 @@ Host github.com github.foodics.com
 	IdentityAgent none
 	IdentityFile ~/.ssh/{{ if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}
 	IdentitiesOnly yes
+{{ else if eq .role "work" -}}
+# Work VM: split identities — the work key never touches personal repos.
+Host github.foodics.com
+	IdentityAgent none
+	IdentityFile ~/.ssh/id_ed25519_foodics
+	IdentitiesOnly yes
+Host github.com
+	IdentityAgent none
+	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentitiesOnly yes
+{{ else -}}
+Host github.com
+	IdentityAgent none
+	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentitiesOnly yes
 {{ end -}}

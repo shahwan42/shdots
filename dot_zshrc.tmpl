@@ -22,6 +22,12 @@ setopt share_history
 # mise next — everything below (aliases, completions, tool integrations) must
 # see the mise-managed tools on PATH during this same sourcing pass.
 (( $+commands[mise] )) && eval "$(mise activate zsh)"
+{{ if eq .kind "vm" }}
+# mise activate rebuilds PATH from __MISE_ORIG_PATH on every precmd, re-prepending
+# the mermaid-cli install dir ahead of ~/.local/bin — bind the VM wrapper by name
+# instead of relying on PATH order.
+[[ -x "$HOME/.local/bin/mmdc" ]] && mmdc() { command "$HOME/.local/bin/mmdc" "$@"; }
+{{ end }}
 
 # zsh plugins are chezmoi-managed externals (same path on every machine).
 ZSH_PLUGIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
