@@ -9,10 +9,16 @@ set -u
 {{ if eq .kind "mac" -}}
 PLIST="$HOME/Library/LaunchAgents/com.shahwan42.chezmoi-update.plist"
 if [ -f "$PLIST" ]; then
-  launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$PLIST" \
-    && echo "launchd: chezmoi-update agent loaded" \
-    || echo "launchd: could not load $PLIST (load it manually)"
+  if [ "${XPC_SERVICE_NAME:-}" = "com.shahwan42.chezmoi-update" ]; then
+    # Running under the very launchd agent we would reload: a bootout here kills
+    # this apply mid-run. Defer; the new plist loads at next login / manual run.
+    echo "launchd: running under the chezmoi-update agent; reload deferred to next login"
+  else
+    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PLIST" \
+      && echo "launchd: chezmoi-update agent loaded" \
+      || echo "launchd: could not load $PLIST (load it manually)"
+  fi
 fi
 {{ else -}}
 if command -v systemctl >/dev/null 2>&1; then
