@@ -1,0 +1,3 @@
+{{ if ne .role "work" -}}
+.ssh/config.d/foodics
+{{ end -}}
