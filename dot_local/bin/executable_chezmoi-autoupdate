@@ -6,31 +6,54 @@
 # Safe to auto-apply means: source clone has no local edits AND origin is a
 # strict fast-forward ahead. Anything else (divergence, dirty tree, failed
 # apply) writes ~/.cache/chezmoi-stale with the reason and leaves the human
-# in the loop. Never modifies a diverged clone.
+# in the loop. Never modifies a diverged clone. The marker is cleared only
+# when $HOME provably matches the source (chezmoi status empty), not merely
+# when the clone is up to date.
 set -u
 
 MARKER="$HOME/.cache/chezmoi-stale"
 mkdir -p "$HOME/.cache"
+
+warn() { printf '%s\n' "$1" > "$MARKER"; exit 0; }
 
 CZ=""
 for c in "$HOME/.local/bin/chezmoi" /opt/homebrew/bin/chezmoi /usr/local/bin/chezmoi; do
   [ -x "$c" ] && CZ="$c" && break
 done
 command -v git >/dev/null 2>&1 || exit 0
-[ -n "$CZ" ] || exit 0
+[ -n "$CZ" ] || CZ="$(command -v chezmoi 2>/dev/null || true)"
+[ -n "$CZ" ] || warn "chezmoi: autoupdate cannot find the chezmoi binary — reinstall to ~/.local/bin"
 
 SRC="$("$CZ" source-path 2>/dev/null)" || exit 0
 [ -d "$SRC/.git" ] || exit 0
 
-warn() { printf '%s\n' "$1" > "$MARKER"; exit 0; }
+# Converged = chezmoi status runs AND reports nothing pending.
+converged() { out="$("$CZ" status --no-tty 2>/dev/null)" || return 1; [ -z "$out" ]; }
 
-git -C "$SRC" fetch -q origin || warn "chezmoi: could not fetch origin (offline?) — run 'chezmoi update' manually"
+# The generated config goes stale when .chezmoi.toml.tmpl changes upstream;
+# apply then renders with old data until 'chezmoi init' re-runs.
+config_drift() {
+  RECORDED="$("$CZ" state dump 2>/dev/null | sed -n 's/.*configTemplateContentsSHA256": "\([0-9a-f]*\)".*/\1/p')"
+  ACTUAL="$( (sha256sum "$SRC/.chezmoi.toml.tmpl" 2>/dev/null || shasum -a 256 "$SRC/.chezmoi.toml.tmpl" 2>/dev/null) | cut -d' ' -f1)"
+  [ -n "$RECORDED" ] && [ -n "$ACTUAL" ] && [ "$RECORDED" != "$ACTUAL" ]
+}
+
+# Never hang on a prompt or a wedged network: batch-mode ssh, no terminal
+# prompts, and a hard cap where timeout(1) exists.
+export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=20'
+TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 300"
+$TO git -C "$SRC" fetch -q origin || warn "chezmoi: could not fetch origin (offline?) — run 'chezmoi update' manually"
 
 UPSTREAM="$(git -C "$SRC" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo origin/main)"
-BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null || echo 0)"
+git -C "$SRC" rev-parse --verify -q "$UPSTREAM^{commit}" >/dev/null \
+  || warn "chezmoi: cannot resolve upstream '$UPSTREAM' — reconcile manually"
+BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)"
+[ -n "$BEHIND" ] || warn "chezmoi: cannot compare against $UPSTREAM — reconcile manually"
 
 if [ "$BEHIND" -eq 0 ]; then
-  rm -f "$MARKER"
+  config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
+  if converged; then rm -f "$MARKER"
+  else warn "chezmoi: source is current but \$HOME is not applied — run 'chezmoi apply'"; fi
   exit 0
 fi
 if [ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]; then
@@ -40,8 +63,9 @@ if ! git -C "$SRC" merge-base --is-ancestor HEAD "$UPSTREAM" 2>/dev/null; then
   warn "chezmoi: source repo has diverged from $UPSTREAM — reconcile, then 'chezmoi update'"
 fi
 
-if "$CZ" update --no-tty >/dev/null 2>&1; then
+if "$CZ" update --no-tty >"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 && converged; then
+  config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
   rm -f "$MARKER"
 else
-  warn "chezmoi: automatic 'chezmoi update' failed — run it manually to see why"
+  warn "chezmoi: automatic update did not converge — see ~/.cache/chezmoi-autoupdate.last"
 fi
