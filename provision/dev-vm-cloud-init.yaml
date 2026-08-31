@@ -17,7 +17,7 @@
 #   - `tailscale up --ssh --hostname=...`  (needs browser auth + admin approval)
 #   - `ufw enable`                          (enabled manually AFTER tailscale0 exists
 #                                            and after verifying the multipass NIC
-#                                            allow rule — see handover step 4)
+#                                            allow rule — see handover step 6)
 #   - chezmoi bootstrap + role/kind answers (prompts; see provision/README.md)
 #   - age identity, SSH keys, GITHUB_TOKEN  (secrets, seeded out-of-band)
 #   - PHP/Node versions via mise            (pinned from the repo's constraints after clone)
@@ -28,7 +28,8 @@ timezone: Asia/Riyadh
 # with Docker installed in the guest, the multipass client can pick the docker0
 # bridge IP (172.17.0.1) and fail with "No route to host". Field-tested 2026-08-25.
 # The key is the LAUNCHING Host's own public key, injected by launch-dev-vm.sh, so
-# each VM trusts the Mac that created it (work Host = id_ed25519, personal = id_rsa).
+# each VM trusts the Mac that created it (id_ed25519.pub if present, else id_rsa.pub;
+# --pubkey overrides).
 ssh_authorized_keys:
   - @@HOST_SSH_PUBKEY@@
 
@@ -112,8 +113,8 @@ runcmd:
   - systemctl daemon-reload
   - systemctl enable --now docker-user-fw.service
   # Tailscale from its signed apt repo (no curl|sh); `tailscale up` stays manual
-  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
-  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+  - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.noarmor.gpg" -o /usr/share/keyrings/tailscale-archive-keyring.gpg'
+  - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.tailscale-keyring.list" -o /etc/apt/sources.list.d/tailscale.list'
   - apt-get update && apt-get install -y tailscale
   # Eternal Terminal: reconnect-surviving remote shells (`et @@VM_NAME@@` from any Mac).
   # et keeps the connection alive; herdr (a mise tool) keeps the sessions alive.
@@ -134,4 +135,4 @@ runcmd:
   - ufw allow 41641/udp comment 'tailscale direct (avoids DERP relay)'
   - sh -c 'IF=$(ip -br link | awk "/^enp/{print \$1; exit}"); ufw allow in on $IF to any port 22 proto tcp comment "multipass control channel"'
 
-final_message: "cloud-init done for @@VM_NAME@@. Manual next steps (provision/README.md): tailscale up --ssh --hostname=@@VM_NAME@@; tailscale set --auto-update; seed ~/.config/chezmoi/key.txt; generate ~/.ssh/id_ed25519_*; GITHUB_TOKEN in ~/.zshrc.local; chezmoi init --apply shahwan42/shdots; ufw enable (verify multipass shell still works!)."
+final_message: "cloud-init done for @@VM_NAME@@. Manual next steps (provision/README.md): tailscale up --ssh --hostname=@@VM_NAME@@; tailscale set --auto-update; seed ~/.config/chezmoi/key.txt; generate ~/.ssh/id_ed25519_*; GITHUB_TOKEN in ~/.zshrc.local; sh -c \"$(curl -fsLS get.chezmoi.io/lb)\" -- init --apply shahwan42/shdots; ufw enable (verify multipass shell still works!)."

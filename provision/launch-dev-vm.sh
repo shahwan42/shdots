@@ -3,7 +3,8 @@
 #
 # One cloud-init serves every dev box; this script fills in the two things that differ:
 # the VM's name and the launching Host's own SSH public key (so each VM trusts the Mac
-# that created it — work Host = id_ed25519, personal Host = id_rsa).
+# that created it — ~/.ssh/id_ed25519.pub if present, else ~/.ssh/id_rsa.pub;
+# override with --pubkey or $DEV_VM_PUBKEY).
 #
 #   ./launch-dev-vm.sh as-dev                              # personal VM (defaults below)
 #   ./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G    # work VM, as originally built
@@ -63,7 +64,9 @@ case "$VM_NAME" in
   *[!a-zA-Z0-9-]*) die "VM name must be alphanumeric with dashes: '$VM_NAME'" ;;
 esac
 [ -f "$TEMPLATE" ] || die "template not found: $TEMPLATE"
-command -v multipass >/dev/null 2>&1 || die "multipass not on PATH (brew install --cask multipass)"
+if [ "$DRY_RUN" -eq 0 ]; then
+  command -v multipass >/dev/null 2>&1 || die "multipass not on PATH (brew install --cask multipass)"
+fi
 
 # --- resolve the Host public key ---------------------------------------------------
 if [ -z "$PUBKEY" ]; then
@@ -83,7 +86,7 @@ case "$KEY_LINE" in
   *) die "'$PUBKEY' does not look like an OpenSSH public key" ;;
 esac
 
-if multipass info "$VM_NAME" >/dev/null 2>&1; then
+if [ "$DRY_RUN" -eq 0 ] && multipass info "$VM_NAME" >/dev/null 2>&1; then
   die "instance '$VM_NAME' already exists — 'multipass delete --purge $VM_NAME' first, or pick another name"
 fi
 
@@ -129,7 +132,14 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 # package_update + package_upgrade routinely outrun multipass's default timeout.
-"$@"
+# Don't die under set -e on a nonzero exit: a timeout usually means the VM is
+# still provisioning, not that it failed — check before rebuilding.
+LAUNCH_RC=0
+"$@" || LAUNCH_RC=$?
+if [ "$LAUNCH_RC" -ne 0 ]; then
+  printf '\nmultipass launch exited %s — the VM may still be provisioning.\n' "$LAUNCH_RC"
+  printf 'Check with: multipass exec %s -- cloud-init status --wait\n' "$VM_NAME"
+fi
 
 cat <<EOF
 
@@ -138,12 +148,17 @@ $VM_NAME is up. cloud-init finished the unattended half; these need you:
   1. tailscale   multipass shell $VM_NAME
                  sudo tailscale up --ssh --hostname=$VM_NAME    # browser auth
                  sudo tailscale set --auto-update
-  2. age key     scp ~/.config/chezmoi/key.txt $VM_NAME:~/.config/chezmoi/key.txt
-  3. ssh key     ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_personal
-                 add the .pub to GitHub as BOTH an authentication and a signing key,
-                 then append it to dot_config/git/allowed_signers
-  4. token       GITHUB_TOKEN=... in ~/.zshrc.local  (else mise install 403s partway)
-  5. chezmoi     sh -c "\$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42/shdots
+  2. age key     ssh $VM_NAME 'mkdir -p ~/.config/chezmoi'
+                 scp ~/.config/chezmoi/key.txt $VM_NAME:~/.config/chezmoi/key.txt
+  3. ssh keys    personal VM:  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_personal
+                 work VM:      generate BOTH id_ed25519_foodics AND id_ed25519_personal
+                 (the managed ssh config offers the personal key to github.com on
+                 work VMs too). Add each .pub to its GitHub as BOTH an authentication
+                 and a signing key, then append to dot_config/git/allowed_signers
+  4. token       export GITHUB_TOKEN=...              # current shell, for step 5
+                 echo 'export GITHUB_TOKEN=...' >> ~/.zshrc.local   # persist
+                 (else mise install 403s partway)
+  5. chezmoi     sh -c "\$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
   6. firewall    sudo ufw enable   # only after confirming 'multipass shell $VM_NAME' works
 
 Full detail and verification checks: provision/README.md

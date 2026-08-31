@@ -42,10 +42,10 @@ Left to a human because it is interactive or decision-gated:
 | # | Step | Command |
 |---|------|---------|
 | 1 | Tailscale — needs browser auth | `sudo tailscale up --ssh --hostname=<name>` then `sudo tailscale set --auto-update` |
-| 2 | age identity — `chezmoi init` aborts on `~/.config/op/env` without it | `scp ~/.config/chezmoi/key.txt <name>:~/.config/chezmoi/key.txt` |
-| 3 | SSH key — commit signing is on everywhere and fails loudly without it | `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_personal` (work VM: `id_ed25519_foodics`), add the `.pub` to GitHub as **both** an authentication and a signing key, then append it to `dot_config/git/allowed_signers` |
-| 4 | `GITHUB_TOKEN` in unmanaged `~/.zshrc.local` | else `mise install` 403s partway on the `github:`/`ubi:` backends — *non-fatally*, so a bootstrap can look complete |
-| 5 | chezmoi — prompts for role and kind | `sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42/shdots` |
+| 2 | age identity — `chezmoi init` aborts on `~/.config/op/env` without it | `ssh <name> 'mkdir -p ~/.config/chezmoi'` then `scp ~/.config/chezmoi/key.txt <name>:~/.config/chezmoi/key.txt` |
+| 3 | SSH keys — commit signing is on everywhere and fails loudly without it | personal VM: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_personal`; work VM: generate **both** `id_ed25519_foodics` **and** `id_ed25519_personal` (the managed ssh config offers the personal key to github.com on work VMs too). Add each `.pub` to its GitHub as **both** an authentication and a signing key, then append it to `dot_config/git/allowed_signers` |
+| 4 | `GITHUB_TOKEN` — export in the **current shell** (step 5 needs it) *and* persist: `export GITHUB_TOKEN=...` then `echo 'export GITHUB_TOKEN=...' >> ~/.zshrc.local` | else `mise install` 403s partway on the `github:`/`ubi:` backends — *non-fatally*, so a bootstrap can look complete |
+| 5 | chezmoi — prompts for role and kind | `sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots` |
 | 6 | ufw — only after confirming `multipass shell <name>` still works | `sudo ufw enable` |
 
 Step 6 matters: the staged rules include a port-22 allow on the multipass NAT interface.
@@ -65,7 +65,7 @@ git -C ~/.config/nvim remote get-url origin   # nvim-config external cloned
 docker run --rm hello-world             # group membership took effect
 systemctl is-active et
 systemctl --user is-enabled chezmoi-update.timer
-git -C ~/.local/share/chezmoi log --show-signature -1
+git -C ~/.local/share/chezmoi config commit.gpgsign && test -f "$(git -C ~/.local/share/chezmoi config user.signingkey)"
 ```
 
 On a `role=personal` box, `~/.ssh/config.d/foodics` must be **absent** — that is the role

@@ -31,7 +31,7 @@ and is installed by the VM's cloud-init):
 
 ```sh
 # 1. chezmoi installs itself and applies this repo (prompts for role + kind)
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply shahwan42/shdots
+sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
 
 # 2. mise is installed automatically by run_once_before_00-install-mise.sh
 #    (curl https://mise.run | sh) and the toolchain is provisioned by
@@ -65,6 +65,15 @@ is unusable on a Mac until then).
 | file apply (age decryption, externals) | every `chezmoi apply` |
 | `run_once_after_10-configure-git-hooks.sh` | once per machine, after files (wires the gitleaks hook) |
 | `run_onchange_after_20-mise-install.sh` | whenever `~/.config/mise/config.toml` changes (script embeds its sha256) |
+| `run_onchange_after_30-schedule-autoupdate.sh` | whenever the launchd plist or systemd units change (script embeds their sha256s) |
+
+### Auto-update
+
+Every machine pulls and applies this repo on its own every **6 hours** — launchd on
+Macs, a systemd user timer on VMs, both running `~/.local/bin/chezmoi-autoupdate`.
+It fast-forwards only when that is provably safe and otherwise writes
+`~/.cache/chezmoi-stale`, which zshrc surfaces as a one-line warning. Practical
+consequence: **a push to `main` deploys fleet-wide within 6 hours.**
 
 zsh-plugin externals refresh at most every **168h**; the `~/.config/nvim` external
 (`shahwan42/nvim-config`) has `refreshPeriod = 0`, so every apply/update runs `git pull`
@@ -76,7 +85,8 @@ in it. Force a full refresh of all externals with `chezmoi apply --refresh-exter
 > secrets already live), which the shell sources:
 >
 > ```sh
-> export GITHUB_TOKEN="$(op read 'op://Private/GitHub PAT/token')"   # or a literal on the VM
+> export GITHUB_TOKEN="$(op read 'op://dev-secrets/GitHub PAT/token')"
+> [ -n "$GITHUB_TOKEN" ] || unset GITHUB_TOKEN   # empty guard: never export ""
 > ```
 >
 > `mise install` then picks it up from the environment. The `aqua:`/`core:`/`pipx:`
@@ -194,7 +204,7 @@ Role guards decide *what* decrypts *where*:
   `op run --env-file … -- <cmd>` work headless (no GUI unlock, no `op signin`) — the
   runtime-secrets layer for agents and scripts. The service account is read-only and
   scoped to the `dev-secrets` vault; rotate/revoke it from the 1Password web console.
-  Macs get `op` from the `1password-cli` cask, VMs from mise (`aqua:1password/cli`).
+  Macs get `op` from the `1password-cli` cask, VMs from mise (`vfox:mise-plugins/vfox-1password`).
 
 > This repo is **public**. Anything genuinely secret stays unmanaged or age-encrypted;
 > enable GitHub secret-scanning push protection as a backstop.
@@ -225,5 +235,3 @@ Role guards decide *what* decrypts *where*:
 - **`et fdx-*` / ssh aliases can't resolve** — tailnet names go stale when a
   node is re-registered; check `tailscale status`. Work hosts live in the
   age-encrypted `~/.ssh/config.d/foodics`.
-- **VM has no `et` daemon** — VMs built before cloud-init installed it (fdx-dev):
-  `sudo add-apt-repository ppa:jgmath2000/et && sudo apt install et`.

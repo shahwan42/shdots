@@ -12,6 +12,8 @@ MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
 if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
   "$MISE" install -y || echo "mise install: some tools did not install (set GITHUB_TOKEN and re-run 'mise install')."
+else
+  echo "mise not found — toolchain NOT installed. Re-run: curl -fsSL https://mise.run | sh" >&2
 fi
 
 {{ if eq .kind "vm" -}}

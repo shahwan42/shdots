@@ -4,6 +4,10 @@ This home directory is managed by chezmoi. The Git repository at
 `~/.local/share/chezmoi` is the source of truth; files such as `~/.zshrc` are
 rendered outputs.
 
+> **A push auto-deploys fleet-wide within 6 hours.** Every machine runs a
+> chezmoi auto-update timer (launchd on Macs, systemd on VMs) that pulls and
+> applies `origin/main`. Treat every push as a deployment.
+
 ## Required workflow
 
 1. Before changing managed configuration, inspect both layers:
