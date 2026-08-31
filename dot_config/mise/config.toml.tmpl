@@ -52,6 +52,9 @@ watchexec = "latest"
 "github:YS-L/csvlens" = "latest"
 "aqua:jesseduffield/lazydocker" = "latest"
 hunk = "latest"
+# Promoted out of the work-only block 2026-08-31: a database TUI is useful on
+# every machine class, not just work.
+"github:jorgerojas26/lazysql" = "latest"
 {{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
 {{ end -}}
 {{ if eq .kind "vm" }}
@@ -79,5 +82,4 @@ cmake = "latest"
 "pipx:commitizen" = "latest"
 "pipx:Pygments" = "latest"
 "github:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
-"github:jorgerojas26/lazysql" = "latest"
 {{ end -}}

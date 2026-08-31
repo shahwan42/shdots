@@ -2,13 +2,13 @@
 # as-dev on the personal Host). Nothing here is machine-specific: identity comes from
 # the multipass --name flag and `tailscale up --hostname=<name>` afterwards.
 #
-# NOT a chezmoi template despite the .tmpl suffix — `provision` is excluded in
-# .chezmoiignore.tmpl, so chezmoi never renders or applies this. The `@@`-delimited
-# placeholders are substituted by provision/launch-dev-vm.sh, which is the only
-# supported way to use this file:
+# NOT a chezmoi template — `provision` is excluded in .chezmoiignore.tmpl, so
+# chezmoi never renders or applies this. The `@@`-delimited placeholders are
+# substituted by provision/launch-dev-vm.sh, which is the only supported way to
+# use this file:
 #
 #   ./launch-dev-vm.sh as-dev                 # personal VM, defaults below
-#   ./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G   # work VM, as originally built
+#   ./launch-dev-vm.sh fdx-dev                # work VM, same spec
 #
 # NOTE: `package_upgrade: true` means two launches weeks apart get different package
 # sets — "reproducible" here means same shape, not bit-identical.
@@ -22,7 +22,7 @@
 #   - age identity, SSH keys, GITHUB_TOKEN  (secrets, seeded out-of-band)
 #   - PHP/Node versions via mise            (pinned from the repo's constraints after clone)
 
-timezone: Asia/Riyadh
+timezone: Africa/Cairo
 
 # Direct SSH from the Host (ubuntu@<vm-ip>) — do not depend on `multipass exec`:
 # with Docker installed in the guest, the multipass client can pick the docker0
@@ -66,8 +66,8 @@ packages:
 
 swap:
   filename: /swapfile
-  size: 4G
-  maxsize: 4G
+  size: 6G
+  maxsize: 6G
 
 apt:
   sources:

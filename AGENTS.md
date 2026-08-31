@@ -74,6 +74,38 @@ zsh -i -c exit
 - On another machine, check `chezmoi git status` and `chezmoi status`, then use
   `chezmoi update` to pull and apply published changes.
 
+## Dev VM spec
+
+The two Multipass dev VMs — `as-dev` (personal) and `fdx-dev` (work) — share one
+hardware spec. Do not re-derive it; it lives in two files, both under
+`~/.local/share/chezmoi/provision` (which is chezmoi-ignored — edit them directly,
+there is no rendered copy):
+
+- **CPU / RAM / disk / image** — the `CPUS` / `MEMORY` / `DISK` / `IMAGE` constants
+  at the top of `provision/launch-dev-vm.sh` (currently 6 / 12G / 220G / 24.04).
+- **Swap and timezone** — `provision/dev-vm-cloud-init.yaml` (currently 6G, Africa/Cairo).
+
+Two kinds of request:
+
+1. **Launch or relaunch one VM at a different size** — pass `--cpus` / `--memory` /
+   `--disk` as one-off flags to `launch-dev-vm.sh`. Change nothing in the repo.
+2. **Make a new size the default** — change the constant, then grep the repo for
+   each old value you changed and fix every comment and doc that quotes it (this
+   section, both `README.md` files, the `provision/*` file headers).
+
+Never `multipass set` a running VM unless asked. Disk can only grow, and only while
+the VM is stopped; swap and timezone are baked in at launch, so changing them later
+is a manual in-guest step, not a relaunch.
+
+Toolchain: the VM OS is a shell — editor, git, host CLIs, coding agents, Docker.
+App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) run
+in Docker Compose, not on the host — do not add them to mise or apt. A system
+language toolchain goes on the VM only when a *host* tool needs it. Install priority
+for anything new on a VM: mise → official one-liner → documented apt repo → distro
+package; adding a mise tool also needs `mise lock` and a committed
+`dot_config/mise/mise.lock` in the same push. Macs are shells *for* the VM —
+duplicating a tool on a Mac is an ergonomics choice, not something to strip.
+
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)
 

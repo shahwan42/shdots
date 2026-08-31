@@ -43,8 +43,8 @@ launcher, run on the Mac that will own the VM:
 
 ```sh
 cd ~/.local/share/chezmoi/provision
-./launch-dev-vm.sh as-dev                              # personal VM: 6 cpu / 12G / 200G
-./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G    # work VM, as originally built
+./launch-dev-vm.sh as-dev                              # personal VM — 6 cpu / 12G / 220G
+./launch-dev-vm.sh fdx-dev                             # work VM — same spec
 ```
 
 That handles everything unattended — Docker, Tailscale, Eternal Terminal, zsh, mise, staged
@@ -181,8 +181,9 @@ flowchart TB
   [`shahwan42/nvim-config`](https://github.com/shahwan42/nvim-config) (`refreshPeriod = 0`,
   so every `chezmoi apply`/`update` runs `git pull` there). Edit nvim in place and push
   to that repo; shdots only points at it.
-- **PHP / composer** — kept native (Homebrew `php@8.3` on Mac, apt php modules on the
-  VM), not routed through mise, so the extension matrix comes ready-built.
+- **PHP / composer** — on Macs, kept native (Homebrew `php@8.3`), not routed through mise,
+  so the extension matrix comes ready-built. The VMs carry no host PHP: Laravel/PHP work
+  there runs in Docker Compose / Sail.
 
 [herdr](https://herdr.dev) — the terminal multiplexer — is just another shared mise
 tool (`aqua:herdrdev/herdr`), the same on Mac and VM.

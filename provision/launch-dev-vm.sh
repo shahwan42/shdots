@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Launch a dev VM from provision/dev-vm-cloud-init.yaml.
 #
+# The CPUS/MEMORY/DISK/IMAGE defaults below are the fleet standard, one spec for
+# every dev box. See AGENTS.md "Dev VM spec" before changing a default vs. passing
+# a one-off --cpus/--memory/--disk flag for a single launch.
+#
 # One cloud-init serves every dev box; this script fills in the two things that differ:
 # the VM's name and the launching Host's own SSH public key (so each VM trusts the Mac
 # that created it — ~/.ssh/id_ed25519.pub if present, else ~/.ssh/id_rsa.pub;
 # override with --pubkey or $DEV_VM_PUBKEY).
 #
 #   ./launch-dev-vm.sh as-dev                              # personal VM (defaults below)
-#   ./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G    # work VM, as originally built
+#   ./launch-dev-vm.sh fdx-dev                             # work VM, same spec
 #   ./launch-dev-vm.sh as-dev --dry-run                    # print the plan, launch nothing
 #
 # Post-launch steps are interactive and live in provision/README.md; the script prints
@@ -20,7 +24,7 @@ TEMPLATE="$SCRIPT_DIR/dev-vm-cloud-init.yaml"
 VM_NAME=""
 CPUS=6
 MEMORY=12G
-DISK=200G
+DISK=220G
 IMAGE=24.04
 PUBKEY="${DEV_VM_PUBKEY:-}"
 DRY_RUN=0
@@ -34,7 +38,7 @@ usage() {
 Options:
   --cpus N          vCPUs                          (default: 6)
   --memory SIZE     RAM, e.g. 12G                  (default: 12G)
-  --disk SIZE       disk ceiling, e.g. 200G        (default: 200G; qemu allocates sparsely)
+  --disk SIZE       disk ceiling, e.g. 220G        (default: 220G; qemu allocates sparsely)
   --image NAME      multipass image                (default: 24.04)
   --pubkey PATH     Host public key to authorize   (default: $DEV_VM_PUBKEY, else
                     ~/.ssh/id_ed25519.pub, else ~/.ssh/id_rsa.pub)

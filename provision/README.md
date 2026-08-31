@@ -15,8 +15,8 @@ so chezmoi never reads anything here.
 ## Launching a dev VM
 
 ```sh
-./launch-dev-vm.sh as-dev                              # personal VM: 6 cpu / 12G / 200G
-./launch-dev-vm.sh fdx-dev --memory 10G --disk 160G    # work VM, as originally built
+./launch-dev-vm.sh as-dev                              # personal VM — 6 cpu / 12G / 220G
+./launch-dev-vm.sh fdx-dev                             # work VM — same spec
 ./launch-dev-vm.sh as-dev --dry-run                    # print the plan, launch nothing
 ```
 
@@ -25,9 +25,12 @@ Run it **on the Host that will own the VM** — it authorizes that Mac's own pub
 why the work Host's key is no longer hardcoded: a VM launched from `as-host` must trust
 `as-host`, not `fdx-host`.
 
-Sizing is per-Host, not per-VM-role — `as-host` has more RAM and disk than `fdx-host` but
-fewer cores, hence the different defaults. The `--disk` value is a ceiling; qemu allocates
-sparsely.
+Every dev VM gets one spec (6 cpu / 12G / 220G). `--cpus` / `--memory` / `--disk` are
+one-off overrides for a single launch, not a new default — to change the default, edit the
+constants in `launch-dev-vm.sh` and see "Dev VM spec" in `AGENTS.md` at the repo root. The
+`--disk` value is a ceiling; qemu allocates sparsely. Timezone and swap are baked in at
+launch by cloud-init; changing them on a running VM is a manual in-guest step
+(`timedatectl`, or a swap-file resize), not a relaunch.
 
 ## What cloud-init does, and what it deliberately leaves
 
@@ -47,6 +50,7 @@ Left to a human because it is interactive or decision-gated:
 | 4 | `GITHUB_TOKEN` — export in the **current shell** (step 5 needs it) *and* persist: `export GITHUB_TOKEN=...` then `echo 'export GITHUB_TOKEN=...' >> ~/.zshrc.local` | else `mise install` 403s partway on the `github:`/`ubi:` backends — *non-fatally*, so a bootstrap can look complete |
 | 5 | chezmoi — prompts for role and kind | `sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots` |
 | 6 | ufw — only after confirming `multipass shell <name>` still works | `sudo ufw enable` |
+| 7 | AI agents — mise installs the binaries; each still needs an interactive sign-in on first run | `claude`, then `/login`; run `codex` and follow its sign-in prompt |
 
 Step 6 matters: the staged rules include a port-22 allow on the multipass NAT interface.
 Lose it and every `multipass stop` becomes a hard power-off.
