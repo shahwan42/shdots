@@ -55,6 +55,9 @@ hunk = "latest"
 # Promoted out of the work-only block 2026-08-31: a database TUI is useful on
 # every machine class, not just work.
 "github:jorgerojas26/lazysql" = "latest"
+# Claude Code MCP server binary — registration (with role-specific host/token)
+# happens in run_onchange_after_40-claude-mcp-sync.sh.tmpl, not here.
+"github:github/github-mcp-server" = "latest"
 {{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
 {{ end -}}
 {{ if eq .kind "vm" }}

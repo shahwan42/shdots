@@ -1,0 +1,65 @@
+#!/bin/sh
+# Reconciles Claude Code's user-scope MCP servers to the declarations below.
+# Re-runs whenever this rendered script changes (chezmoi's run_onchange_
+# semantics — no manual hash needed since the script IS the declaration).
+#
+# `claude mcp add` errors on a name that already exists, so each server is
+# removed then re-added — that's what makes this idempotent.
+set -u
+
+CLAUDE="$(command -v claude || echo "$HOME/.local/share/mise/shims/claude")"
+if ! command -v "$CLAUDE" >/dev/null 2>&1 && [ ! -x "$CLAUDE" ]; then
+  echo "claude not found on PATH — skipping MCP server sync." >&2
+  exit 0
+fi
+
+add() {
+  name="$1"; shift
+  "$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
+  if "$CLAUDE" mcp add "$name" --scope user "$@" >/dev/null 2>&1; then
+    echo "mcp: $name registered"
+  else
+    echo "mcp: $name registration failed" >&2
+  fi
+}
+
+# --- shared everywhere (mac + vm, personal + work) ---
+add context7 -- npx -y @upstash/context7-mcp
+add shadcn-ui -- npx -y @jpisnice/shadcn-ui-mcp-server
+add citra -- npx -y @sylphx/citra
+
+# codebase-memory-mcp ships no package-manager release; its documented
+# one-liner installs the binary AND self-registers it. Only (re)install the
+# binary if missing — `add` below then makes registration idempotent
+# regardless of what the installer already wrote.
+# https://github.com/DeusData/codebase-memory-mcp
+CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
+if [ ! -x "$CBM_BIN" ]; then
+  echo "codebase-memory-mcp: installing…"
+  curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | sh \
+    || echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
+fi
+[ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
+
+# github-mcp-server: binary comes from mise (dot_config/mise/config.toml.tmpl).
+# PAT lives in 1Password; a missing item is non-fatal (same pattern as the
+# missing-GITHUB_TOKEN case in run_onchange_after_20-mise-install.sh.tmpl) —
+# it must not fail `chezmoi apply`, just skip registration with instructions.
+{{ if eq .role "personal" -}}
+GH_PAT="$(op read 'op://Private/GitHub PAT (personal)/credential' 2>/dev/null)"
+if [ -n "$GH_PAT" ]; then
+  add github -e GITHUB_PERSONAL_ACCESS_TOKEN="$GH_PAT" -- github-mcp-server stdio
+else
+  echo "github mcp: create 1Password item 'GitHub PAT (personal)' (field: credential) holding a github.com PAT, then re-run 'chezmoi apply'." >&2
+fi
+{{ end -}}
+{{ if eq .role "work" -}}
+GHE_PAT="$(op read 'op://Private/GitHub PAT (foodics)/credential' 2>/dev/null)"
+if [ -n "$GHE_PAT" ]; then
+  add github-enterprise -e GITHUB_PERSONAL_ACCESS_TOKEN="$GHE_PAT" -e GITHUB_HOST="https://github.foodics.com" -- github-mcp-server stdio
+else
+  echo "github-enterprise mcp: create 1Password item 'GitHub PAT (foodics)' (field: credential) holding a github.foodics.com PAT, then re-run 'chezmoi apply'." >&2
+fi
+{{ end -}}
+
+exit 0
