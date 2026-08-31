@@ -3,7 +3,10 @@ Description=Run chezmoi auto-update every 6 hours
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=6h
+# Wall-clock schedule (not monotonic) so Persistent=true can actually run a
+# missed tick at next boot; the randomized delay de-thunders the fleet.
+OnCalendar=*-*-* 00/6:00:00
+RandomizedDelaySec=10min
 Persistent=true
 
 [Install]

@@ -3,4 +3,7 @@ Description=chezmoi auto-update (safe fast-forward only)
 
 [Service]
 Type=oneshot
+# Backstop for a wedged network fetch/apply; the script also bounds its own
+# git fetch, this catches everything else.
+TimeoutStartSec=15min
 ExecStart=%h/.local/bin/chezmoi-autoupdate
