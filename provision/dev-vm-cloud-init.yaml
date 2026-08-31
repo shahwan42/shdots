@@ -112,13 +112,20 @@ runcmd:
   - usermod -aG docker ubuntu
   - systemctl daemon-reload
   - systemctl enable --now docker-user-fw.service
-  # Tailscale from its signed apt repo (no curl|sh); `tailscale up` stays manual
+  # Tailscale from its signed apt repo (no curl|sh); `tailscale up` stays manual.
+  # The downloaded keyring is verified against Tailscale's published signing-key
+  # fingerprint before apt ever trusts it — a mismatch removes it and fails here.
   - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.noarmor.gpg" -o /usr/share/keyrings/tailscale-archive-keyring.gpg'
+  - sh -c 'fpr=$(gpg --show-keys --with-colons /usr/share/keyrings/tailscale-archive-keyring.gpg | grep "^fpr" | head -n1 | cut -d":" -f10); [ "$fpr" = "2596A99EAAB33821893C0A79458CA832957F5868" ] || { echo "tailscale keyring fingerprint mismatch ($fpr)"; rm -f /usr/share/keyrings/tailscale-archive-keyring.gpg; exit 1; }'
   - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.tailscale-keyring.list" -o /etc/apt/sources.list.d/tailscale.list'
   - apt-get update && apt-get install -y tailscale
   # Eternal Terminal: reconnect-surviving remote shells (`et @@VM_NAME@@` from any Mac).
   # et keeps the connection alive; herdr (a mise tool) keeps the sessions alive.
+  # add-apt-repository fetches the PPA key from Launchpad and embeds it in the
+  # .sources file; verify it against the fingerprint Launchpad publishes for
+  # ~jgmath2000/et before installing anything signed by it.
   - add-apt-repository -y ppa:jgmath2000/et
+  - sh -c 'f=$(ls /etc/apt/sources.list.d/jgmath2000-ubuntu-et-*.sources); fpr=$(sed -n "/BEGIN PGP/,/END PGP/p" "$f" | sed "s/^ //; s/^\.\$//" | gpg --show-keys --with-colons | grep "^fpr" | head -n1 | cut -d":" -f10); [ "$fpr" = "D3614CB0B3C2D154356BD436CB4ADEA5B72A07A1" ] || { echo "et PPA fingerprint mismatch ($fpr)"; rm -f "$f"; exit 1; }'
   - apt-get install -y et
   # zsh as the login shell, so `ssh @@VM_NAME@@` lands in the managed ~/.zshrc
   - chsh -s /usr/bin/zsh ubuntu

@@ -48,9 +48,9 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
       # Braces are load-bearing: bash 3.2 (macOS) folds the following multi-byte
       # character into the variable name and dies under `set -u`.
       echo "mermaid-cli: installing chrome-headless-shell ${chs}…"
-      "$MISE" x node -- npx -y @puppeteer/browsers install "chrome-headless-shell@${chs}" \
+      "$MISE" x node -- npx -y @puppeteer/browsers@3.2.1 install "chrome-headless-shell@${chs}" \
         --path "$HOME/.cache/puppeteer" >/dev/null 2>&1 \
-        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."
+        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers@3.2.1 install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."
     fi
   fi
   rm -rf "$probe"
@@ -67,7 +67,7 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
   printf 'flowchart LR\n  A --> B\n' >"$probe/p.mmd"
   if ! "$HOME/.local/bin/mmdc" -i "$probe/p.mmd" -o "$probe/p.svg" >"$probe/err" 2>&1; then
     echo "mermaid-cli: installing Playwright chromium (arm64)…"
-    "$MISE" x node -- npx -y playwright@latest install chromium >/dev/null 2>&1
+    "$MISE" x node -- npx -y playwright@1.62.1 install chromium >/dev/null 2>&1
     "$HOME/.local/bin/mmdc" -i "$probe/p.mmd" -o "$probe/p.svg" >/dev/null 2>&1 \
       || { echo "mermaid-cli: still broken after install — first error was:"; head -5 "$probe/err"; }
   fi

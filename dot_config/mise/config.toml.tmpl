@@ -3,6 +3,14 @@
 # compiler). Machine-specific runtime pins, if ever needed, go in an unmanaged
 # ~/.config/mise/conf.d/*.toml drop-in, not here.
 
+[settings]
+# Committed lockfile (mise.lock, alongside this file) pins exact versions, URLs
+# and checksums; version strings below stay "latest" — the lock is what pins.
+# Upgrade flow: `mise up` on one machine → copy the changed lock back into the
+# chezmoi source (dot_config/mise/mise.lock) → commit/push → fleet converges.
+lockfile = true
+locked_verify_provenance = true
+
 [tools]
 # --- shared everywhere (mac + vm, personal + work) ---
 node = "22"

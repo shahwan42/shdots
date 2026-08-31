@@ -92,6 +92,15 @@ in it. Force a full refresh of all externals with `chezmoi apply --refresh-exter
 > `mise install` then picks it up from the environment. The `aqua:`/`core:`/`pipx:`
 > tools install fine without it.
 
+### Tool versions are locked
+
+`dot_config/mise/mise.lock` pins exact versions, URLs, and checksums for the whole
+fleet (all platforms in one lock); the version strings in the config stay `latest` —
+the lock is what pins. Upgrade flow: `mise up` on one machine → copy the changed
+`~/.config/mise/mise.lock` back over `dot_config/mise/mise.lock` in the source →
+commit/push → fleet converges within 6 h. An un-copied lock change shows up as
+`chezmoi status` drift (and the stale-marker warning) until it lands in the source.
+
 ## Machine topology
 
 Two Macs, each hosting one Multipass dev VM, all four first-class Tailscale nodes

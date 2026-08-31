@@ -4,24 +4,36 @@
 # Neovim config — its own repo (personal LazyVim setup). Edit ~/.config/nvim in place
 # and push to shahwan42/nvim-config; shdots only points here. refreshPeriod = 0 means
 # chezmoi runs `git pull` in it on every apply / `chezmoi update`.
+# Deliberately a live git-repo, not a pinned archive like the plugins below: it is
+# actively edited in place, it is Ahmed's own repo, and the autoupdate signature
+# gate on this repo is the accepted control for what lands on the fleet.
 [".config/nvim"]
     type = "git-repo"
     url = "https://github.com/shahwan42/nvim-config.git"
     refreshPeriod = "0"
 
 # zsh plugins — sourced from ~/.local/share/zsh/plugins/* by dot_zshrc.tmpl.
+# Pinned release archives with sha256, not tracking git clones: third-party shell
+# code that runs in every interactive session should not update itself. Bump by
+# editing the tag + checksum (curl -fsSL <url> | shasum -a 256).
 
 [".local/share/zsh/plugins/zsh-autosuggestions"]
-    type = "git-repo"
-    url = "https://github.com/zsh-users/zsh-autosuggestions.git"
-    refreshPeriod = "168h"
+    type = "archive"
+    url = "https://github.com/zsh-users/zsh-autosuggestions/archive/refs/tags/v0.7.1.tar.gz"
+    exact = true
+    stripComponents = 1
+    checksum.sha256 = "0df7affff21cd87ed298e6a3970ed08a1dd66a6efa676454ee5b091ad503badf"
 
 [".local/share/zsh/plugins/zsh-syntax-highlighting"]
-    type = "git-repo"
-    url = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
-    refreshPeriod = "168h"
+    type = "archive"
+    url = "https://github.com/zsh-users/zsh-syntax-highlighting/archive/refs/tags/0.8.0.tar.gz"
+    exact = true
+    stripComponents = 1
+    checksum.sha256 = "5981c19ebaab027e356fe1ee5284f7a021b89d4405cc53dc84b476c3aee9cc32"
 
 [".local/share/zsh/plugins/zsh-completions"]
-    type = "git-repo"
-    url = "https://github.com/zsh-users/zsh-completions.git"
-    refreshPeriod = "168h"
+    type = "archive"
+    url = "https://github.com/zsh-users/zsh-completions/archive/refs/tags/0.36.0.tar.gz"
+    exact = true
+    stripComponents = 1
+    checksum.sha256 = "5aa68be2999a7be2eb56de8e4acff8f3bba4a66b9acbb233752536857408fb2e"
