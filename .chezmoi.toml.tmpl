@@ -1,5 +1,6 @@
 {{- $role := promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
 {{- $kind := promptChoiceOnce . "kind" "Machine kind" (list "mac" "vm") -}}
+{{- $hostname := promptStringOnce . "hostname" "Machine hostname" (output "hostname" "-s" | trim) -}}
 # Encryption on every machine class: the 1Password service-account token is a
 # shared capability. Provision ~/.config/chezmoi/key.txt once per machine
 # (out-of-band); role guards decide WHAT decrypts where, not WHO can.
@@ -10,3 +11,4 @@ encryption = "age"
 [data]
 role = {{ $role | quote }}
 kind = {{ $kind | quote }}
+hostname = {{ $hostname | quote }}
