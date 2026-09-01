@@ -66,9 +66,14 @@ if [ ! -x "$CBM_BIN" ]; then
   # Upstream install.sh uses `set -o pipefail` (a bashism); Ubuntu's /bin/sh is
   # dash and aborts on it. Pipe to bash, not sh.
   if command -v bash >/dev/null 2>&1; then
+    # It also appends a redundant `export PATH=…/.local/bin` to ~/.zshrc, which
+    # env.zsh already handles and which is chezmoi-managed — snapshot & restore
+    # so it doesn't register as drift.
+    _zbak=$(mktemp 2>/dev/null) && cp "$HOME/.zshrc" "$_zbak" 2>/dev/null
     curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash \
       || { echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
            hn codebase-memory-mcp fail "install.sh exited non-zero"; }
+    [ -n "${_zbak:-}" ] && [ -f "$_zbak" ] && cp "$_zbak" "$HOME/.zshrc" && rm -f "$_zbak"
   else
     echo "codebase-memory-mcp: bash not found — cannot run installer; skipping" >&2
     hn codebase-memory-mcp skip "bash not available"
