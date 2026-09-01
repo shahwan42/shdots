@@ -1,0 +1,68 @@
+#!/bin/sh
+# One entry point for fleet self-diagnosis.
+#
+# Writers  — run_onchange_* scripts and chezmoi-autoupdate append NDJSON events.
+# Readers  — zshrc runs `check` on every shell; a human runs it bare; an AI
+#            agent is pointed here by AGENTS.md ("## Fleet health").
+#
+#   chezmoi-health note <src> <item> <status> [detail]   append one event
+#   chezmoi-health run  <status> [detail]                append a sync-run summary
+#   chezmoi-health check                                 quiet unless the last
+#                                                        run was not "ok"
+#                                                        (one line to stderr, exit 1)
+#   chezmoi-health           [n]                         show the last n events (default 25)
+#
+# status vocabulary: ok | degraded | fail | timeout | skip
+#
+# The log is append-only NDJSON, capped at $MAX lines, at
+# $XDG_STATE_HOME/chezmoi/health.ndjson (~/.local/state/... by default) —
+# XDG_STATE_HOME is the spec's home for logs and history, unlike the
+# regenerable ~/.cache/chezmoi-stale marker.
+set -u
+
+LOG="${XDG_STATE_HOME:-$HOME/.local/state}/chezmoi/health.ndjson"
+MAX=500
+HOST="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo '?')"
+
+_append() {  # kind src item status detail
+  mkdir -p "$(dirname "$LOG")" 2>/dev/null || return 0
+  _d=$(printf '%s' "${5:-}" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\000-\037')
+  printf '{"ts":"%s","host":"%s","kind":"%s","src":"%s","item":"%s","status":"%s","detail":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HOST" "$1" "$2" "$3" "$4" "$_d" >> "$LOG" 2>/dev/null || return 0
+  if [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt "$MAX" ]; then
+    tail -n "$MAX" "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG" 2>/dev/null
+  fi
+}
+
+_field() { printf '%s' "$1" | sed -n 's/.*"'"$2"'":"\([^"]*\)".*/\1/p'; }
+
+cmd="${1:-show}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  note)
+    _append event "${1:-?}" "${2:-?}" "${3:-fail}" "${4:-}"
+    ;;
+  run)
+    _append run sync - "${1:-ok}" "${2:-}"
+    ;;
+  check)
+    [ -f "$LOG" ] || exit 0
+    last="$(grep '"kind":"run"' "$LOG" 2>/dev/null | tail -n 1)"
+    [ -n "$last" ] || exit 0
+    st="$(_field "$last" status)"
+    [ "$st" = "ok" ] && exit 0
+    printf 'chezmoi: last auto-sync on this box was %s — run '\''chezmoi-health'\''\n' "${st:-unknown}" >&2
+    exit 1
+    ;;
+  show|*)
+    n="${cmd#show}"; [ "$cmd" = "show" ] && n="${1:-25}" || n=25
+    [ -f "$LOG" ] || { echo "no chezmoi health events yet ($LOG)"; exit 0; }
+    echo "# $LOG  (newest last)"
+    tail -n "$n" "$LOG" | while IFS= read -r l; do
+      printf '%s  %-8s %-20s %-16s %s\n' \
+        "$(_field "$l" ts)" "$(_field "$l" status)" \
+        "$(_field "$l" src)" "$(_field "$l" item)" "$(_field "$l" detail)"
+    done
+    ;;
+esac

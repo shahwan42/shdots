@@ -106,6 +106,28 @@ package; adding a mise tool also needs `mise lock` and a committed
 `dot_config/mise/mise.lock` in the same push. Macs are shells *for* the VM —
 duplicating a tool on a Mac is an ergonomics choice, not something to strip.
 
+## Fleet health
+
+The auto-update timer records what happened to `chezmoi-health` — an append-only
+NDJSON log at `${XDG_STATE_HOME:-~/.local/state}/chezmoi/health.ndjson`, capped at
+500 lines. Read it when a box looks stale, a run-script's effect is missing (an
+MCP server absent, a tool not installed), or the user reports the update "not
+working":
+
+- `chezmoi-health` — last 25 events, newest last (`ts status src item detail`).
+- `chezmoi-health check` — what `zshrc` runs each shell; one stderr line + exit 1
+  when the last sync run was not `ok`.
+
+Statuses: `ok` (converged) · `degraded` (fast-forward fine, something after it
+isn't — e.g. `chezmoi init` needed) · `fail` (a run-script errored) · `timeout`
+(`chezmoi apply` was killed at 900s — a run-script is hanging; the tail of
+`~/.cache/chezmoi-autoupdate.last` shows where) · `skip` (an optional step was
+consciously not done, e.g. a 1Password item missing).
+
+Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only when
+a fast-forward was refused) and this log (every run's outcome). A green marker
+does not imply a green log.
+
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)
 

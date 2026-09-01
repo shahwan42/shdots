@@ -12,9 +12,34 @@
 set -u
 
 MARKER="$HOME/.cache/chezmoi-stale"
+LAST="$HOME/.cache/chezmoi-autoupdate.last"
 mkdir -p "$HOME/.cache"
 
-warn() { printf '%s\n' "$1" > "$MARKER"; exit 0; }
+# Structured history for humans and AI agents (see AGENTS.md "Fleet health").
+# Guarded so a box that hasn't applied chezmoi-health yet still auto-updates.
+HEALTH="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HEALTH" ] && "$HEALTH" "$@" >/dev/null 2>&1 || :; }
+
+# warn "<msg>" [status]  — leave the one-line marker zshrc surfaces, record a
+# run event (default status "degraded"), and exit success so the timer does
+# not retry-storm.
+warn() { printf '%s\n' "$1" > "$MARKER"; hn run "${2:-degraded}" "$1"; exit 0; }
+
+# capped <seconds> <cmd...>  — run with a hard wall-clock cap. timeout(1) is
+# absent from the stock macOS PATH, so fall back to a background kill. Returns
+# 124 when the cap fires (matching timeout(1)).
+capped() {
+  _s="$1"; shift
+  for _t in timeout gtimeout; do
+    command -v "$_t" >/dev/null 2>&1 && { "$_t" "$_s" "$@"; return; }
+  done
+  "$@" & _p=$!
+  ( sleep "$_s"; kill "$_p" 2>/dev/null ) & _k=$!
+  wait "$_p" 2>/dev/null; _r=$?
+  kill "$_k" 2>/dev/null; wait "$_k" 2>/dev/null
+  [ "$_r" -ge 128 ] && _r=124
+  return "$_r"
+}
 
 CZ=""
 for c in "$HOME/.local/bin/chezmoi" /opt/homebrew/bin/chezmoi /usr/local/bin/chezmoi; do
@@ -52,7 +77,7 @@ BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)"
 
 if [ "$BEHIND" -eq 0 ]; then
   config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
-  if converged; then rm -f "$MARKER"
+  if converged; then hn run ok ""; rm -f "$MARKER"
   else warn "chezmoi: source is current but \$HOME is not applied — run 'chezmoi apply'"; fi
   exit 0
 fi
@@ -71,11 +96,23 @@ fi
 
 # Fast-forward to the exact commit that was just verified, then apply — not
 # 'chezmoi update', whose own git pull re-fetches and could apply a newer,
-# unverified tip (verify/apply race).
-if git -C "$SRC" merge --ff-only "$UPSTREAM" >"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 \
-   && "$CZ" apply --no-tty >>"$HOME/.cache/chezmoi-autoupdate.last" 2>&1 && converged; then
+# unverified tip (verify/apply race). The apply is capped (below the systemd
+# unit's 15-min TimeoutStartSec, so this handler wins) so a hung run-script —
+# e.g. a blocked `op read` — wedges one run, not the timer forever.
+: > "$LAST"
+git -C "$SRC" merge --ff-only "$UPSTREAM" >>"$LAST" 2>&1 \
+  || warn "chezmoi: fast-forward to $UPSTREAM failed — see $LAST"
+
+capped 720 "$CZ" apply --no-tty >>"$LAST" 2>&1
+apply_rc=$?
+if [ "$apply_rc" -eq 124 ]; then
+  warn "chezmoi: apply timed out after 720s — a run-script is hanging; see $LAST" timeout
+elif [ "$apply_rc" -ne 0 ]; then
+  warn "chezmoi: apply exited $apply_rc — see $LAST" fail
+elif converged; then
   config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
+  hn run ok ""
   rm -f "$MARKER"
 else
-  warn "chezmoi: automatic update did not converge — see ~/.cache/chezmoi-autoupdate.last"
+  warn "chezmoi: apply finished but \$HOME is not fully applied — run 'chezmoi apply'"
 fi

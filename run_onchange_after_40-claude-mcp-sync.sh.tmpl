@@ -7,6 +7,10 @@
 # removed then re-added — that's what makes this idempotent.
 set -u
 
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 40-claude-mcp-sync "$@" >/dev/null 2>&1 || :; }
+
 CLAUDE="$(command -v claude || echo "$HOME/.local/share/mise/shims/claude")"
 if ! command -v "$CLAUDE" >/dev/null 2>&1 && [ ! -x "$CLAUDE" ]; then
   echo "claude not found on PATH — skipping MCP server sync." >&2
@@ -20,6 +24,7 @@ add() {
     echo "mcp: $name registered"
   else
     echo "mcp: $name registration failed" >&2
+    hn "$name" fail "claude mcp add failed"
   fi
 }
 
@@ -58,8 +63,16 @@ add citra -- npx -y @sylphx/citra
 CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 if [ ! -x "$CBM_BIN" ]; then
   echo "codebase-memory-mcp: installing…"
-  curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | sh \
-    || echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
+  # Upstream install.sh uses `set -o pipefail` (a bashism); Ubuntu's /bin/sh is
+  # dash and aborts on it. Pipe to bash, not sh.
+  if command -v bash >/dev/null 2>&1; then
+    curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash \
+      || { echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
+           hn codebase-memory-mcp fail "install.sh exited non-zero"; }
+  else
+    echo "codebase-memory-mcp: bash not found — cannot run installer; skipping" >&2
+    hn codebase-memory-mcp skip "bash not available"
+  fi
 fi
 [ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
 
@@ -73,6 +86,7 @@ if [ -n "$GH_PAT" ]; then
   add github -e GITHUB_PERSONAL_ACCESS_TOKEN="$GH_PAT" -- github-mcp-server stdio
 else
   echo "github mcp: create 1Password item 'GitHub PAT (personal)' (field: credential) holding a github.com PAT, then re-run 'chezmoi apply'." >&2
+  hn github skip "1Password PAT unavailable (op read empty/timed out)"
 fi
 {{ end -}}
 {{ if eq .role "work" -}}
@@ -81,6 +95,7 @@ if [ -n "$GHE_PAT" ]; then
   add github-enterprise -e GITHUB_PERSONAL_ACCESS_TOKEN="$GHE_PAT" -e GITHUB_HOST="https://github.foodics.com" -- github-mcp-server stdio
 else
   echo "github-enterprise mcp: create 1Password item 'GitHub PAT (foodics)' (field: credential) holding a github.foodics.com PAT, then re-run 'chezmoi apply'." >&2
+  hn github-enterprise skip "1Password PAT unavailable (op read empty/timed out)"
 fi
 {{ end -}}
 

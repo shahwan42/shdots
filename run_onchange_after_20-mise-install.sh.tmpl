@@ -8,12 +8,20 @@
 # must not fail `chezmoi apply`. Export GITHUB_TOKEN and re-run to finish.
 set -u
 
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 20-mise-install "$@" >/dev/null 2>&1 || :; }
+
 MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
 if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
-  "$MISE" install -y || echo "mise install: some tools did not install (set GITHUB_TOKEN and re-run 'mise install')."
+  "$MISE" install -y || {
+    echo "mise install: some tools did not install (set GITHUB_TOKEN and re-run 'mise install')."
+    hn mise fail "mise install non-zero — GITHUB_TOKEN unset or a backend errored"
+  }
 else
   echo "mise not found — toolchain NOT installed. Re-run: curl -fsSL https://mise.run | sh" >&2
+  hn mise fail "mise binary not found"
 fi
 
 {{ if eq .kind "vm" -}}
@@ -29,7 +37,8 @@ if [ -x "$HOME/.local/share/mise/shims/claude" ] && ! "$MISE" x -- claude --vers
         -path '*node_modules/@anthropic-ai/claude-code/install.cjs' 2>/dev/null | sort | tail -1)
   if [ -n "$pkg" ]; then
     echo "claude-code: running skipped npm postinstall…"
-    (cd "$(dirname "$pkg")" && "$MISE" x -- node install.cjs) || echo "claude-code postinstall failed; run manually: $MISE x -- node $pkg"
+    (cd "$(dirname "$pkg")" && "$MISE" x -- node install.cjs) \
+      || { echo "claude-code postinstall failed; run manually: $MISE x -- node $pkg"; hn claude-code fail "npm postinstall failed — binary may not launch"; }
   fi
 fi
 {{ end -}}
@@ -50,7 +59,7 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
       echo "mermaid-cli: installing chrome-headless-shell ${chs}…"
       "$MISE" x node -- npx -y @puppeteer/browsers@3.2.1 install "chrome-headless-shell@${chs}" \
         --path "$HOME/.cache/puppeteer" >/dev/null 2>&1 \
-        || echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers@3.2.1 install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."
+        || { echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers@3.2.1 install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."; hn mermaid-cli fail "chrome-headless-shell ${chs} install failed"; }
     fi
   fi
   rm -rf "$probe"
@@ -69,7 +78,7 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
     echo "mermaid-cli: installing Playwright chromium (arm64)…"
     "$MISE" x node -- npx -y playwright@1.62.1 install chromium >/dev/null 2>&1
     "$HOME/.local/bin/mmdc" -i "$probe/p.mmd" -o "$probe/p.svg" >/dev/null 2>&1 \
-      || { echo "mermaid-cli: still broken after install — first error was:"; head -5 "$probe/err"; }
+      || { echo "mermaid-cli: still broken after install — first error was:"; head -5 "$probe/err"; hn mermaid-cli fail "Playwright chromium install did not fix mmdc"; }
   fi
   rm -rf "$probe"
 fi
