@@ -61,7 +61,7 @@ Host *
 # GitHub via on-disk key. The 1Password SSH agent is retired: it's gated by the
 # desktop app's GUI unlock, which breaks headless/SSH sessions.
 # Per-machine keys on purpose — identifies which machine is connecting:
-# work Mac = id_ed25519, personal Mac = legacy id_rsa.
+# work Mac = id_ed25519, personal Mac = id_rsa.
 Host github.com github.foodics.com
 	IdentityAgent none
 	IdentityFile ~/.ssh/{{ if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}
