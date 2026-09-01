@@ -689,6 +689,11 @@ checksum = "sha256:84b205a187ff498533088a8077a294e4245323a66b33f2d963430d2732392
 url = "https://github.com/ankitpokhrel/jira-cli/releases/download/v1.7.0/jira_1.7.0_windows_x86_64.zip"
 url_api = "https://api.github.com/repos/ankitpokhrel/jira-cli/releases/assets/288071449"
 
+[[tools."github:github/github-mcp-server"]]
+version = "1.11.0"
+backend = "github:github/github-mcp-server"
+specifiers = ["latest"]
+
 [[tools."github:jorgerojas26/lazysql"]]
 version = "0.5.6"
 backend = "github:jorgerojas26/lazysql"

@@ -74,6 +74,41 @@ zsh -i -c exit
 - On another machine, check `chezmoi git status` and `chezmoi status`, then use
   `chezmoi update` to pull and apply published changes.
 
+## mise toolchain
+
+`~/.config/mise/config.toml` and `~/.config/mise/mise.lock` are **fully
+chezmoi-managed and identical on every machine** — one fleet toolchain, kept in
+sync. Never edit `~/.config/mise/config.toml` by hand; edit the source
+`dot_config/mise/config.toml.tmpl` and `chezmoi apply`. A `M .config/mise/…` in
+`chezmoi status` (also surfaced by the shell marker and `chezmoi-health`) means a
+tool was added out of band — reconcile it, don't leave it.
+
+**Add a tool to the fleet** — the only supported way:
+
+1. Edit `dot_config/mise/config.toml.tmpl`; put it in the shared block unless it
+   is genuinely role-specific (there is a `# --- work only ---` block).
+2. `chezmoi apply` — `run_onchange_after_20-mise-install` runs `mise install`,
+   which also maintains `mise.lock` (`lockfile = true`; there is no `mise lock`
+   subcommand in the pinned version).
+3. `chezmoi re-add ~/.config/mise/mise.lock`.
+4. Commit **`config.toml.tmpl` and `mise.lock` together** in one push. A tool in
+   the config but missing from the lock makes every other machine's
+   `mise install` rewrite the lock — perpetual `mise.lock` drift. This is the #1
+   cause of that drift.
+5. `mise.lock` holds per-platform checksums. The first machine of each platform
+   (one Mac, one VM) to `mise install` after the push adds its platform's rows;
+   `chezmoi re-add` + a follow-up commit from that machine finishes the lock,
+   after which it is stable.
+
+**Experiment without touching the fleet:**
+
+- One-off: `mise exec <tool>@<ver> -- <cmd>` — writes nothing.
+- Longer: a project-local `mise.toml` in the working directory — it gets its own
+  adjacent lock, zero global impact.
+- Do **not** use `mise use -g` or `~/.config/mise/conf.d/` — both feed the global
+  `mise.lock` and show up as drift. If the experiment graduates, add it via the
+  steps above.
+
 ## Dev VM spec
 
 The two Multipass dev VMs — `as-dev` (personal) and `fdx-dev` (work) — share one
@@ -102,9 +137,9 @@ App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) 
 in Docker Compose, not on the host — do not add them to mise or apt. A system
 language toolchain goes on the VM only when a *host* tool needs it. Install priority
 for anything new on a VM: mise → official one-liner → documented apt repo → distro
-package; adding a mise tool also needs `mise lock` and a committed
-`dot_config/mise/mise.lock` in the same push. Macs are shells *for* the VM —
-duplicating a tool on a Mac is an ergonomics choice, not something to strip.
+package; add it the way "## mise toolchain" describes (source config + `mise.lock`
+in one push). Macs are shells *for* the VM — duplicating a tool on a Mac is an
+ergonomics choice, not something to strip.
 
 ## Fleet health
 
@@ -127,6 +162,47 @@ consciously not done, e.g. a 1Password item missing).
 Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only when
 a fast-forward was refused) and this log (every run's outcome). A green marker
 does not imply a green log.
+
+## GitHub MCP servers (per-machine, on purpose)
+
+`run_onchange_after_40-claude-mcp-sync` registers the shared MCP servers
+(context7, shadcn-ui, citra, codebase-memory) on every machine. The `github`
+(github.com) and `github-enterprise` (github.foodics.com) servers are **left for
+the user to register on the machines where they actually use them** — each needs
+a personal access token, and the sync script logs `skip` to `chezmoi-health` and
+moves on when the token isn't reachable (the unattended `chezmoi apply` can't
+unlock 1Password).
+
+**The user's one-time part** — per identity, not per machine — is to store the
+PAT in 1Password:
+
+| server | 1Password item (field `credential`) | token for |
+|---|---|---|
+| `github` | `GitHub PAT (personal)` | github.com |
+| `github-enterprise` | `GitHub PAT (foodics)` | github.foodics.com |
+
+**To register on the current machine** (personal role → `github`, work role →
+`github-enterprise`; it follows the chezmoi `role`):
+
+```
+mcp-github-register
+```
+
+That script checks `op` is unlocked, reads the right PAT, and does an idempotent
+remove-then-add. By hand it is:
+
+1. `op whoami` — if it errors, unlock: `eval "$(op signin)"` or open the desktop
+   app, then retry.
+2. `claude mcp remove github --scope user 2>/dev/null` then
+   `claude mcp add github --scope user -e GITHUB_PERSONAL_ACCESS_TOKEN="$(op read 'op://Private/GitHub PAT (personal)/credential')" -- github-mcp-server stdio`
+   (work: `github-enterprise`, the `(foodics)` item, and add
+   `-e GITHUB_HOST=https://github.foodics.com`).
+3. `claude mcp list | grep -i github` — confirm.
+
+**When an AI should offer this:** the user wants a GitHub MCP tool on a machine
+where `claude mcp list` doesn't show it, or `chezmoi-health` shows
+`skip 40-claude-mcp-sync github…` and the user wants it resolved. Point them at
+`mcp-github-register`; if it reports `op` locked, that is the user's step to do.
 
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)
