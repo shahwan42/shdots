@@ -1,0 +1,55 @@
+#!/bin/sh
+# Register this machine's GitHub MCP server for Claude Code, by chezmoi role:
+#   personal -> `github`            github.com          PAT: GitHub PAT (personal)
+#   work     -> `github-enterprise` github.foodics.com  PAT: GitHub PAT (foodics)
+#
+# The run_onchange_after_40-claude-mcp-sync script deliberately skips these
+# (unattended `chezmoi apply` can't unlock 1Password). Run this from an
+# interactive shell once per machine you want the server on. Idempotent.
+# See AGENTS.md "GitHub MCP servers (per-machine, on purpose)".
+set -u
+
+CZ="$(command -v chezmoi || echo "$HOME/.local/bin/chezmoi")"
+CLAUDE="$(command -v claude || echo "$HOME/.local/share/mise/shims/claude")"
+{ command -v "$CLAUDE" >/dev/null 2>&1 || [ -x "$CLAUDE" ]; } || {
+  echo "mcp-github-register: claude not found on PATH" >&2; exit 1; }
+
+role="$("$CZ" execute-template '{{ .role }}' 2>/dev/null)"
+case "$role" in
+  work)
+    name=github-enterprise
+    item='op://Private/GitHub PAT (foodics)/credential'
+    host_arg='-e GITHUB_HOST=https://github.foodics.com' ;;
+  personal)
+    name=github
+    item='op://Private/GitHub PAT (personal)/credential'
+    host_arg='' ;;
+  *)
+    echo "mcp-github-register: cannot read chezmoi role (personal|work)" >&2; exit 1 ;;
+esac
+
+command -v op >/dev/null 2>&1 || { echo "mcp-github-register: 1Password CLI (op) not installed" >&2; exit 1; }
+if ! op whoami >/dev/null 2>&1; then
+  echo "mcp-github-register: op is locked. Unlock it, then re-run:" >&2
+  echo "    eval \"\$(op signin)\"     # or open the 1Password desktop app" >&2
+  exit 1
+fi
+
+pat="$(op read "$item" 2>/dev/null)"
+[ -n "$pat" ] || {
+  echo "mcp-github-register: no token from '$item'." >&2
+  echo "  Create that 1Password item with a '$role' PAT in the 'credential' field." >&2
+  exit 1
+}
+
+"$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
+# host_arg is intentionally unquoted: empty for personal, two args for work.
+# shellcheck disable=SC2086
+if "$CLAUDE" mcp add "$name" --scope user \
+     -e GITHUB_PERSONAL_ACCESS_TOKEN="$pat" $host_arg -- github-mcp-server stdio; then
+  echo "mcp-github-register: registered '$name' (role: $role)"
+  "$CLAUDE" mcp list 2>/dev/null | grep -i github || :
+else
+  echo "mcp-github-register: 'claude mcp add $name' failed" >&2
+  exit 1
+fi
