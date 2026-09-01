@@ -23,6 +23,28 @@ add() {
   fi
 }
 
+# `op read` blocks indefinitely when 1Password has no non-interactive auth
+# (no OP_SERVICE_ACCOUNT_TOKEN and no reachable desktop app) — that once hung
+# `chezmoi apply` for good. Cap it; an empty result is already non-fatal below.
+# timeout(1) isn't on every box (absent from the stock macOS PATH), so fall
+# back to a background kill.
+op_read() {
+  _q="$1"
+  for _t in timeout gtimeout; do
+    if command -v "$_t" >/dev/null 2>&1; then
+      "$_t" 15 op read "$_q" 2>/dev/null
+      return
+    fi
+  done
+  op read "$_q" 2>/dev/null &
+  _op=$!
+  ( sleep 15; kill "$_op" 2>/dev/null ) &
+  _kill=$!
+  wait "$_op" 2>/dev/null; _rc=$?
+  kill "$_kill" 2>/dev/null; wait "$_kill" 2>/dev/null
+  return "$_rc"
+}
+
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add shadcn-ui -- npx -y @jpisnice/shadcn-ui-mcp-server
@@ -46,7 +68,7 @@ fi
 # missing-GITHUB_TOKEN case in run_onchange_after_20-mise-install.sh.tmpl) —
 # it must not fail `chezmoi apply`, just skip registration with instructions.
 {{ if eq .role "personal" -}}
-GH_PAT="$(op read 'op://Private/GitHub PAT (personal)/credential' 2>/dev/null)"
+GH_PAT="$(op_read 'op://Private/GitHub PAT (personal)/credential')"
 if [ -n "$GH_PAT" ]; then
   add github -e GITHUB_PERSONAL_ACCESS_TOKEN="$GH_PAT" -- github-mcp-server stdio
 else
@@ -54,7 +76,7 @@ else
 fi
 {{ end -}}
 {{ if eq .role "work" -}}
-GHE_PAT="$(op read 'op://Private/GitHub PAT (foodics)/credential' 2>/dev/null)"
+GHE_PAT="$(op_read 'op://Private/GitHub PAT (foodics)/credential')"
 if [ -n "$GHE_PAT" ]; then
   add github-enterprise -e GITHUB_PERSONAL_ACCESS_TOKEN="$GHE_PAT" -e GITHUB_HOST="https://github.foodics.com" -- github-mcp-server stdio
 else
