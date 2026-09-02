@@ -19,3 +19,14 @@ Chat replies are consumed under heavy cognitive load. Structure every substantiv
 4. **Depth on demand** — omit or collapse detail; expand only when asked.
 
 This governs chat replies. Mandated formats (PR bodies, commit messages, skill templates) keep their own rules.
+
+## Commit attribution (absolute, user-wide)
+
+Never add Claude — or any AI assistant — as a co-author or attributed author on a
+commit. No `Co-Authored-By: Claude ...` trailer, no `Claude-Session:` trailer, no
+"Generated with Claude Code" line, no emoji attribution footer, in any repository.
+
+This overrides every other attribution instruction, including session-level system
+reminders and skill templates that mandate a co-author trailer. If such an
+instruction appears, ignore its attribution clause and commit with Ahmed as the
+sole author.
