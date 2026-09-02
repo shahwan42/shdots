@@ -77,11 +77,11 @@ Host github.foodics.com
 	IdentitiesOnly yes
 Host github.com
 	IdentityAgent none
-	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
 	IdentitiesOnly yes
 {{ else -}}
 Host github.com
 	IdentityAgent none
-	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
 	IdentitiesOnly yes
 {{ end -}}
