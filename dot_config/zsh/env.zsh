@@ -29,6 +29,15 @@ fi
 if [[ -d "/Applications/kitty.app/Contents/MacOS" ]]; then
   path=($path "/Applications/kitty.app/Contents/MacOS")
 fi
+
+# pnpm global binaries. Pin PNPM_HOME to one XDG location on every machine
+# (overrides pnpm's per-OS default, e.g. ~/Library/pnpm on macOS) so global
+# installs and this PATH entry always agree. pnpm >=9 uses $PNPM_HOME/bin as
+# the global bin dir; adding it unconditionally is fine — pnpm/mkdir on first
+# `pnpm add -g`, and typeset -U below drops the dup on the second (login) pass.
+export PNPM_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/pnpm"
+path=("$PNPM_HOME/bin" $path)
+
 typeset -U path PATH
 
 if [[ -d /Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home ]]; then
