@@ -1,11 +1,13 @@
-{{ if and (eq .kind "mac") (eq .role "personal") -}}
+{{ if eq .hostname "as-host" -}}
 # Managed by chezmoi — edits here are overwritten. Source: .chezmoidata/fleet.yaml
 #
 # Tailscale SSH is the primary path between fleet machines; these keys are the
 # fallback for when tailscaled is down or the connection is LAN-local.
 #
-# This deliberately encodes the pairs that were already in place, not a full mesh:
-# widening who can ssh into what is a policy change, not a refactor.
+# This deliberately encodes the pairs that were already in place on as-host, not a
+# full mesh: widening who can ssh into what is a policy change, not a refactor.
+# Gated on hostname, not kind/role — another personal Mac (amba) must not inherit
+# as-host's inbound access.
 {{ .fleet.fdx_host }} fdx-host
 {{ .fleet.as_dev }} as-dev
 {{ end -}}

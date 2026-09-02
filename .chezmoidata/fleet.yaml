@@ -2,6 +2,8 @@
 # names). Public keys only — private keys stay unmanaged, per .chezmoiignore.tmpl's
 # `.ssh/id_*` rule. Used to build ~/.ssh/authorized_keys reproducibly.
 #
+# Only the entries as-host's authorized_keys consumes are live (fdx_host, as_dev);
+# as_host and fdx_dev are recorded for reference.
 # Refresh a value after rotating a key: ssh <machine> 'cat ~/.ssh/<key>.pub'
 fleet:
   as_host: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDpw3aImIIbSKN0TV36duDB80zF+l/ySN+Z9JSzCqh0CZ4Z1Qr6KZyvFfP1vZj09ZbxKcbv88vMV6zlPiauP4TI+SZk5rWY9FMvll8wHTeRF9LejImVJSEM/OxJbDE7PqJXLiojm36nl8katBWuw3yJS94vVoX1WE/qb5DOTx4usW4kpxCdcKBhUrtDVY/bzB2AkmrsKGKoTj2scl4We7jSVJz7DR6fl8hvaW0bPzIEpWAdMH3MZn77IzekC1w6AvwicTewGcJEHKrkaOwHsPFknYE4fTpwW7xHhGBymXEFUjXTQbDZ1Cc9LQp+4JyxkGwVx98Yz9ZHC86tIvNtUtLAEchtVbJMO/mM0K4hnwFWRje4n/WKmaHaqMCFBNsR+mJNTt7xd4xFHzrXzxAijCQ/x+5W/uuaef5M4P8s/GkktbYNAVBuglgx55p/pRg1GmVIx/tMiN8LpPgVdY5KatStGIFDQ5o5M/izc5HTrDEcra6xA4raRWbqJgLz01QOLvni3++NLa+vOcuP5ByiCerIn87fOSZEwpaDHXQdSu+4pzkek7Bc/+A5ELI9ad047+jQX6UAmQoREoOS+SdcygEdTcbPj5rBXMctn3cdkS9EUj5Xf3myAWNNSNKpSkc+qzhl11d4Ze5wz8S93LWW2aC+qm/YD/+5hrfrKh22ovY9Xw=="
