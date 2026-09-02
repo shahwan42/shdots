@@ -5,6 +5,15 @@
 # shared capability. Provision ~/.config/chezmoi/key.txt once per machine
 # (out-of-band); role guards decide WHAT decrypts where, not WHO can.
 encryption = "age"
+
+# Ubuntu sets a 002 login umask (pam_umask + USERGROUPS_ENAB with user-private
+# groups); macOS logins are 022. Without pinning this, chezmoi derives target
+# modes from the live umask, so every managed file/dir flips 0644<->0664 /
+# 0755<->0775 between machines and `chezmoi status` is never clean. Pin 022 so
+# dotfiles are non-group-writable everywhere. Must stay a top-level key, above
+# [age] — a TOML key after a table header joins that table.
+umask = 0o022
+
 [age]
     identity = {{ (joinPath .chezmoi.homeDir ".config/chezmoi/key.txt") | quote }}
     recipient = "age1ax3esnk3kmyaqaemwd4kxlzm265yc00stqqmp64mvqtexuqxvsks7ac5xe"
