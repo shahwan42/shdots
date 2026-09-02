@@ -1,70 +1,36 @@
 # vim: filetype=sshconfig
 
-# Skip options a platform doesn't know (e.g. UseKeychain is macOS-only) instead
-# of aborting the whole parse. Global, set before any Include.
+# Skip options a platform doesn't know (UseKeychain is macOS-only) instead of
+# aborting the parse. Must stay above the Include.
 Host *
 	IgnoreUnknown UseKeychain
 
-# Include configurations from other files (work SSH hosts arrive here, decrypted).
+# Work and personal SSH hosts land here, decrypted.
 Include ~/.ssh/config.d/*
-# -- Orbstack config
-# Include ~/.orbstack/ssh/config
 
-
-# Multipass dev VMs (tailnet names) — default user so `ssh fdx-dev` just works.
+# Multipass dev VMs, by tailnet name.
 Host fdx-dev as-dev
 	User ubuntu
 
-# The Macs that host them. The tailnet machines are named fdx-host / as-host in
-# the admin console — keep those names authoritative; MagicDNS resolves them.
-# `User as` matters from inside a VM, where the local user is `ubuntu`.
+# The Macs hosting them. These tailnet names are authoritative (they match the
+# admin console); MagicDNS resolves them. User matters from inside a VM, where
+# the local user is ubuntu. Tailscale SSH is the primary path between fleet
+# machines; the key below is the fallback when tailscaled is down or the hop is
+# LAN-local. Which key is this machine's identity: .chezmoitemplates/ssh-self-key.
 Host fdx-host as-host
 	User as
-	# Offer this machine's own key explicitly: the VM keys use non-default names
-	# that ssh would otherwise never try, so scp/rsync to the Mac would fail.
 	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
 
-# Keep SSH connections alive by sending keepalive messages every 60 seconds.
-# Try 3 times.
+# Keepalives for every host: ping every 60s, give up after 3. Separate block
+# because only the IgnoreUnknown one above needs to precede the Include.
 Host *
 	ServerAliveInterval 60
 	ServerAliveCountMax 3
 
-
-# ------------------------------------------------------------
-# Example configurations for some cases.
-
-#Host github.com
-#	HostName github.com
-#	User git
-#	IdentityFile ~/.ssh/id_foodics
-#	IdentitiesOnly yes
-#
-#Host me.github.com
-#	HostName github.com
-#	User git
-#	IdentityFile ~/.ssh/id_ed25519
-#	IdentitiesOnly yes
-#
-#Host web-tunnel
-#	HostName 203.0.113.20
-#	User root
-#	Port 2222
-#	LocalForward 8888 localhost:80
-#	SessionType none
-#
-#Host proxy
-#	Hostname 203.0.113.10
-#	User ubuntu
-#	IdentityFile ~/.ssh/id_foodics
-#	DynamicForward 1080
-#
-
 {{ if eq .kind "mac" -}}
-# GitHub via on-disk key. The 1Password SSH agent is retired: it's gated by the
-# desktop app's GUI unlock, which breaks headless/SSH sessions.
-# Per-machine keys on purpose — identifies which machine is connecting.
-# Which key is THIS machine's identity lives in .chezmoitemplates/ssh-self-key.
+# On-disk key, not the 1Password agent: that one needs the desktop app's GUI
+# unlock, which breaks headless sessions. Keys are per-machine on purpose, so
+# the key identifies the machine connecting — see .chezmoitemplates/ssh-self-key.
 Host github.com github.foodics.com
 	IdentityAgent none
 	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
