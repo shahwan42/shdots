@@ -20,6 +20,9 @@ Host fdx-dev as-dev
 # `User as` matters from inside a VM, where the local user is `ubuntu`.
 Host fdx-host as-host
 	User as
+	# Offer this machine's own key explicitly: the VM keys use non-default names
+	# that ssh would otherwise never try, so scp/rsync to the Mac would fail.
+	IdentityFile ~/.ssh/{{ if eq .kind "mac" }}{{ if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}{{ else }}id_ed25519_personal{{ end }}
 
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
