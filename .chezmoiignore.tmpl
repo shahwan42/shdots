@@ -29,6 +29,11 @@ Library
 .local/bin/mmdc
 {{ end -}}
 
+{{ if ne .role "personal" -}}
+# Personal SSH hosts (Hetzner) are only relevant on personal machines.
+.ssh/config.d/shahwan
+{{ end -}}
+
 {{ if ne .role "work" -}}
 # Work SSH hosts are only relevant on work machines.
 # (chezmoiignore matches TARGET paths — the encrypted_/.age source decorations
