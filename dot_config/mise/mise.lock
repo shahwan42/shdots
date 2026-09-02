@@ -694,6 +694,49 @@ version = "1.11.0"
 backend = "github:github/github-mcp-server"
 specifiers = ["latest"]
 
+[tools."github:github/github-mcp-server"."platforms.linux-arm64"]
+checksum = "sha256:3f7615254f6b619469c471c5d275029299ff7431c93d6075496ea4b2eec020cb"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291454"
+provenance = "github-attestations"
+provenance_verified = true
+
+[tools."github:github/github-mcp-server"."platforms.linux-arm64-musl"]
+checksum = "sha256:3f7615254f6b619469c471c5d275029299ff7431c93d6075496ea4b2eec020cb"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291454"
+provenance = "github-attestations"
+
+[tools."github:github/github-mcp-server"."platforms.linux-x64"]
+checksum = "sha256:3b73bb7be0c8b043f861e90410df8ebdfc71b83128c54ced75fb32c4ff697fc5"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291509"
+provenance = "github-attestations"
+
+[tools."github:github/github-mcp-server"."platforms.linux-x64-musl"]
+checksum = "sha256:3b73bb7be0c8b043f861e90410df8ebdfc71b83128c54ced75fb32c4ff697fc5"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291509"
+provenance = "github-attestations"
+
+[tools."github:github/github-mcp-server"."platforms.macos-arm64"]
+checksum = "sha256:b08e962fb797a9069fb932c25957209026dcbaa9478f3a248a1bf2354af978ec"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291510"
+provenance = "github-attestations"
+
+[tools."github:github/github-mcp-server"."platforms.macos-x64"]
+checksum = "sha256:e7cc6b5d16bcb86b01cae2ba32fa7525266a10c96db8d64df63a172ebb7b8f95"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291503"
+provenance = "github-attestations"
+
+[tools."github:github/github-mcp-server"."platforms.windows-x64"]
+checksum = "sha256:d16a3b2bbf775365541aa18729c0c3ff5e1b26dfb5dc190928895ba482211268"
+url = "https://github.com/github/github-mcp-server/releases/download/v1.11.0/github-mcp-server_Windows_x86_64.zip"
+url_api = "https://api.github.com/repos/github/github-mcp-server/releases/assets/529291448"
+provenance = "github-attestations"
+
 [[tools."github:jorgerojas26/lazysql"]]
 version = "0.5.6"
 backend = "github:jorgerojas26/lazysql"
@@ -1104,6 +1147,46 @@ specifiers = ["latest"]
 version = "0.151.0"
 backend = "npm:@openai/codex"
 specifiers = ["latest"]
+
+[[tools.opencode]]
+version = "1.18.25"
+backend = "aqua:anomalyco/opencode"
+specifiers = ["latest"]
+
+[tools.opencode."platforms.linux-arm64"]
+checksum = "sha256:35ef77897425e41b5183a2c21ac4fb1d4d944d82a94e3c920f57b5490af11ac5"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313415"
+
+[tools.opencode."platforms.linux-arm64-musl"]
+checksum = "sha256:e9144dca084c2cce87a0868e120e57cdcffc17bd0b68df6a92e18af2c2f52de0"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-linux-arm64-musl.tar.gz"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313414"
+
+[tools.opencode."platforms.linux-x64"]
+checksum = "sha256:58a3729a6f3432dd6d2917fcc4a949788891a035818646ad480e12c947f56e78"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313461"
+
+[tools.opencode."platforms.linux-x64-musl"]
+checksum = "sha256:2bcc1cce8ef98e6ac3d7a4b8703429fa070b9b5969b247dacfa1bef1f5b6ed44"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-linux-x64-musl.tar.gz"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313483"
+
+[tools.opencode."platforms.macos-arm64"]
+checksum = "sha256:606b09722d98069605e16037fb8c3c7c8ebbfed9ba713079a5efb2e5b065ae27"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-darwin-arm64.zip"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313310"
+
+[tools.opencode."platforms.macos-x64"]
+checksum = "sha256:6c5c569f779b197e1df6390c62278bbdf0e73e7cc248a429648680c63a6f3f1c"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-darwin-x64.zip"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533313312"
+
+[tools.opencode."platforms.windows-x64"]
+checksum = "sha256:831e213e5f454d6e8b26f0fb24c7b3d42b40e47d73d154672a9192702eb08416"
+url = "https://github.com/anomalyco/opencode/releases/download/v1.18.25/opencode-windows-x64.zip"
+url_api = "https://api.github.com/repos/anomalyco/opencode/releases/assets/533315557"
 
 [[tools."pipx:Pygments"]]
 version = "2.21.0"
