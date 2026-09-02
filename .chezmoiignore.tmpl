@@ -29,6 +29,12 @@ Library
 .local/bin/mmdc
 {{ end -}}
 
+{{ if or (ne .kind "mac") (ne .role "personal") -}}
+# authorized_keys is only built for the personal Mac. Everywhere else the file is
+# host-generated (multipass injects its key) and must not be managed.
+.ssh/authorized_keys
+{{ end -}}
+
 {{ if ne .role "personal" -}}
 # Personal SSH hosts (Hetzner) are only relevant on personal machines.
 .ssh/config.d/shahwan

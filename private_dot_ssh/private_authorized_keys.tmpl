@@ -1,3 +1,4 @@
+{{ if and (eq .kind "mac") (eq .role "personal") -}}
 # Managed by chezmoi — edits here are overwritten. Source: .chezmoidata/fleet.yaml
 #
 # Tailscale SSH is the primary path between fleet machines; these keys are the
@@ -5,7 +6,6 @@
 #
 # This deliberately encodes the pairs that were already in place, not a full mesh:
 # widening who can ssh into what is a policy change, not a refactor.
-{{ if and (eq .kind "mac") (eq .role "personal") -}}
 {{ .fleet.fdx_host }} fdx-host
 {{ .fleet.as_dev }} as-dev
 {{ end -}}
