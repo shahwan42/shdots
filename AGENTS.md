@@ -166,23 +166,35 @@ does not imply a green log.
 ## GitHub MCP servers (per-machine, on purpose)
 
 `run_onchange_after_40-claude-mcp-sync` registers the shared MCP servers
-(context7, shadcn-ui, citra, codebase-memory) on every machine. The `github`
-(github.com) and `github-enterprise` (github.foodics.com) servers are **left for
-the user to register on the machines where they actually use them** — each needs
-a personal access token, and the sync script logs `skip` to `chezmoi-health` and
-moves on when the token isn't reachable (the unattended `chezmoi apply` can't
-unlock 1Password).
+(context7, shadcn-ui, citra, codebase-memory) on every machine with Claude.
+`run_onchange_after_41-opencode-mcp-sync` upserts the same shared servers into
+`~/.config/opencode/opencode.jsonc` on every machine, plus Figma / Gmail /
+Google Calendar on personal-role machines. Other OpenCode config keys are left
+alone. Restart OpenCode after apply; then `opencode mcp auth figma` (and
+gmail / google-calendar) for the OAuth remotes.
 
-**The user's one-time part** — per identity, not per machine — is to store the
-PAT in 1Password:
+The `github` (github.com) and `github-enterprise` (github.foodics.com) servers
+differ by client:
+
+- **OpenCode:** no PAT in the file. Script 41 always upserts a local
+  `github-mcp-server` entry whose token is `{env:GITHUB_TOKEN}` (work also sets
+  `GITHUB_HOST`). That env var already lives in unmanaged `~/.zshrc.local` for
+  mise.
+- **Claude:** PAT is written into `~/.claude.json` via `claude mcp add`.
+  Unattended apply skips when 1Password isn't reachable — each needs a personal
+  access token, and the sync script logs `skip` to `chezmoi-health` and moves on
+  (the unattended `chezmoi apply` can't unlock 1Password).
+
+**The user's one-time part for Claude** — per identity, not per machine — is to
+store the PAT in 1Password:
 
 | server | 1Password item (field `credential`) | token for |
 |---|---|---|
 | `github` | `GitHub PAT (personal)` | github.com |
 | `github-enterprise` | `GitHub PAT (foodics)` | github.foodics.com |
 
-**To register on the current machine** (personal role → `github`, work role →
-`github-enterprise`; it follows the chezmoi `role`):
+**To register Claude's GitHub MCP on the current machine** (personal role →
+`github`, work role → `github-enterprise`; it follows the chezmoi `role`):
 
 ```
 mcp-github-register
@@ -203,6 +215,8 @@ remove-then-add. By hand it is:
 where `claude mcp list` doesn't show it, or `chezmoi-health` shows
 `skip 40-claude-mcp-sync github…` and the user wants it resolved. Point them at
 `mcp-github-register`; if it reports `op` locked, that is the user's step to do.
+OpenCode does not need that helper — it reads `GITHUB_TOKEN` from the
+environment.
 
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)

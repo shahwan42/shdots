@@ -66,6 +66,8 @@ is unusable on a Mac until then).
 | `run_once_after_10-configure-git-hooks.sh` | once per machine, after files (wires the gitleaks hook) |
 | `run_onchange_after_20-mise-install.sh` | whenever `~/.config/mise/config.toml` changes (script embeds its sha256) |
 | `run_onchange_after_30-schedule-autoupdate.sh` | whenever the launchd plist or systemd units change (script embeds their sha256s) |
+| `run_onchange_after_40-claude-mcp-sync.sh` | whenever the script changes (it *is* the Claude MCP declaration) |
+| `run_onchange_after_41-opencode-mcp-sync.sh` | whenever the script changes (upserts OpenCode MCP servers into `opencode.jsonc`) |
 
 ### Auto-update
 

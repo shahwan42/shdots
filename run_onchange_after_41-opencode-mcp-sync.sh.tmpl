@@ -1,0 +1,149 @@
+#!/bin/sh
+# Reconciles OpenCode's user-scope MCP servers into ~/.config/opencode/opencode.jsonc.
+# Re-runs whenever this rendered script changes (chezmoi's run_onchange_
+# semantics — no manual hash needed since the script IS the declaration).
+#
+# OpenCode's `mcp add` is interactive for local servers, so this upserts the
+# `mcp` object in-place and leaves every other top-level key alone.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 41-opencode-mcp-sync "$@" >/dev/null 2>&1 || :; }
+
+PYTHON="$(command -v python3 || true)"
+[ -n "$PYTHON" ] || PYTHON="$HOME/.local/share/mise/shims/python3"
+if [ ! -x "$PYTHON" ]; then
+  echo "python3 not found — skipping OpenCode MCP sync." >&2
+  hn python skip "python3 not available"
+  exit 0
+fi
+
+CFG="$HOME/.config/opencode/opencode.jsonc"
+CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
+mkdir -p "$HOME/.config/opencode"
+
+if [ ! -x "$CBM_BIN" ]; then
+  echo "codebase-memory-mcp: binary missing — skip (script 40 installs it)." >&2
+  hn codebase-memory-mcp skip "binary not executable"
+  CBM_BIN=""
+fi
+
+export OPENCODE_CONFIG="$CFG"
+export CBM_BIN
+if ! CBM_BIN="$CBM_BIN" "$PYTHON" - <<'PY'
+import json
+import os
+import pathlib
+import sys
+import tempfile
+
+path = pathlib.Path(os.environ["OPENCODE_CONFIG"])
+cbm = os.environ.get("CBM_BIN", "")
+
+servers = {
+    "context7": {
+        "type": "local",
+        "command": ["npx", "-y", "@upstash/context7-mcp"],
+        "enabled": True,
+    },
+    "shadcn-ui": {
+        "type": "local",
+        "command": ["npx", "-y", "@jpisnice/shadcn-ui-mcp-server"],
+        "enabled": True,
+    },
+    "citra": {
+        "type": "local",
+        "command": ["npx", "-y", "@sylphx/citra"],
+        "enabled": True,
+    },
+}
+
+if cbm and os.access(cbm, os.X_OK):
+    servers["codebase-memory-mcp"] = {
+        "type": "local",
+        "command": [cbm],
+        "enabled": True,
+    }
+
+{{ if eq .role "personal" -}}
+servers["figma"] = {
+    "type": "remote",
+    "url": "https://mcp.figma.com/mcp",
+    "enabled": True,
+}
+servers["gmail"] = {
+    "type": "remote",
+    "url": "https://gmailmcp.googleapis.com/mcp/v1",
+    "enabled": True,
+}
+servers["google-calendar"] = {
+    "type": "remote",
+    "url": "https://calendarmcp.googleapis.com/mcp/v1",
+    "enabled": True,
+}
+servers["github"] = {
+    "type": "local",
+    "command": ["github-mcp-server", "stdio"],
+    "enabled": True,
+    "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+    },
+}
+{{ end -}}
+{{ if eq .role "work" -}}
+servers["github-enterprise"] = {
+    "type": "local",
+    "command": ["github-mcp-server", "stdio"],
+    "enabled": True,
+    "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+        "GITHUB_HOST": "https://github.foodics.com",
+    },
+}
+{{ end -}}
+
+if path.exists() and path.stat().st_size > 0:
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        print(f"opencode.jsonc: invalid JSON ({exc}); leaving file untouched", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(data, dict):
+        print("opencode.jsonc: top-level value is not an object; leaving file untouched", file=sys.stderr)
+        sys.exit(1)
+else:
+    data = {"$schema": "https://opencode.ai/config.json"}
+
+data.setdefault("$schema", "https://opencode.ai/config.json")
+mcp = data.get("mcp", {})
+if mcp is None:
+    mcp = {}
+if not isinstance(mcp, dict):
+    print("opencode.jsonc: mcp is not an object; leaving file untouched", file=sys.stderr)
+    sys.exit(1)
+mcp.update(servers)
+data["mcp"] = mcp
+
+fd, tmp = tempfile.mkstemp(prefix="opencode.jsonc.", dir=str(path.parent))
+try:
+    with os.fdopen(fd, "w") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    raise
+
+print("mcp:", ", ".join(sorted(servers)))
+PY
+then
+  echo "opencode mcp: upsert failed" >&2
+  hn jsonc fail "failed to upsert ~/.config/opencode/opencode.jsonc"
+  exit 0
+fi
+
+exit 0
