@@ -4,7 +4,7 @@
 {{ end }}	name = Ahmed Shahwan
 	# SSH signing (GPG retired: gpg-agent/pinentry breaks headless sessions).
 	# Per-machine keys identify which machine made the commit.
-	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ if eq .kind "vm" }}{{ if eq .role "work" }}id_ed25519_foodics{{ else }}id_ed25519_personal{{ end }}{{ else if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}.pub
+	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ template "git-signing-key" . }}.pub
 [core]
 	editor = nvim
 	excludesfile = {{ .chezmoi.homeDir }}/.gitignore_global

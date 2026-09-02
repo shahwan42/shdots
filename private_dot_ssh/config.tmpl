@@ -22,7 +22,7 @@ Host fdx-host as-host
 	User as
 	# Offer this machine's own key explicitly: the VM keys use non-default names
 	# that ssh would otherwise never try, so scp/rsync to the Mac would fail.
-	IdentityFile ~/.ssh/{{ if eq .kind "mac" }}{{ if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}{{ else }}id_ed25519_personal{{ end }}
+	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
 
 # Keep SSH connections alive by sending keepalive messages every 60 seconds.
 # Try 3 times.
@@ -63,11 +63,11 @@ Host *
 {{ if eq .kind "mac" -}}
 # GitHub via on-disk key. The 1Password SSH agent is retired: it's gated by the
 # desktop app's GUI unlock, which breaks headless/SSH sessions.
-# Per-machine keys on purpose — identifies which machine is connecting:
-# work Mac = id_ed25519, personal Mac = id_rsa.
+# Per-machine keys on purpose — identifies which machine is connecting.
+# Which key is THIS machine's identity lives in .chezmoitemplates/ssh-self-key.
 Host github.com github.foodics.com
 	IdentityAgent none
-	IdentityFile ~/.ssh/{{ if eq .role "work" }}id_ed25519{{ else }}id_rsa{{ end }}
+	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
 	IdentitiesOnly yes
 {{ else if eq .role "work" -}}
 # Work VM: split identities — the work key never touches personal repos.

@@ -1,0 +1,1 @@
+{{ if and (eq .kind "vm") (eq .role "work") }}id_ed25519_foodics{{ else }}{{ template "ssh-self-key" . }}{{ end }}

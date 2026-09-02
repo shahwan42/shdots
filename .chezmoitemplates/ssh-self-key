@@ -1,0 +1,1 @@
+{{ if and (eq .kind "mac") (eq .role "personal") }}id_rsa{{ else }}id_ed25519{{ end }}
