@@ -6,8 +6,8 @@
 #
 # This deliberately encodes the pairs that were already in place on as-host, not a
 # full mesh: widening who can ssh into what is a policy change, not a refactor.
-# Gated on hostname, not kind/role — another personal Mac (amba) must not inherit
-# as-host's inbound access.
+# Gated on hostname rather than kind/role: this is one machine's inbound access
+# list, so it should key on that machine, not on a machine class.
 {{ .fleet.fdx_host }} fdx-host
 {{ .fleet.as_dev }} as-dev
 {{ end -}}
