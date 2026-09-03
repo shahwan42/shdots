@@ -4,89 +4,92 @@
 # ~/.config/mise/conf.d/*.toml drop-in, not here.
 
 [settings]
-# Committed lockfile (mise.lock, alongside this file) pins exact versions, URLs
-# and checksums; version strings below stay "latest" — the lock is what pins.
-# Upgrade flow: `mise up` on one machine → copy the changed lock back into the
-# chezmoi source (dot_config/mise/mise.lock) → commit/push → fleet converges.
-lockfile = true
-locked_verify_provenance = true
+# No lockfile. A single mise.lock shared across a heterogeneous fleet churns
+# endlessly — every machine class resolves its own platforms.* blocks (macos-
+# arm64, linux-x64, *-baseline, …) and appends them, so the file is never
+# byte-identical and chezmoi flags drift forever. Intent lives here instead:
+# exact versions are pinned directly in [tools] below.
+# Upgrade flow: `mise up <tool>` on any machine → copy the new version string
+# here → commit/push → fleet converges on `chezmoi apply`.
+# Trade-off vs. the lockfile: no URL/checksum/provenance pinning.
+lockfile = false
 
 [tools]
 # --- shared everywhere (mac + vm, personal + work) ---
-node = "22"
-pnpm = "latest"
-yarn = "latest"
-herdr = "latest"
-eza = "latest"
-bat = "latest"
-fd = "latest"
-ripgrep = "latest"
-fzf = "latest"
-zoxide = "latest"
-starship = "latest"
-jq = "latest"
-lazygit = "latest"
-neovim = "latest"
-"aqua:dandavison/delta" = "latest"
-"aqua:cli/cli" = "latest"
-uv = "latest"
-age = "latest"
+node = "22.23.2"
+pnpm = "11.25.0"
+yarn = "4.18.0"
+herdr = "0.8.2"
+eza = "0.23.5"
+bat = "0.26.1"
+fd = "10.5.0"
+ripgrep = "15.2.0"
+fzf = "0.74.3"
+zoxide = "0.10.0"
+starship = "1.26.0"
+jq = "1.8.2"
+lazygit = "0.64.1"
+neovim = "0.12.5"
+"aqua:dandavison/delta" = "0.19.2"
+"aqua:cli/cli" = "2.98.0"
+uv = "0.12.7"
+age = "1.3.2"
 # gitleaks everywhere: the pre-commit hook is wired on every machine class and
 # fails closed without it (darwin/linux arm64+amd64 prebuilts all exist).
-gitleaks = "latest"
-yazi = "latest"
-python = "3.14"
+gitleaks = "8.30.1"
+yazi = "26.8.15"
+python = "3.14.7"
 # mermaid-cli everywhere: the diagram-validation rule applies to every machine
 # an agent runs on, not just the Mac. Re-reviewed 2026-08-29 — mise's npm trust
 # policy now accepts the dependency tree that previously blocked it. Its browser
 # is NOT installed by this line: mise's npm backend skips lifecycle scripts, so
 # puppeteer never downloads one. See the mermaid-cli block in
 # run_onchange_after_20-mise-install.sh.tmpl.
-"npm:@mermaid-js/mermaid-cli" = "latest"
+"npm:@mermaid-js/mermaid-cli" = "11.16.0"
 # Reclassified out of the work-only block 2026-08-29: nothing about these is
 # work-specific — they were simply installed on the work Mac first.
-direnv = "latest"
-glow = "latest"
-tealdeer = "latest"
-watchexec = "latest"
-"github:YS-L/csvlens" = "latest"
-"aqua:jesseduffield/lazydocker" = "latest"
-hunk = "latest"
+direnv = "2.37.1"
+glow = "3.0.0"
+tealdeer = "1.9.0"
+watchexec = "2.7.0"
+"github:YS-L/csvlens" = "0.15.1"
+"aqua:jesseduffield/lazydocker" = "0.25.2"
+hunk = "0.20.1"
 # Promoted out of the work-only block 2026-08-31: a database TUI is useful on
 # every machine class, not just work.
-"github:jorgerojas26/lazysql" = "latest"
+"github:jorgerojas26/lazysql" = "0.5.6"
 # Claude Code MCP server binary — registration (with role-specific host/token)
 # happens in run_onchange_after_40-claude-mcp-sync.sh.tmpl, not here.
-"github:github/github-mcp-server" = "latest"
-{{ if ne .kind "mac" }}btop = "latest"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
+"github:github/github-mcp-server" = "1.11.0"
+{{ if ne .kind "mac" }}btop = "1.4.7"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
 {{ end -}}
 {{ if eq .kind "vm" }}
 # --- VM only: coding agents live in the dev box (Macs: codex via cask;
 # claude-code via its self-updating native installer, deliberately unmanaged) ---
-"npm:@anthropic-ai/claude-code" = "latest"
-"npm:@openai/codex" = "latest"
+"npm:@anthropic-ai/claude-code" = "2.1.251"
+"npm:@openai/codex" = "0.151.0"
 # op CLI: Macs get it from the 1password-cli cask; VMs via the vfox plugin
 # (the aqua backend can't fetch it — op ships from 1Password's own CDN).
-"vfox:mise-plugins/vfox-1password" = "latest"
-opencode = "latest"
-rust = "latest"
-bun = "latest"
-go = "latest"
+"vfox:mise-plugins/vfox-1password" = "2.39.0"
+opencode = "1.18.25"
+rust = "1.98.0"
+bun = "1.4.0"
+go = "1.27.1"
 {{ end -}}
 {{ if eq .role "work" }}
 # --- work only ---
 # zellij and deno were dropped fleet-wide 2026-08-29: herdr is the multiplexer,
 # Eternal Terminal the connection keep-alive, and Node (above) the JS runtime.
-awscli = "latest"
-actionlint = "latest"
-cmake = "latest"
-"aqua:kovetskiy/mark" = "latest"
-{{ if eq .kind "mac" }}"aqua:linebender/resvg" = "latest"  # no linux/arm64 prebuilt
+awscli = "2.36.34"
+actionlint = "1.7.12"
+cmake = "4.4.3"
+"aqua:kovetskiy/mark" = "16.12.1"
+{{ if eq .kind "mac" }}"aqua:linebender/resvg" = "0.48.1"  # no linux/arm64 prebuilt
 {{ end -}}
-"aqua:SonarSource/sonar-scanner-cli" = "latest"
-"github:yt-dlp/yt-dlp" = "latest"
-"github:AlexsJones/llmfit" = "latest"
-"pipx:commitizen" = "latest"
-"pipx:Pygments" = "latest"
-"github:ankitpokhrel/jira-cli" = { version = "latest", exe = "jira" }
+"aqua:SonarSource/sonar-scanner-cli" = "8.1.0.6389"
+"github:yt-dlp/yt-dlp" = "2026.08.19"
+"github:AlexsJones/llmfit" = "1.1.12"
+"pipx:commitizen" = "4.18.0"
+"pipx:Pygments" = "2.21.0"
+"github:ankitpokhrel/jira-cli" = { version = "1.7.0", exe = "jira" }
 {{ end -}}

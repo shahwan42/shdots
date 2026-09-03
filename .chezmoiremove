@@ -1,3 +1,6 @@
 {{ if ne .role "work" -}}
 .ssh/config.d/foodics
 {{ end -}}
+# mise.lock is no longer managed (versions are pinned in config.toml and
+# `lockfile = false`). Purge the orphan left on machines that had it.
+.config/mise/mise.lock
