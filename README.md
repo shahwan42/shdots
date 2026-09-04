@@ -68,6 +68,7 @@ is unusable on a Mac until then).
 | `run_onchange_after_30-schedule-autoupdate.sh` | whenever the launchd plist or systemd units change (script embeds their sha256s) |
 | `run_onchange_after_40-claude-mcp-sync.sh` | whenever the script changes (it *is* the Claude MCP declaration) |
 | `run_onchange_after_41-opencode-mcp-sync.sh` | whenever the script changes (upserts OpenCode MCP servers into `opencode.jsonc`) |
+| `run_onchange_after_43-codex-mcp-sync.sh` | whenever the script changes (reconciles Codex MCP servers into `~/.codex/config.toml`) |
 
 ### Auto-update
 

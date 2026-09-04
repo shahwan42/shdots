@@ -172,6 +172,10 @@ does not imply a green log.
 Google Calendar on personal-role machines. Other OpenCode config keys are left
 alone. Restart OpenCode after apply; then `opencode mcp auth figma` (and
 gmail / google-calendar) for the OAuth remotes.
+`run_onchange_after_43-codex-mcp-sync` registers the same shared servers with
+Codex, including the role-specific GitHub server via the same 1Password PAT
+path used by Claude. Its Playwright and Postgres entries share the browser
+install and DB-port caveats described below.
 
 The `github` (github.com) and `github-enterprise` (github.foodics.com) servers
 differ by client:
@@ -184,6 +188,10 @@ differ by client:
   Unattended apply skips when 1Password isn't reachable — each needs a personal
   access token, and the sync script logs `skip` to `chezmoi-health` and moves on
   (the unattended `chezmoi apply` can't unlock 1Password).
+- **Codex:** PAT is written into its user config via `codex mcp add` using the
+  same 1Password item as Claude; unattended apply has the same non-fatal skip
+  behavior when 1Password is unavailable. `codex mcp add` preserves Codex's
+  model and per-project trust settings.
 
 **The user's one-time part for Claude** — per identity, not per machine — is to
 store the PAT in 1Password:

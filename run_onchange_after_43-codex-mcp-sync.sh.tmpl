@@ -1,0 +1,80 @@
+#!/bin/sh
+# Reconciles Codex's MCP servers into ~/.codex/config.toml.
+# `codex mcp add` upserts [mcp_servers.*]; each server is removed then re-added
+# for idempotency. Model and per-project trust keys are Codex's own — untouched.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 43-codex-mcp-sync "$@" >/dev/null 2>&1 || :; }
+
+CODEX="$(command -v codex || echo "$HOME/.local/share/mise/shims/codex")"
+if ! command -v "$CODEX" >/dev/null 2>&1 && [ ! -x "$CODEX" ]; then
+  echo "codex not found on PATH — skipping MCP server sync." >&2
+  exit 0
+fi
+
+add() {
+  name="$1"; shift
+  "$CODEX" mcp remove "$name" >/dev/null 2>&1
+  if "$CODEX" mcp add "$name" "$@" >/dev/null 2>&1; then
+    echo "mcp: $name registered"
+  else
+    echo "mcp: $name registration failed" >&2
+    hn "$name" fail "codex mcp add failed"
+  fi
+}
+
+# `op read` blocks indefinitely when 1Password has no non-interactive auth.
+# Cap it so an unattended `chezmoi apply` remains non-fatal when the vault is
+# locked. An empty result is handled by the role-specific blocks below.
+op_read() {
+  _q="$1"
+  for _t in timeout gtimeout; do
+    if command -v "$_t" >/dev/null 2>&1; then
+      "$_t" 15 op read "$_q" 2>/dev/null
+      return
+    fi
+  done
+  op read "$_q" 2>/dev/null &
+  _op=$!
+  ( sleep 15; kill "$_op" 2>/dev/null ) &
+  _kill=$!
+  wait "$_op" 2>/dev/null; _rc=$?
+  kill "$_kill" 2>/dev/null; wait "$_kill" 2>/dev/null
+  return "$_rc"
+}
+
+# --- shared everywhere (mac + vm, personal + work) ---
+add context7 -- npx -y @upstash/context7-mcp
+add shadcn-ui -- npx -y @jpisnice/shadcn-ui-mcp-server
+add citra -- npx -y @sylphx/citra
+add playwright -- npx -y @playwright/mcp@latest --allowed-hosts localhost,127.0.0.1
+# Inert until compose.yaml maps the DB port (plan 0003 §1).
+add postgres -- npx -y @modelcontextprotocol/server-postgres \
+  postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
+
+CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
+[ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
+
+# Codex's option is --env KEY=VALUE (Claude's equivalent is -e).
+{{ if eq .role "personal" -}}
+GH_PAT="$(op_read 'op://Private/GitHub PAT (personal)/credential')"
+if [ -n "$GH_PAT" ]; then
+  add github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GH_PAT" -- github-mcp-server stdio
+else
+  echo "github mcp: create 1Password item 'GitHub PAT (personal)' (field: credential), then re-run 'chezmoi apply'." >&2
+  hn github skip "1Password PAT unavailable (op read empty/timed out)"
+fi
+{{ end -}}
+{{ if eq .role "work" -}}
+GHE_PAT="$(op_read 'op://Private/GitHub PAT (foodics)/credential')"
+if [ -n "$GHE_PAT" ]; then
+  add github-enterprise --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GHE_PAT" --env GITHUB_HOST=https://github.foodics.com -- github-mcp-server stdio
+else
+  echo "github-enterprise mcp: create 1Password item 'GitHub PAT (foodics)' (field: credential), then re-run 'chezmoi apply'." >&2
+  hn github-enterprise skip "1Password PAT unavailable (op read empty/timed out)"
+fi
+{{ end -}}
+
+exit 0
