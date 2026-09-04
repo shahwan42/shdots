@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stable executable for tools that need the Chromium downloaded by Playwright.
+# Follow cache upgrades automatically instead of pinning a browser revision.
+set -euo pipefail
+
+cache_root="${HOME}/.cache/ms-playwright"
+
+while IFS= read -r revision; do
+  browser_dir="${cache_root}/chromium-${revision}"
+  for relative_path in \
+    chrome-linux-arm64/chrome \
+    chrome-linux/chrome \
+    'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' \
+    'chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'; do
+    browser="${browser_dir}/${relative_path}"
+    if [[ -x "${browser}" ]]; then
+      exec "${browser}" --no-sandbox "$@"
+    fi
+  done
+done < <(
+  find "${cache_root}" -maxdepth 1 -type d -name 'chromium-[0-9]*' -print 2>/dev/null \
+    | sed 's|.*/chromium-||' \
+    | sort -nr
+)
+
+printf 'No cached Playwright Chromium executable was found under %s.\n' "${cache_root}" >&2
+printf 'Reinstall it with: npx playwright install chromium\n' >&2
+exit 127

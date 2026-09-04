@@ -59,7 +59,12 @@ servers = {
     },
     "playwright": {
         "type": "local",
-        "command": ["npx", "-y", "@playwright/mcp@latest", "--allowed-hosts", "localhost,127.0.0.1"],
+        "command": [
+            "npx", "-y", "@playwright/mcp@latest",
+            "--executable-path", str(pathlib.Path.home() / ".local/bin/chromium"),
+            "--headless", "--no-sandbox", "--allow-unrestricted-file-access",
+            "--allowed-hosts", "localhost,127.0.0.1",
+        ],
         "enabled": True,
     },
     "postgres": {

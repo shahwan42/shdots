@@ -1,0 +1,38 @@
+#!/bin/sh
+# Provision the Chromium revision bundled with the current Playwright MCP.
+# Re-runs when this declaration changes; Playwright itself skips an already
+# installed revision, so applying it repeatedly is safe.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 42-playwright-install "$@" >/dev/null 2>&1 || :; }
+
+NODE="$HOME/.local/share/mise/shims/node"
+if [ ! -x "$NODE" ]; then
+  echo "node not found — skipping Playwright install." >&2
+  hn node skip "node unavailable"
+  exit 0
+fi
+
+NPM="$HOME/.local/share/mise/shims/npm"
+[ -x "$NPM" ] || NPM="$(command -v npm || true)"
+NPX="$HOME/.local/share/mise/shims/npx"
+[ -x "$NPX" ] || NPX="$(command -v npx || true)"
+if [ -z "$NPM" ] || [ -z "$NPX" ]; then
+  echo "npm/npx not found — skipping Playwright install." >&2
+  hn npm skip "npm or npx unavailable"
+  exit 0
+fi
+
+# Install the exact browser revision expected by @playwright/mcp@latest.
+ver="$("$NPM" view @playwright/mcp@latest dependencies.playwright 2>/dev/null || true)"
+ver="${ver:-latest}"
+echo "playwright-mcp bundles playwright@${ver}; installing chromium…"
+if "$NPX" -y "playwright@$ver" install chromium; then
+  hn chromium ok "playwright@$ver chromium installed"
+else
+  echo "playwright chromium install failed; first MCP launch may retry the download." >&2
+  hn chromium fail "playwright@$ver install failed"
+fi
+exit 0

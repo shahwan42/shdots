@@ -49,7 +49,10 @@ op_read() {
 add context7 -- npx -y @upstash/context7-mcp
 add shadcn-ui -- npx -y @jpisnice/shadcn-ui-mcp-server
 add citra -- npx -y @sylphx/citra
-add playwright -- npx -y @playwright/mcp@latest --allowed-hosts localhost,127.0.0.1
+add playwright -- npx -y @playwright/mcp@latest \
+  --executable-path "$HOME/.local/bin/chromium" \
+  --headless --no-sandbox --allow-unrestricted-file-access \
+  --allowed-hosts localhost,127.0.0.1
 # Inert until compose.yaml maps the DB port (plan 0003 §1).
 add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
