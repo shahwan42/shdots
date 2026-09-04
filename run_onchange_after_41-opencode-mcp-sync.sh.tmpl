@@ -57,6 +57,19 @@ servers = {
         "command": ["npx", "-y", "@sylphx/citra"],
         "enabled": True,
     },
+    "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest", "--allowed-hosts", "localhost,127.0.0.1"],
+        "enabled": True,
+    },
+    "postgres": {
+        "type": "local",
+        "command": ["postgres-mcp", "--access-mode=restricted"],
+        "enabled": True,
+        "environment": {
+            "DATABASE_URI": "{env:DATABASE_URI}",
+        },
+    },
 }
 
 if cbm and os.access(cbm, os.X_OK):
@@ -125,6 +138,30 @@ if not isinstance(mcp, dict):
 mcp.update(servers)
 data["mcp"] = mcp
 
+# Frontend/PHP LSP servers. Owned here so a fresh provision self-populates them;
+# same preserve-other-keys semantics as `mcp`, so the hand-written intelephense
+# entry (and any future server) is kept but owned by this declaration.
+lsp = {
+    "intelephense": {"command": ["intelephense", "--stdio"], "extensions": ["php"]},
+    "vtsls": {
+        "command": ["vtsls", "--stdio"],
+        "extensions": [".ts", ".tsx", ".mjs", ".cjs", ".js", ".jsx"],
+    },
+    "vue": {"command": ["vue-language-server", "--stdio"], "extensions": [".vue"]},
+    "tailwindcss": {
+        "command": ["tailwindcss-language-server", "--stdio"],
+        "extensions": [".vue", ".ts", ".tsx", ".html", ".css"],
+    },
+}
+lsp_cfg = data.get("lsp", {})
+if lsp_cfg is None:
+    lsp_cfg = {}
+if not isinstance(lsp_cfg, dict):
+    print("opencode.jsonc: lsp is not an object; leaving file untouched", file=sys.stderr)
+    sys.exit(1)
+lsp_cfg.update(lsp)
+data["lsp"] = lsp_cfg
+
 fd, tmp = tempfile.mkstemp(prefix="opencode.jsonc.", dir=str(path.parent))
 try:
     with os.fdopen(fd, "w") as fh:
@@ -139,6 +176,7 @@ except Exception:
     raise
 
 print("mcp:", ", ".join(sorted(servers)))
+print("lsp:", ", ".join(sorted(lsp)))
 PY
 then
   echo "opencode mcp: upsert failed" >&2

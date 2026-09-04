@@ -46,6 +46,20 @@ python = "3.14.7"
 # puppeteer never downloads one. See the mermaid-cli block in
 # run_onchange_after_20-mise-install.sh.tmpl.
 "npm:@mermaid-js/mermaid-cli" = "11.16.0"
+# Frontend + PHP LSP servers for opencode. Self-provisioning via the npm
+# backend: pure-JS shims with no postinstall download, so no probe-and-repair
+# block is needed in run_onchange_after_20 (unlike claude-code / mermaid-cli).
+# Registered as opencode `lsp` entries in run_onchange_after_41, not here.
+# vtsls is the Volta TypeScript LSP: the npm package is @vtsls/language-server
+# (binary `vtsls`) — there is no plain `vtsls` package on the registry.
+"npm:intelephense" = "1.18.5"
+"npm:@vtsls/language-server" = "0.3.0"
+"npm:@vue/language-server" = "3.3.11"
+"npm:@tailwindcss/language-server" = "0.16.0"
+# Postgres MCP Pro (maintained, read-only-by-config DB MCP) — the `postgres-mcp`
+# console script is provided here; the opencode MCP server declaration lives in
+# run_onchange_after_41. Requires Python >=3.12 (python above).
+"pipx:postgres-mcp-pro" = "0.4.2"
 # Reclassified out of the work-only block 2026-08-29: nothing about these is
 # work-specific — they were simply installed on the work Mac first.
 direnv = "2.37.1"
