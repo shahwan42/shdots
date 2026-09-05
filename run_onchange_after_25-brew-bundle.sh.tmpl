@@ -1,0 +1,14 @@
+#!/bin/sh
+# Re-run whenever Brewfile.tmpl changes.
+# Brewfile.tmpl hash: {{ include "Brewfile.tmpl" | sha256sum }}
+set -u
+
+{{ if eq .kind "mac" -}}
+if command -v brew >/dev/null 2>&1; then
+  echo "Installing Homebrew packages from Brewfile…"
+  BREWFILE_TMP="$(mktemp)"
+  chezmoi execute-template "$(cat "{{ .chezmoi.sourceDir }}/Brewfile.tmpl")" >"$BREWFILE_TMP"
+  brew bundle --file="$BREWFILE_TMP"
+  rm -f "$BREWFILE_TMP"
+fi
+{{ end -}}
