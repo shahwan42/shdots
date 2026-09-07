@@ -1,4 +1,8 @@
 #!/bin/sh
+{{ if ne .role "personal" -}}
+# Caveman is intentionally limited to personal-role machines.
+exit 0
+{{ else -}}
 # Install the pinned Caveman release for the fleet's coding agents. The
 # upstream installer owns its generated agent assets; chezmoi owns this pinned
 # bootstrap and reruns it when this declaration changes.
@@ -70,3 +74,4 @@ if command -v codex >/dev/null 2>&1; then
 fi
 
 exit 0
+{{ end -}}
