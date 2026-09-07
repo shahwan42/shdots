@@ -69,6 +69,7 @@ is unusable on a Mac until then).
 | `run_onchange_after_40-claude-mcp-sync.sh` | whenever the script changes (it *is* the Claude MCP declaration) |
 | `run_onchange_after_41-opencode-mcp-sync.sh` | whenever the script changes (upserts OpenCode MCP servers into `opencode.jsonc`) |
 | `run_onchange_after_43-codex-mcp-sync.sh` | whenever the script changes (reconciles Codex MCP servers into `~/.codex/config.toml`) |
+| `run_onchange_after_44-caveman-install.sh` | whenever the pinned Caveman installer changes (installs Caveman for detected coding agents) |
 
 ### Auto-update
 

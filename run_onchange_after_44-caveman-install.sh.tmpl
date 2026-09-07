@@ -1,0 +1,72 @@
+#!/bin/sh
+# Install the pinned Caveman release for the fleet's coding agents. The
+# upstream installer owns its generated agent assets; chezmoi owns this pinned
+# bootstrap and reruns it when this declaration changes.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 44-caveman-install "$@" >/dev/null 2>&1 || :; }
+
+CAVEMAN_REF="v2.6.0"
+CURL="$(command -v curl || true)"
+BASH="$(command -v bash || true)"
+NODE="$HOME/.local/share/mise/shims/node"
+NPX="$HOME/.local/share/mise/shims/npx"
+
+# chezmoi apply can run from a bare shell. Put the managed runtime shims first
+# so the upstream installer finds the same Node toolchain as interactive zsh.
+case ":${PATH:-}:" in
+  *":$HOME/.local/share/mise/shims:"*) ;;
+  *) PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:${PATH:-}"; export PATH ;;
+esac
+
+if [ ! -x "$NODE" ]; then
+  NODE="$(command -v node || true)"
+fi
+if [ ! -x "$NPX" ]; then
+  NPX="$(command -v npx || true)"
+fi
+if [ -z "$CURL" ] || [ -z "$BASH" ] || [ -z "$NODE" ] || [ -z "$NPX" ]; then
+  echo "caveman: curl, bash, Node, or npx unavailable — skipping install." >&2
+  hn caveman skip "curl, bash, or Node unavailable"
+  exit 0
+fi
+
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/caveman-install.XXXXXX")"
+trap 'rm -rf "$tmpdir"' EXIT HUP INT TERM
+
+echo "caveman: installing pinned release ${CAVEMAN_REF}…"
+if ! "$CURL" -fsSL \
+    "https://raw.githubusercontent.com/JuliusBrussee/caveman/${CAVEMAN_REF}/install.sh" \
+    -o "$tmpdir/install.sh"; then
+  echo "caveman: could not download release ${CAVEMAN_REF}; skipping." >&2
+  hn caveman fail "could not download release ${CAVEMAN_REF}"
+  exit 0
+fi
+
+chmod 700 "$tmpdir/install.sh"
+if CAVEMAN_REF="$CAVEMAN_REF" "$BASH" "$tmpdir/install.sh" \
+    --only claude --only opencode; then
+  hn caveman ok "release ${CAVEMAN_REF} installed"
+else
+  echo "caveman: installer failed; retry after checking agent/Node availability." >&2
+  hn caveman fail "installer exited non-zero for ${CAVEMAN_REF}"
+fi
+
+# The upstream unified installer asks Codex's skills CLI for every skill in
+# the repository. Install only Caveman's seven Codex skills so unrelated
+# shared skills under ~/.agents/skills remain outside this integration.
+if command -v codex >/dev/null 2>&1; then
+  echo "caveman: installing selected Codex skills…"
+  if "$NPX" -y skills add "JuliusBrussee/caveman#${CAVEMAN_REF}" \
+      --skill cavecrew caveman caveman-commit caveman-compress \
+      caveman-help caveman-review caveman-stats -a codex --yes; then
+    hn codex-skills ok "release ${CAVEMAN_REF} Caveman skills installed"
+  else
+    echo "caveman: Codex skill install failed; retry after checking npx." >&2
+    hn codex-skills fail "selected skill install failed for ${CAVEMAN_REF}"
+  fi
+fi
+
+exit 0
