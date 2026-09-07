@@ -76,38 +76,39 @@ zsh -i -c exit
 
 ## mise toolchain
 
-`~/.config/mise/config.toml` and `~/.config/mise/mise.lock` are **fully
-chezmoi-managed and identical on every machine** — one fleet toolchain, kept in
-sync. Never edit `~/.config/mise/config.toml` by hand; edit the source
-`dot_config/mise/config.toml.tmpl` and `chezmoi apply`. A `M .config/mise/…` in
-`chezmoi status` (also surfaced by the shell marker and `chezmoi-health`) means a
-tool was added out of band — reconcile it, don't leave it.
+`~/.config/mise/config.toml` is fully chezmoi-managed and provides one fleet
+toolchain. Exact versions are pinned in the source template; `lockfile = false`
+is intentional because a shared lockfile accumulates platform-specific entries
+and creates cross-platform drift. Never edit the rendered config by hand as the
+primary workflow. Edit `dot_config/mise/config.toml.tmpl`, then run
+`chezmoi apply`. A `M .config/mise/config.toml` in `chezmoi status` (also
+surfaced by the shell marker and `chezmoi-health`) means mise changed the
+rendered file out of band; either promote the intended version changes into the
+template or restore the rendered file with `chezmoi apply --force`.
 
 **Add a tool to the fleet** — the only supported way:
 
 1. Edit `dot_config/mise/config.toml.tmpl`; put it in the shared block unless it
    is genuinely role-specific (there is a `# --- work only ---` block).
-2. `chezmoi apply` — `run_onchange_after_20-mise-install` runs `mise install`,
-   which also maintains `mise.lock` (`lockfile = true`; there is no `mise lock`
-   subcommand in the pinned version).
-3. `chezmoi re-add ~/.config/mise/mise.lock`.
-4. Commit **`config.toml.tmpl` and `mise.lock` together** in one push. A tool in
-   the config but missing from the lock makes every other machine's
-   `mise install` rewrite the lock — perpetual `mise.lock` drift. This is the #1
-   cause of that drift.
-5. `mise.lock` holds per-platform checksums. The first machine of each platform
-   (one Mac, one VM) to `mise install` after the push adds its platform's rows;
-   `chezmoi re-add` + a follow-up commit from that machine finishes the lock,
-   after which it is stable.
+2. Render and review with `chezmoi cat ~/.config/mise/config.toml` and
+   `chezmoi diff ~/.config/mise/config.toml`.
+3. `chezmoi apply` — `run_onchange_after_20-mise-install` runs `mise install`.
+4. Smoke-test the affected tool, require `chezmoi status` to be clean, and
+   commit the template change. There is no global `mise.lock` to re-add.
+
+**Promote an intentional global upgrade:** if `mise up` or another mise command
+updates the rendered config, copy only the intended version changes into
+`dot_config/mise/config.toml.tmpl`, preserving its role/kind conditions. Render,
+review, and apply as above; do not use `chezmoi re-add` on this template.
 
 **Experiment without touching the fleet:**
 
 - One-off: `mise exec <tool>@<ver> -- <cmd>` — writes nothing.
-- Longer: a project-local `mise.toml` in the working directory — it gets its own
-  adjacent lock, zero global impact.
-- Do **not** use `mise use -g` or `~/.config/mise/conf.d/` — both feed the global
-  `mise.lock` and show up as drift. If the experiment graduates, add it via the
-  steps above.
+- Longer: a project-local `mise.toml` in the working directory — any adjacent
+  lockfile is project-local and has zero global impact.
+- Do **not** use `mise use -g` or `~/.config/mise/conf.d/`; they change the
+  global toolchain outside the managed template and show up as drift. If the
+  experiment graduates, promote it with the workflow above.
 
 ## Dev VM spec
 
@@ -137,8 +138,8 @@ App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) 
 in Docker Compose, not on the host — do not add them to mise or apt. A system
 language toolchain goes on the VM only when a *host* tool needs it. Install priority
 for anything new on a VM: mise → official one-liner → documented apt repo → distro
-package; add it the way "## mise toolchain" describes (source config + `mise.lock`
-in one push). Macs are shells *for* the VM — duplicating a tool on a Mac is an
+package; add it the way "## mise toolchain" describes (source template, apply,
+and smoke test). Macs are shells *for* the VM — duplicating a tool on a Mac is an
 ergonomics choice, not something to strip.
 
 ## Fleet health
