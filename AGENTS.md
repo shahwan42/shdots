@@ -167,7 +167,7 @@ does not imply a green log.
 ## GitHub MCP servers (per-machine, on purpose)
 
 `run_onchange_after_40-claude-mcp-sync` registers the shared MCP servers
-(context7, shadcn-ui, citra, codebase-memory) on every machine with Claude.
+(context7, citra, codebase-memory) on every machine with Claude.
 `run_onchange_after_41-opencode-mcp-sync` upserts the same shared servers into
 `~/.config/opencode/opencode.jsonc` on every machine, plus Figma / Gmail /
 Google Calendar on personal-role machines. Other OpenCode config keys are left

@@ -25,6 +25,9 @@ add() {
   fi
 }
 
+# Remove MCP servers retired from the shared declaration.
+"$CODEX" mcp remove shadcn-ui >/dev/null 2>&1 || :
+
 # `op read` blocks indefinitely when 1Password has no non-interactive auth.
 # Cap it so an unattended `chezmoi apply` remains non-fatal when the vault is
 # locked. An empty result is handled by the role-specific blocks below.

@@ -28,6 +28,9 @@ add() {
   fi
 }
 
+# Remove MCP servers retired from the shared declaration.
+"$CLAUDE" mcp remove shadcn-ui --scope user >/dev/null 2>&1 || :
+
 # `op read` blocks indefinitely when 1Password has no non-interactive auth
 # (no OP_SERVICE_ACCOUNT_TOKEN and no reachable desktop app) — that once hung
 # `chezmoi apply` for good. Cap it; an empty result is already non-fatal below.

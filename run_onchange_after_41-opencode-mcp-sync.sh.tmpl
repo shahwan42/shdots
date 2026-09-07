@@ -135,6 +135,7 @@ if mcp is None:
 if not isinstance(mcp, dict):
     print("opencode.jsonc: mcp is not an object; leaving file untouched", file=sys.stderr)
     sys.exit(1)
+mcp.pop("shadcn-ui", None)
 mcp.update(servers)
 data["mcp"] = mcp
 
