@@ -202,38 +202,30 @@ differ by client:
   behavior when 1Password is unavailable. `codex mcp add` preserves Codex's
   model and per-project trust settings.
 
-**The user's one-time part for Claude** — per identity, not per machine — is to
+**The user's one-time part** — per identity, not per machine — is to
 store the PAT in 1Password:
 
 | server | 1Password item (field `credential`) | token for |
 |---|---|---|
-| `github` | `GitHub PAT (personal)` | github.com |
+| `github` | `dev-secrets` / `xwug424pq6bcit35v5abzpt5vm` (`GitHub PAT (personal)`) | github.com |
 | `github-enterprise` | `GitHub PAT (foodics)` | github.foodics.com |
 
-**To register Claude's GitHub MCP on the current machine** (personal role →
-`github`, work role → `github-enterprise`; it follows the chezmoi `role`):
+**To register Claude and Codex GitHub MCPs on the current machine** (personal
+role → `github`, work role → `github-enterprise`; it follows the chezmoi role):
 
 ```
 mcp-github-register
 ```
 
-That script checks `op` is unlocked, reads the right PAT, and does an idempotent
-remove-then-add. By hand it is:
-
-1. `op whoami` — if it errors, unlock: `eval "$(op signin)"` or open the desktop
-   app, then retry.
-2. `claude mcp remove github --scope user 2>/dev/null` then
-   `claude mcp add github --scope user -e GITHUB_PERSONAL_ACCESS_TOKEN="$(op read 'op://Private/GitHub PAT (personal)/credential')" -- github-mcp-server stdio`
-   (work: `github-enterprise`, the `(foodics)` item, and add
-   `-e GITHUB_HOST=https://github.foodics.com`).
-3. `claude mcp list | grep -i github` — confirm.
+That script checks `op` is unlocked, reads the right PAT once, and performs an
+idempotent remove-then-add for both clients. If it reports that `op` is locked,
+run `eval "$(op signin)"` or open the 1Password desktop app, then retry.
 
 **When an AI should offer this:** the user wants a GitHub MCP tool on a machine
-where `claude mcp list` doesn't show it, or `chezmoi-health` shows
-`skip 40-claude-mcp-sync github…` and the user wants it resolved. Point them at
-`mcp-github-register`; if it reports `op` locked, that is the user's step to do.
-OpenCode does not need that helper — it reads `GITHUB_TOKEN` from the
-environment.
+where either client's MCP list doesn't show it, or `chezmoi-health` shows a
+GitHub skip for script 40 or 43 and the user wants it resolved. Point them at
+`mcp-github-register`. OpenCode does not need the helper because it reads
+`GITHUB_TOKEN` from the environment.
 
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)

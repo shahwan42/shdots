@@ -62,11 +62,11 @@ CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 
 # Codex's option is --env KEY=VALUE (Claude's equivalent is -e).
 {{ if eq .role "personal" -}}
-GH_PAT="$(op_read 'op://Private/GitHub PAT (personal)/credential')"
+GH_PAT="$(op_read 'op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential')"
 if [ -n "$GH_PAT" ]; then
   add github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GH_PAT" -- github-mcp-server stdio
 else
-  echo "github mcp: create 1Password item 'GitHub PAT (personal)' (field: credential), then re-run 'chezmoi apply'." >&2
+  echo "github mcp: 1Password item xwug424pq6bcit35v5abzpt5vm field 'credential' is unavailable; unlock/fix it, then run 'mcp-github-register'." >&2
   hn github skip "1Password PAT unavailable (op read empty/timed out)"
 fi
 {{ end -}}
