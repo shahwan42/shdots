@@ -83,14 +83,6 @@ fi
 # Work aliases and environment.
 alias a='php artisan'
 alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
-{{ if eq .kind "mac" -}}
-# Export only on keychain success and non-empty: a failed security(1) call
-# (ssh/et sessions with no keychain) must not export an empty token, which
-# jira-cli would prefer over its own config and fail auth confusingly.
-_jt="$(security find-generic-password -s jira-cli -a a.shahwan@foodics.com -w 2>/dev/null)" \
-  && [[ -n $_jt ]] && export JIRA_API_TOKEN=$_jt
-unset _jt
-{{ end -}}
 {{ end }}
 # Fuzzy repo jumper.
 if (( $+commands[fzf] )) && (( $+commands[fd] )); then
