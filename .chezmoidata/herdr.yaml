@@ -36,10 +36,15 @@ herdr:
       enabled: true
       mode: execution
       plugins:
-        # reviewr / agent-usage / workflows: installed rev == a release tag.
+        # reviewr / agent-usage / workflows / automatic-rename: installed rev == a release tag.
         - { source: persiyanov/herdr-reviewr,          ref: v0.36.2, rev: 4c090225af706bf3aaa24b39fea890a72994f40f }
         - { source: senna-lang/herdr-agent-usage,       ref: v0.5.13, rev: df95abc0ba2edb002697d49a218868f87f823a3e }
         - { source: aorumbayev/herdr-workflows,          ref: v0.14.0, rev: 3a218fce44f73caf6045b01d4e0628d8b06c6cfe }
+        # Pure bash/jq plugin (no build step, no toolchain). Names tabs after
+        # directory > branch > agent task and prefixes workspaces/tabs with the
+        # [1-9] jump key. Defaults match the desired workflow, so no config.sh;
+        # the shell hook is loaded from dot_config/zsh/functions.
+        - { source: qu8n/herdr-automatic-rename,        ref: v0.8.0,  rev: e241443d9bc29d717c0a9edec281f2b92692a279 }
         # token-dashboard / lazygit: installed rev is an untagged commit past
         # the latest release; pin the commit so we keep the known-good build
         # without an upgrade.

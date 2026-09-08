@@ -3,6 +3,12 @@ onboarding = false
 [ui]
 show_agent_labels_on_pane_borders = true
 
+# herdr prompts for a name on every new tab; a name typed there counts as a
+# manual rename and opts that tab out of herdr-automatic-rename's naming, so it
+# is off. prompt_new_workspace_name stays at its default (false): herdr keeps
+# deriving workspace names, which herdr-automatic-rename adopts and tracks.
+prompt_new_tab_name = false
+
 status_indicators = "symbols"
 [ui.toast]
 delivery = "terminal"

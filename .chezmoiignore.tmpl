@@ -29,6 +29,10 @@ README.md
 .config/herdr/plugins/config/herdr-lazygit/generated.yml
 .config/herdr/plugins/config/herdr-lazygit/layout-*.yml
 .local/state/herdr
+# herdr-automatic-rename's opt-out records and mkdir lock. Fixed path, not
+# $HERDR_PLUGIN_STATE_DIR, because its zsh hooks run outside herdr and must
+# name the same store; created on the plugin's first reconcile. Generated.
+.local/state/herdr-automatic-rename
 # Saved SSH machines (herdr 0.9+, `herdr machine`) are local control-plane state,
 # not portable config — as-dev is an execution env and has none. Exact store path
 # is unmaterialised until the first `herdr machine add`; confirm on as-host before
