@@ -1,4 +1,7 @@
 # Common
+## Colors — Ghostty's bundled copy of Kitty's built-in default theme.
+theme = Kitty Default
+
 background-opacity = 0.85
 background-blur = true
 window-padding-x = 8
@@ -8,12 +11,17 @@ shell-integration = zsh
 # that don't know TERM=xterm-ghostty); ssh-env exports safe TERM fallbacks.
 shell-integration-features = ssh-env,ssh-terminfo
 confirm-close-surface = true
+# Preserve Ghostty's existing cell-height tuning.
 adjust-cell-height = 60%
 adjust-cursor-height = 100%
-unfocused-split-opacity = 0.6
+# Kitty dims inactive text, not the entire pane; keep split colors fully vivid.
+unfocused-split-opacity = 1.0
 unfocused-split-fill = #1a1a1a
 split-divider-color = #3f444a
-#font-size = 13
+font-family = Menlo
+font-size = 13
+# Match Kitty's heavier macOS text rasterization.
+font-thicken = true
 
 # keybinds
 #keybind = global:ctrl+grave_accent=toggle_quick_terminal
