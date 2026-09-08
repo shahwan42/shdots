@@ -24,6 +24,12 @@ README.md
 .config/herdr/plugins/config/*/update-check-state.json
 .config/herdr/plugins/config/*/*.log
 .local/state/herdr
+# Saved SSH machines (herdr 0.9+, `herdr machine`) are local control-plane state,
+# not portable config — as-dev is an execution env and has none. Exact store path
+# is unmaterialised until the first `herdr machine add`; confirm on as-host before
+# relying on this glob.
+.config/herdr/machines
+.config/herdr/machines.*
 
 {{ if ne .kind "mac" -}}
 # macOS-only configuration.
