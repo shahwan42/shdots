@@ -169,10 +169,10 @@ does not imply a green log.
 `run_onchange_after_40-claude-mcp-sync` registers the shared MCP servers
 (context7, citra, codebase-memory) on every machine with Claude.
 `run_onchange_after_41-opencode-mcp-sync` upserts the same shared servers into
-`~/.config/opencode/opencode.jsonc` on every machine, plus Figma / Gmail /
-Google Calendar on personal-role machines. Other OpenCode config keys are left
-alone. Restart OpenCode after apply; then `opencode mcp auth figma` (and
-gmail / google-calendar) for the OAuth remotes.
+`~/.config/opencode/opencode.jsonc` on every machine, plus Gmail / Google
+Calendar on personal-role machines. Other OpenCode config keys are left alone.
+Restart OpenCode after apply; then `opencode mcp auth gmail` (and
+google-calendar) for the OAuth remotes.
 `run_onchange_after_43-codex-mcp-sync` registers the same shared servers with
 Codex, including the role-specific GitHub server via the same 1Password PAT
 path used by Claude. Its Postgres entry shares the DB-port caveat described
