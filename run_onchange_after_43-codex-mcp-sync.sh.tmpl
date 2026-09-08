@@ -27,6 +27,7 @@ add() {
 
 # Remove MCP servers retired from the shared declaration.
 "$CODEX" mcp remove shadcn-ui >/dev/null 2>&1 || :
+"$CODEX" mcp remove playwright >/dev/null 2>&1 || :
 
 # `op read` blocks indefinitely when 1Password has no non-interactive auth.
 # Cap it so an unattended `chezmoi apply` remains non-fatal when the vault is
@@ -51,10 +52,6 @@ op_read() {
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add citra -- npx -y @sylphx/citra
-add playwright -- npx -y @playwright/mcp@latest \
-  --executable-path "$HOME/.local/bin/chromium" \
-  --headless --no-sandbox --allow-unrestricted-file-access \
-  --allowed-hosts localhost,127.0.0.1
 # Inert until compose.yaml maps the DB port (plan 0003 §1).
 add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring

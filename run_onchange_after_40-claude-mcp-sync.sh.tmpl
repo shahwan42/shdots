@@ -30,6 +30,7 @@ add() {
 
 # Remove MCP servers retired from the shared declaration.
 "$CLAUDE" mcp remove shadcn-ui --scope user >/dev/null 2>&1 || :
+"$CLAUDE" mcp remove playwright --scope user >/dev/null 2>&1 || :
 
 # `op read` blocks indefinitely when 1Password has no non-interactive auth
 # (no OP_SERVICE_ACCOUNT_TOKEN and no reachable desktop app) — that once hung
@@ -56,12 +57,6 @@ op_read() {
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add citra -- npx -y @sylphx/citra
-# Browser automation for the PWA (reception flows, RTL, offline). The browser
-# is provisioned by run_onchange_after_42-playwright-install.sh.tmpl.
-add playwright -- npx -y @playwright/mcp@latest \
-  --executable-path "$HOME/.local/bin/chromium" \
-  --headless --no-sandbox --allow-unrestricted-file-access \
-  --allowed-hosts localhost,127.0.0.1
 # Dev DB inspection. Inert until compose.yaml maps the DB port (plan 0003 §1).
 add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring

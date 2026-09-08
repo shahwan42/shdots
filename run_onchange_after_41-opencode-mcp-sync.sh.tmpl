@@ -52,16 +52,6 @@ servers = {
         "command": ["npx", "-y", "@sylphx/citra"],
         "enabled": True,
     },
-    "playwright": {
-        "type": "local",
-        "command": [
-            "npx", "-y", "@playwright/mcp@latest",
-            "--executable-path", str(pathlib.Path.home() / ".local/bin/chromium"),
-            "--headless", "--no-sandbox", "--allow-unrestricted-file-access",
-            "--allowed-hosts", "localhost,127.0.0.1",
-        ],
-        "enabled": True,
-    },
     "postgres": {
         "type": "local",
         "command": ["postgres-mcp", "--access-mode=restricted"],
@@ -136,6 +126,7 @@ if not isinstance(mcp, dict):
     print("opencode.jsonc: mcp is not an object; leaving file untouched", file=sys.stderr)
     sys.exit(1)
 mcp.pop("shadcn-ui", None)
+mcp.pop("playwright", None)
 mcp.update(servers)
 data["mcp"] = mcp
 

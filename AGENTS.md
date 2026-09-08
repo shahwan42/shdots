@@ -175,16 +175,9 @@ alone. Restart OpenCode after apply; then `opencode mcp auth figma` (and
 gmail / google-calendar) for the OAuth remotes.
 `run_onchange_after_43-codex-mcp-sync` registers the same shared servers with
 Codex, including the role-specific GitHub server via the same 1Password PAT
-path used by Claude. Its Playwright and Postgres entries share the browser
-install and DB-port caveats described below.
-
-`run_onchange_after_42-playwright-install` resolves the Playwright version
-bundled by the latest Playwright MCP and installs its Chromium revision on each
-machine. `~/.local/bin/chromium` is a managed wrapper that selects the newest
-usable Playwright cache entry, including Linux and macOS ARM64 layouts. The
-Claude, Codex, and OpenCode declarations all launch Playwright headlessly
-through that stable path with local-file access enabled. Restart an already
-running client after `chezmoi apply` so it reconnects with the new command.
+path used by Claude. Its Postgres entry shares the DB-port caveat described
+below. Browser automation for AI agents is provided by the user-wide
+`browser-harness` skill/CLI; Playwright remains a project/test dependency.
 
 The `github` (github.com) and `github-enterprise` (github.foodics.com) servers
 differ by client:
