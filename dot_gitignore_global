@@ -34,3 +34,6 @@ __pycache__/
 node_modules/
 .pytest_cache/
 .ruff_cache/
+
+# Agent tooling — per-project local overrides, never shared
+**/.claude/settings.local.json
