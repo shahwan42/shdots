@@ -11,8 +11,9 @@ README.md
 # are reproduced by run_onchange_after_45-herdr-plugins.sh, never checked in:
 # .config/herdr/plugins/github holds git clones + built binaries (incl. .git),
 # plugins.json/.plugins.lock/release-notes.json are generated, config.toml.hwf.*
-# is the herdr-workflows setup backup, and plugins/config/*/update-check-state.json
-# is per-run state beside the plugin config we *do* track.
+# is the herdr-workflows setup backup. Under plugins/config/<id> we track only
+# hand-written user config (usagebar/config.toml, persiyanov.reviewr/config.toml);
+# everything else there is per-run state or machine-generated layers.
 .config/herdr/.plugins.lock
 .config/herdr/*.log
 .config/herdr/session.json
@@ -23,6 +24,10 @@ README.md
 .config/herdr/plugins/github
 .config/herdr/plugins/config/*/update-check-state.json
 .config/herdr/plugins/config/*/*.log
+# herdr-lazygit writes these from keys.conf / pane state; only a user-authored
+# lazygit-user.yml or keys.conf under this dir would be worth tracking.
+.config/herdr/plugins/config/herdr-lazygit/generated.yml
+.config/herdr/plugins/config/herdr-lazygit/layout-*.yml
 .local/state/herdr
 # Saved SSH machines (herdr 0.9+, `herdr machine`) are local control-plane state,
 # not portable config — as-dev is an execution env and has none. Exact store path

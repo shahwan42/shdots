@@ -1,18 +1,26 @@
 #!/bin/sh
-# Reproduces this machine's Herdr plugins and agent integrations from
-# .chezmoidata/herdr.yaml. Declarative and additive: installs what is missing,
-# never uninstalls (drop an entry there and remove it by hand on the box).
-# Idempotent — every action is guarded by `herdr plugin list` / `herdr
-# integration status`, so a re-run with nothing to do changes nothing.
+# Reconciles this machine's Herdr plugins and agent integrations against the
+# per-host desired state in .chezmoidata/herdr.yaml. Additive: it installs what
+# is missing or drifted and never uninstalls a plugin you dropped from the list.
+#
+# Idempotent by construction:
+#   - plugin absent               -> herdr plugin install <source> --ref <ref>
+#   - plugin at the pinned rev    -> no-op
+#   - plugin at a different rev   -> report the drift, then re-pin in place with
+#                                   `herdr plugin install --ref` (its output says
+#                                   "replaces: <id> ...@<old commit>")
+# so a re-run with nothing to do makes no changes and reinstalls nothing.
 #
 # herdr desired-state hash: {{ include ".chezmoidata/herdr.yaml" | sha256sum }}
 #
-# Ordered after 20-mise-install: reviewr builds with Rust, token-dashboard and
-# usagebar with Go — all from the mise vm-only tools block. A macOS control-plane
-# host (as-host) that grows a plugin list will need those toolchains too.
+# Runs after 20-mise-install. On as-dev (kind=vm) the plugin build hooks find
+# prebuilt release binaries first and the vm-only Rust/Go toolchains only as a
+# fallback. A client host (as-host) carries no plugins, so it needs no build
+# toolchain; if a plugin is ever added to a client host, add only that plugin's
+# specific dependency to that host — do not make toolchains fleet-wide.
 #
-# Non-fatal on purpose, like the MCP-sync scripts: a locked vault or a missing
-# toolchain must not fail `chezmoi apply`.
+# Non-fatal on purpose, like the MCP-sync scripts: a missing tool or a network
+# failure must not fail `chezmoi apply`.
 set -u
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.
@@ -29,39 +37,62 @@ fi
 {{ if not $h -}}
 echo "no Herdr desired-state for {{ .chezmoi.hostname }} in .chezmoidata/herdr.yaml — nothing to do."
 exit 0
+{{ else if not $h.enabled -}}
+echo "Herdr desired-state for {{ .chezmoi.hostname }} is disabled (enabled: false) — nothing to do."
+exit 0
 {{ end -}}
 
-PLUGINS="{{ range $h.plugins }}{{ . }} {{ end }}"
+# Desired plugins: one "source|ref|rev" record per line.
+PLUGINS=$(cat <<'EOF'
+{{ range $h.plugins }}{{ .source }}|{{ .ref }}|{{ .rev }}
+{{ end }}EOF
+)
 INTEGRATIONS="{{ range $h.integrations }}{{ . }} {{ end }}"
 
 # --- plugins ---------------------------------------------------------------
-# `herdr plugin install` is not assumed idempotent (it re-fetches), so only call
-# it for a repo not already in `herdr plugin list`. That guard needs jq; without
-# it, skip rather than risk reinstalling on every apply.
-if [ -n "${PLUGINS# }" ] && ! command -v jq >/dev/null 2>&1; then
+# Drift detection reads `herdr plugin list --json`; without jq we cannot do it
+# safely, so skip rather than risk reinstalling every apply.
+if [ -n "$PLUGINS" ] && ! command -v jq >/dev/null 2>&1; then
   echo "jq not found — skipping Herdr plugin sync (cannot read installed set safely)." >&2
   hn plugins skip "jq unavailable"
   PLUGINS=""
 fi
 
-installed_plugins=""
-if [ -n "${PLUGINS# }" ]; then
-  installed_plugins="$("$HERDR" plugin list --json 2>/dev/null \
-    | jq -r '.result.plugins[]?.source | select(.kind == "github") | "\(.owner)/\(.repo)"' \
-    | tr '[:upper:]' '[:lower:]')"
-fi
+plugin_list_json=""
+[ -n "$PLUGINS" ] && plugin_list_json="$("$HERDR" plugin list --json 2>/dev/null)"
 
-for repo in $PLUGINS; do
-  key="$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')"
-  if printf '%s\n' "$installed_plugins" | grep -qxF "$key"; then
-    echo "plugin: $repo already installed"
+# Print the resolved_commit for a given owner/repo, or empty if not installed.
+installed_rev() {
+  printf '%s' "$plugin_list_json" | jq -r --arg s "$1" '
+    .result.plugins[]? | select(.source.kind == "github")
+    | select((.source.owner + "/" + .source.repo) == $s)
+    | .source.resolved_commit // ""' | head -n1
+}
+
+printf '%s\n' "$PLUGINS" | while IFS='|' read -r src ref rev; do
+  [ -n "$src" ] || continue
+  cur="$(installed_rev "$src")"
+  short_rev=$(printf '%s' "$rev" | cut -c1-12)
+
+  if [ "$cur" = "$rev" ]; then
+    echo "plugin: $src ok ($short_rev)"
     continue
   fi
-  if "$HERDR" plugin install "$repo" --yes >/dev/null 2>&1; then
-    echo "plugin: $repo installed"
+
+  if [ -z "$cur" ]; then
+    verb="install"
   else
-    echo "plugin: $repo install failed — run 'herdr plugin install $repo --yes'." >&2
-    hn "$repo" fail "herdr plugin install failed"
+    verb="reconcile"
+    echo "plugin: $src DRIFT — installed $(printf '%s' "$cur" | cut -c1-12), pinned $ref ($short_rev)" >&2
+    hn "$src" drift "installed $cur, pinned $ref"
+  fi
+
+  # `herdr plugin install --ref` re-pins in place; no uninstall needed.
+  if "$HERDR" plugin install "$src" --ref "$ref" --yes >/dev/null 2>&1; then
+    echo "plugin: $verb $src -> $ref ($short_rev)"
+  else
+    echo "plugin: $src $verb failed — run 'herdr plugin install $src --ref $ref --yes'." >&2
+    hn "$src" fail "herdr plugin $verb failed"
   fi
 done
 

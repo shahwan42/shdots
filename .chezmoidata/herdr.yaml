@@ -1,44 +1,63 @@
-# Desired Herdr plugins + agent integrations per machine, consumed by
-# run_onchange_after_45-herdr-plugins.sh.tmpl. Declarative and additive only:
-# the script installs what is missing and never uninstalls — drop a plugin here
-# and remove it by hand on the machine.
+# Desired Herdr state per machine, consumed by
+# run_onchange_after_45-herdr-plugins.sh.tmpl.
 #
-# plugins:      GitHub "<owner>/<repo>" as passed to `herdr plugin install`.
-#               Trailing comment = the resolved plugin_id (herdr plugin list) and
-#               the commit installed on as-dev when this file was written, for
-#               reference only — v1 floats on the default branch (no --ref).
-# integrations: names accepted by `herdr integration install <name>`.
+# Per host:
+#   enabled      false -> the reconcile script does nothing on this host.
+#   mode         client    = control plane, attaches to remote execution servers
+#                execution = agents + plugins run locally
+#                none      = Herdr not used here
+#   plugins      list of { source, ref, rev } — see below. Only execution hosts
+#                carry plugins; a client host keeps this empty (remote plugins
+#                belong on the execution server they run against).
+#   integrations names for `herdr integration install <name>`.
 #
-# Only as-dev is live today. as-host / fdx-dev / fdx-host are placeholders so
-# onboarding them later is a data edit, not a restructure. Do NOT populate them
-# from this machine.
+# Plugin entries are version-pinned and reconciled with the documented
+# mechanism, `herdr plugin install <source> --ref <REF>`:
+#   source  GitHub "<owner>/<repo>".
+#   ref     what --ref receives: a release tag where the plugin cuts sensible
+#           releases, otherwise the exact known-good commit.
+#   rev     the full commit `ref` resolves to = the currently installed,
+#           known-good revision. The script compares this against
+#           `herdr plugin list --json` .resolved_commit for drift detection,
+#           offline. For a commit-pinned entry ref == rev.
+#
+# Only as-dev is onboarded. as-host is a client placeholder; fdx-* are disabled.
+# Do NOT populate the others from this machine.
 
 herdr:
   hosts:
+    as-host:
+      enabled: true
+      mode: client
+      plugins: []
+      integrations: []
+
     as-dev:
+      enabled: true
+      mode: execution
       plugins:
-        - Davidcreador/herdr-token-dashboard   # dave.token-dashboard   @845061589bfef53df4312f67a1e7336e5e47cd8c
-        - persiyanov/herdr-reviewr             # persiyanov.reviewr      @4c090225af706bf3aaa24b39fea890a72994f40f
-        - senna-lang/herdr-agent-usage         # usagebar               @df95abc0ba2edb002697d49a218868f87f823a3e
-        - crokily/herdr-lazygit                # herdr-lazygit           @a13e12c99e5e469edd73165cabba413c2a2fd698
-        - aorumbayev/herdr-workflows           # herdr-workflows         @3a218fce44f73caf6045b01d4e0628d8b06c6cfe
+        # reviewr / agent-usage / workflows: installed rev == a release tag.
+        - { source: persiyanov/herdr-reviewr,          ref: v0.36.2, rev: 4c090225af706bf3aaa24b39fea890a72994f40f }
+        - { source: senna-lang/herdr-agent-usage,       ref: v0.5.13, rev: df95abc0ba2edb002697d49a218868f87f823a3e }
+        - { source: aorumbayev/herdr-workflows,          ref: v0.14.0, rev: 3a218fce44f73caf6045b01d4e0628d8b06c6cfe }
+        # token-dashboard / lazygit: installed rev is an untagged commit past
+        # the latest release; pin the commit so we keep the known-good build
+        # without an upgrade.
+        - { source: Davidcreador/herdr-token-dashboard, ref: 845061589bfef53df4312f67a1e7336e5e47cd8c, rev: 845061589bfef53df4312f67a1e7336e5e47cd8c }
+        - { source: crokily/herdr-lazygit,               ref: a13e12c99e5e469edd73165cabba413c2a2fd698, rev: a13e12c99e5e469edd73165cabba413c2a2fd698 }
       integrations:
         - claude
         - codex
         - opencode
 
-    # --- placeholders, not yet onboarded ---
-    as-host:
-      # macOS control plane. Saved machines (as-dev=Personal, fdx-dev=Work) are
-      # managed with `herdr machine` (0.9.0+); classify that store before use.
-      plugins: []
-      integrations: []
-    fdx-dev:
-      # Ubuntu work execution env. Keep the plugin/integration set independently
-      # controllable — likely Claude only to start.
-      plugins: []
-      integrations: []
     fdx-host:
-      # macOS, mostly a VM host. Probably stays empty.
+      enabled: false
+      mode: none
+      plugins: []
+      integrations: []
+
+    fdx-dev:
+      enabled: false          # not onboarded — install nothing here yet
+      mode: execution
       plugins: []
       integrations: []

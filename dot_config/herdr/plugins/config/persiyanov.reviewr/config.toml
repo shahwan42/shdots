@@ -1,0 +1,12 @@
+# reviewr — https://github.com/persiyanov/herdr-reviewr
+# reviewr's own file (herdr's config.toml never reaches it); re-read on every
+# refresh and toggle.
+
+# Start each fresh review pane in the "last turn" scope: the diff the latest
+# agent/chat turn produced, not the whole dirty working tree ("uncommitted",
+# the built-in default) or the branch diff. Manual scope switches (u/b/t/g)
+# still win for the session, and a config re-read never yanks the active scope.
+default_scope = "last-turn"
+
+# Everything else stays at reviewr's defaults: theme (catppuccin, matches herdr),
+# navigator position, keybindings, pane placement, auto_open.
