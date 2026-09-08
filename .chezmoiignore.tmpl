@@ -7,11 +7,23 @@ README.md
 .ssh/id_*
 .ssh/known_hosts*
 
-# herdr runtime state is not reproducible configuration.
+# herdr runtime state is not reproducible configuration. Plugins and integrations
+# are reproduced by run_onchange_after_45-herdr-plugins.sh, never checked in:
+# .config/herdr/plugins/github holds git clones + built binaries (incl. .git),
+# plugins.json/.plugins.lock/release-notes.json are generated, config.toml.hwf.*
+# is the herdr-workflows setup backup, and plugins/config/*/update-check-state.json
+# is per-run state beside the plugin config we *do* track.
 .config/herdr/.plugins.lock
 .config/herdr/*.log
 .config/herdr/session.json
 .config/herdr/*.sock
+.config/herdr/plugins.json
+.config/herdr/release-notes.json
+.config/herdr/config.toml.hwf.*
+.config/herdr/plugins/github
+.config/herdr/plugins/config/*/update-check-state.json
+.config/herdr/plugins/config/*/*.log
+.local/state/herdr
 
 {{ if ne .kind "mac" -}}
 # macOS-only configuration.

@@ -10,3 +10,9 @@ delivery = "terminal"
 [theme]
 name = "catppuccin"
 auto_switch = false
+
+[[keys.command]]
+key = "prefix+k"
+type = "plugin_action"
+command = "herdr-workflows.launch"
+description = "launch a herdr-workflows workflow (picker)"

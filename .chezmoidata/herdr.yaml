@@ -1,0 +1,44 @@
+# Desired Herdr plugins + agent integrations per machine, consumed by
+# run_onchange_after_45-herdr-plugins.sh.tmpl. Declarative and additive only:
+# the script installs what is missing and never uninstalls — drop a plugin here
+# and remove it by hand on the machine.
+#
+# plugins:      GitHub "<owner>/<repo>" as passed to `herdr plugin install`.
+#               Trailing comment = the resolved plugin_id (herdr plugin list) and
+#               the commit installed on as-dev when this file was written, for
+#               reference only — v1 floats on the default branch (no --ref).
+# integrations: names accepted by `herdr integration install <name>`.
+#
+# Only as-dev is live today. as-host / fdx-dev / fdx-host are placeholders so
+# onboarding them later is a data edit, not a restructure. Do NOT populate them
+# from this machine.
+
+herdr:
+  hosts:
+    as-dev:
+      plugins:
+        - Davidcreador/herdr-token-dashboard   # dave.token-dashboard   @845061589bfef53df4312f67a1e7336e5e47cd8c
+        - persiyanov/herdr-reviewr             # persiyanov.reviewr      @4c090225af706bf3aaa24b39fea890a72994f40f
+        - senna-lang/herdr-agent-usage         # usagebar               @df95abc0ba2edb002697d49a218868f87f823a3e
+        - crokily/herdr-lazygit                # herdr-lazygit           @a13e12c99e5e469edd73165cabba413c2a2fd698
+        - aorumbayev/herdr-workflows           # herdr-workflows         @3a218fce44f73caf6045b01d4e0628d8b06c6cfe
+      integrations:
+        - claude
+        - codex
+        - opencode
+
+    # --- placeholders, not yet onboarded ---
+    as-host:
+      # macOS control plane. Saved machines (as-dev=Personal, fdx-dev=Work) are
+      # managed with `herdr machine` (0.9.0+); classify that store before use.
+      plugins: []
+      integrations: []
+    fdx-dev:
+      # Ubuntu work execution env. Keep the plugin/integration set independently
+      # controllable — likely Claude only to start.
+      plugins: []
+      integrations: []
+    fdx-host:
+      # macOS, mostly a VM host. Probably stays empty.
+      plugins: []
+      integrations: []

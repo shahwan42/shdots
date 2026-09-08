@@ -1,0 +1,87 @@
+#!/bin/sh
+# Reproduces this machine's Herdr plugins and agent integrations from
+# .chezmoidata/herdr.yaml. Declarative and additive: installs what is missing,
+# never uninstalls (drop an entry there and remove it by hand on the box).
+# Idempotent — every action is guarded by `herdr plugin list` / `herdr
+# integration status`, so a re-run with nothing to do changes nothing.
+#
+# herdr desired-state hash: {{ include ".chezmoidata/herdr.yaml" | sha256sum }}
+#
+# Ordered after 20-mise-install: reviewr builds with Rust, token-dashboard and
+# usagebar with Go — all from the mise vm-only tools block. A macOS control-plane
+# host (as-host) that grows a plugin list will need those toolchains too.
+#
+# Non-fatal on purpose, like the MCP-sync scripts: a locked vault or a missing
+# toolchain must not fail `chezmoi apply`.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 45-herdr-plugins "$@" >/dev/null 2>&1 || :; }
+
+HERDR="$(command -v herdr || echo "$HOME/.local/share/mise/shims/herdr")"
+if ! command -v "$HERDR" >/dev/null 2>&1 && [ ! -x "$HERDR" ]; then
+  echo "herdr not found on PATH — skipping plugin/integration sync." >&2
+  exit 0
+fi
+
+{{ $h := index .herdr.hosts .chezmoi.hostname -}}
+{{ if not $h -}}
+echo "no Herdr desired-state for {{ .chezmoi.hostname }} in .chezmoidata/herdr.yaml — nothing to do."
+exit 0
+{{ end -}}
+
+PLUGINS="{{ range $h.plugins }}{{ . }} {{ end }}"
+INTEGRATIONS="{{ range $h.integrations }}{{ . }} {{ end }}"
+
+# --- plugins ---------------------------------------------------------------
+# `herdr plugin install` is not assumed idempotent (it re-fetches), so only call
+# it for a repo not already in `herdr plugin list`. That guard needs jq; without
+# it, skip rather than risk reinstalling on every apply.
+if [ -n "${PLUGINS# }" ] && ! command -v jq >/dev/null 2>&1; then
+  echo "jq not found — skipping Herdr plugin sync (cannot read installed set safely)." >&2
+  hn plugins skip "jq unavailable"
+  PLUGINS=""
+fi
+
+installed_plugins=""
+if [ -n "${PLUGINS# }" ]; then
+  installed_plugins="$("$HERDR" plugin list --json 2>/dev/null \
+    | jq -r '.result.plugins[]?.source | select(.kind == "github") | "\(.owner)/\(.repo)"' \
+    | tr '[:upper:]' '[:lower:]')"
+fi
+
+for repo in $PLUGINS; do
+  key="$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')"
+  if printf '%s\n' "$installed_plugins" | grep -qxF "$key"; then
+    echo "plugin: $repo already installed"
+    continue
+  fi
+  if "$HERDR" plugin install "$repo" --yes >/dev/null 2>&1; then
+    echo "plugin: $repo installed"
+  else
+    echo "plugin: $repo install failed — run 'herdr plugin install $repo --yes'." >&2
+    hn "$repo" fail "herdr plugin install failed"
+  fi
+done
+
+# --- integrations --------------------------------------------------------------
+# `herdr integration status` prints "<name>: current (vN) (path)" when installed
+# and up to date; anything else (outdated / not installed) means reinstall.
+for name in $INTEGRATIONS; do
+  if "$HERDR" integration status 2>/dev/null | grep -qE "^${name}: current"; then
+    echo "integration: $name current"
+    continue
+  fi
+  if "$HERDR" integration install "$name" >/dev/null 2>&1; then
+    echo "integration: $name installed"
+  else
+    echo "integration: $name install failed — run 'herdr integration install $name'." >&2
+    hn "$name" fail "herdr integration install failed"
+  fi
+done
+
+# Pick up config/keybinding changes in a running server (no-op if none running).
+"$HERDR" server reload-config >/dev/null 2>&1 || :
+
+exit 0
