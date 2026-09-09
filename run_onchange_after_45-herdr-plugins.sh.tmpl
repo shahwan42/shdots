@@ -33,12 +33,12 @@ if ! command -v "$HERDR" >/dev/null 2>&1 && [ ! -x "$HERDR" ]; then
   exit 0
 fi
 
-{{ $h := index .herdr.hosts .chezmoi.hostname -}}
+{{ $h := index .herdr.hosts .hostname -}}
 {{ if not $h -}}
-echo "no Herdr desired-state for {{ .chezmoi.hostname }} in .chezmoidata/herdr.yaml — nothing to do."
+echo "no Herdr desired-state for {{ .hostname }} in .chezmoidata/herdr.yaml — nothing to do."
 exit 0
 {{ else if not $h.enabled -}}
-echo "Herdr desired-state for {{ .chezmoi.hostname }} is disabled (enabled: false) — nothing to do."
+echo "Herdr desired-state for {{ .hostname }} is disabled (enabled: false) — nothing to do."
 exit 0
 {{ end -}}
 
