@@ -1,0 +1,35 @@
+#!/bin/sh
+{{ if ne .role "work" -}}
+# rtk's Claude Code hook is intentionally limited to work-role machines.
+exit 0
+{{ else -}}
+# Registers rtk's Bash PreToolUse hook in Claude Code's global settings.json
+# and the @RTK.md reference in CLAUDE.md (already present via the templated
+# source — this call is idempotent and no-ops on both). rtk itself comes from
+# mise (dot_config/mise/config.toml.tmpl); this only wires it into Claude Code.
+# Re-runs whenever this rendered script changes.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 46-rtk-claude-hook "$@" >/dev/null 2>&1 || :; }
+
+RTK="$HOME/.local/share/mise/shims/rtk"
+if [ ! -x "$RTK" ]; then
+  RTK="$(command -v rtk || true)"
+fi
+if [ -z "$RTK" ]; then
+  echo "rtk: binary not found (mise install may have failed) — skipping hook registration." >&2
+  hn rtk skip "rtk binary not found on PATH or in mise shims"
+  exit 0
+fi
+
+if "$RTK" init -g --auto-patch; then
+  hn rtk ok "rtk init -g --auto-patch succeeded"
+else
+  echo "rtk: hook registration failed (see output above)." >&2
+  hn rtk fail "rtk init -g --auto-patch exited non-zero"
+fi
+
+exit 0
+{{ end -}}

@@ -106,4 +106,8 @@ cmake = "4.4.3"
 "pipx:commitizen" = "4.18.0"
 "pipx:Pygments" = "2.21.0"
 "github:ankitpokhrel/jira-cli" = { version = "1.7.0", exe = "jira" }
+# rtk: compresses bash output before Claude Code reads it. The Bash PreToolUse
+# hook + CLAUDE.md reference are registered by
+# run_onchange_after_46-rtk-claude-hook.sh.tmpl, not here.
+rtk = "0.48.0"
 {{ end -}}
