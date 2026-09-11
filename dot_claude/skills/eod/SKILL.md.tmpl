@@ -1,0 +1,131 @@
+---
+name: eod
+description: "End-of-day work log + Geekbot standup for Ahmed Shahwan. Sweeps local git (the 4 cashflow repos), GitHub Enterprise (github.foodics.com), Jira, Confluence, Slack, Gmail, Calendar, and Drive for the day's activity; consolidates and prepends a dated entry to ~/Notes/work/foodics/foodics_daily.md, backfilling any un-logged gap days; then interactively answers the Geekbot standup's 3 questions and posts the reply. Activates on: /eod, end of day, daily log, wrap up my day, do my standup, log what I did today."
+---
+
+# EOD — daily work log + Geekbot standup
+
+**Gather everything I touched, write it down, then file the standup.** One command at
+the end of the workday: sweep every work tool, consolidate into the notes file
+(backfilling any days I forgot), then walk the Geekbot standup questions and post them.
+
+Run this at Ahmed's desk — the Geekbot phase is interactive (prompt-and-wait), so it
+cannot be a headless cron. A companion headless task `eod-prefetch` runs at 20:00
+Sun–Thu and drops a draft at `~/.claude/eod-drafts/eod-<YYYY-MM-DD>.md` so this skill is
+fast; if that draft exists, start from it, but still fill the gaps it couldn't reach.
+
+`--dry-run`: do Phases 0–2 compose + preview only — no notes write, no Geekbot send.
+
+## Fixed facts (do not rediscover)
+
+| Thing | Value |
+|---|---|
+| Notes file | `{{ .chezmoi.homeDir }}/Notes/work/foodics/foodics_daily.md` (NOT `~/Notes/foodics/`) |
+| Entry order | **Prepended, newest at top**; heading `# YYYY-MM-DD` (no weekday, no emoji) |
+| Bullets | `-` / `- [ ]` open / `- [x]` done; 2-space nesting; `---` between days |
+| Repos | meta `{{ .chezmoi.homeDir }}/Code/foodics/cashflow`, + `cashflow-api`, `cashflow-console`, `cashflow-e2e`, worktrees `wt-*` |
+| Git identity | filter by **name** `"Ahmed Shahwan"` (he commits under two emails) |
+| GitHub | `export GH_HOST=github.foodics.com` — mandatory (gh is also on github.com, which silently returns nothing) |
+| Jira/Confluence | Atlassian MCP `mcp__099f1c0c-…`, cloudId `foodics-products.atlassian.net`, `EE-XXXX` |
+| Slack | MCP `mcp__1c94dadb-…`; his user_id `U08QX477F8T` |
+| Geekbot DM | channel `D09RSDJTYFL` |
+| Gmail / Calendar / Drive | MCP `mcp__56bf9158-…` / `mcp__e0172b3b-…` / `mcp__dedec47d-…` |
+| Load MCP tools | via `ToolSearch "select:<toolname>,…"` before calling — do NOT use `plugin:engineering:*` variants (unauthorized) |
+
+## Preferences (from feedback — honor these)
+
+- **AI work he approved counts as his.** Include the `daily-ai-review-pr-fixes` task's
+  "AI review fixes (round N)" PRs and any agent-made PRs he approved — do not drop them.
+- **He works some weekends** (Saudi Fri/Sat). Create an entry for any date with real
+  activity, including weekends. Skipping empty days is fine; skipping a worked weekend is not.
+
+## Phase 0 — Window & inputs
+
+1. `head -1` the notes file → last logged date (top `# YYYY-MM-DD`). Window =
+   (last-logged + 1) … today.
+2. If `~/.claude/eod-drafts/eod-<today>.md` exists, read it as the starting draft (it
+   covers git + GitHub reliably; MCP sources may be marked pending).
+3. State the window to the user before gathering.
+
+## Phase 1 — Gather (fill every source for the window)
+
+Load the MCP tools you'll need in ONE `ToolSearch` call. For each source not already
+covered by the draft, query the whole window.
+
+- **Local git** (authoritative for commits) — per repo and worktree:
+  ```bash
+  for d in "" cashflow-api cashflow-console cashflow-e2e wt-*; do
+    p="{{ .chezmoi.homeDir }}/Code/foodics/cashflow/$d"
+    git -C "$p" log --author="Ahmed Shahwan" --since="<from> 00:00" --until="<to> 23:59" \
+        --pretty=format:'%ad %h %s' --date=short 2>/dev/null
+    git -C "$p" status -sb 2>/dev/null | head -3
+    git -C "$p" log --branches --not --remotes --author="Ahmed Shahwan" \
+        --pretty=format:'unpushed: %ad %h %s' --date=short 2>/dev/null   # WIP
+  done
+  ```
+- **GitHub** (`export GH_HOST=github.foodics.com`):
+  ```bash
+  gh search prs   --author=@me      --json number,title,repository,state,updatedAt,url "updated:>=<from>"
+  gh search prs   --reviewed-by=@me --json number,title,repository,state,updatedAt,url "updated:>=<from>"
+  gh search prs   --involves=@me    --json number,title,repository,state,updatedAt,url "updated:>=<from>"
+  ```
+  Per-PR detail if needed: `gh api repos/pay/<repo>/pulls/<N>/reviews` and `/comments`.
+- **Jira** — `searchJiraIssuesUsingJql`, cloudId `foodics-products.atlassian.net`:
+  `(assignee = currentUser() OR worklogAuthor = currentUser()) AND updated >= "<from>" ORDER BY updated DESC`,
+  `fields: [summary,status,issuetype,updated]`. If the result is too large to inline, it's
+  saved to a file — `jq -r '.issues.nodes[] | "\(.key)\t\(.fields.status.name)\t\(.fields.updated[0:10])\t\(.fields.summary)"'` it.
+- **Confluence** — `searchConfluenceUsingCql`: `contributor = currentUser() and lastmodified >= "<from>" ORDER BY lastmodified DESC` (filter to `type=page` unless attachments matter).
+- **Slack** — his messages in the window (search `from:@me` date-scoped).
+- **Gmail** — `search_threads` `from:me after:<from>` (mostly calendar accepts/declines — mine for meeting signal, not real correspondence).
+- **Calendar** — `list_events` for the window → the `Meetings` group.
+- **Drive** — `list_recent_files` / `search_files` → docs touched (link inline).
+
+If a connector errors or is absent, note it as a coverage gap; never fail the whole run.
+
+## Phase 2 — Consolidate & write notes
+
+Consolidate, **deduplicate** (one unit of work = one bullet; a commit + its PR + its Jira
+issue are the same unit — prefer the richest link), **expurgate** noise, **refine** to the
+compact recent style (~8–20 lines/day). Bucket by **author date** of the commit / merge /
+status change.
+
+- One `# YYYY-MM-DD` block per active day, **newest-first**.
+- `- [x]` merged/done, `- [ ]` open/in-flight; informal group labels seen in the file:
+  `Merged — <repo>`, `My open PRs — follow-up`, `PR Reviews — peers`, `Tickets follow-up`,
+  `Docs`, `Meetings`, `WIP (unpushed)`, `Exploring:`, `AI review fixes — acted on my approval`.
+- Links: Jira `https://foodics-products.atlassian.net/browse/EE-XXXX`; GitHub
+  `https://github.foodics.com/pay/<repo>/pull/<n>`; append `— author/status` on peer-review lines.
+- **Preview the full composed block(s) and wait for confirmation** before writing (it's
+  his long-lived notes). Call out any judgment calls (weekend days, inferred PR numbers,
+  AI-fix PRs).
+- `--dry-run` **stops here**: show the preview, then no write, no draft deletion, no Geekbot.
+- On approval, **prepend** at the very top of the file (anchor-edit before the current top
+  `# <last-logged>` heading, with a `---` separator between). Then delete the consumed draft.
+
+## Phase 3 — Geekbot standup (interactive)
+
+1. Read the Geekbot DM (`slack_read_channel` on `D09RSDJTYFL`, ~30 msgs). Find the **3
+   current questions** and **his last actual submission date** (a message from
+   `Ahmed Shahwan`, not Geekbot's echo). Geekbot anchors "since <date>" to that last
+   submission — which may be **weeks** before the last notes date, so scope Q1 to it.
+2. Ask **one question at a time, waiting for each answer**:
+   - **Q1 — "What have you done since <date>?"** Pre-fill a themed draft synthesized from
+     the notes (read the file across the whole "since" span, not just today). Group by
+     epic/theme (SADAD, Modular Monolith, VIBAN/SNB, E2E suite, AI tooling, Reviews). User edits/confirms.
+   - **Q2 — "What will you do tomorrow?"** Propose from his open PRs + in-progress/code-review
+     Jira + upcoming calendar. Note OOO days (a declined standup invite = OOO). User confirms.
+   - **Q3 — "Anything blocking your progress?"** Ask; default `No blockers.` if none.
+3. **Post each answer as its own message** to the DM (Geekbot advances one question per
+   message). After each send, re-read the DM to confirm Geekbot posted the next question
+   before sending the next answer. Sending on his behalf → he confirmed each answer above,
+   which is the go-ahead.
+   - **Formatting:** use `**bold**` (double asterisk) for section headers — single `*` renders
+     as italic through the Slack MCP. Bullets `•` and nested `◦` match his house report style.
+4. Confirm Geekbot's closing "Awesome, thank you!" and report the message links.
+
+## Out of Scope
+
+- Creating commits/PRs, editing tickets, transitioning Jira, or replying in team channels.
+- Auto-sending Geekbot answers without per-answer confirmation.
+- Writing the notes file without showing the preview first.
+- The headless gather — that's `eod-prefetch` (see `~/.claude/scheduled-tasks/eod-prefetch/`).

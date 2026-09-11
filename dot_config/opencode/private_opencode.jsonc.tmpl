@@ -1,0 +1,100 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "enabled": true
+    },
+    "citra": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@sylphx/citra"
+      ],
+      "enabled": true
+    },
+    "codebase-memory-mcp": {
+      "type": "local",
+      "command": [
+        {{ (joinPath .chezmoi.homeDir ".local/bin/codebase-memory-mcp") | quote }}
+      ],
+      "enabled": true
+    },
+    "github-enterprise": {
+      "type": "local",
+      "command": [
+        "github-mcp-server",
+        "stdio"
+      ],
+      "enabled": true,
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+        "GITHUB_HOST": "https://github.foodics.com"
+      }
+    },
+    "postgres": {
+      "type": "local",
+      "command": [
+        "postgres-mcp",
+        "--access-mode=restricted"
+      ],
+      "enabled": true,
+      "environment": {
+        "DATABASE_URI": "{env:DATABASE_URI}"
+      }
+    }
+  },
+  "lsp": {
+    "intelephense": {
+      "command": [
+        "intelephense",
+        "--stdio"
+      ],
+      "extensions": [
+        "php"
+      ]
+    },
+    "vtsls": {
+      "command": [
+        "vtsls",
+        "--stdio"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".mjs",
+        ".cjs",
+        ".js",
+        ".jsx"
+      ]
+    },
+    "vue": {
+      "command": [
+        "vue-language-server",
+        "--stdio"
+      ],
+      "extensions": [
+        ".vue"
+      ]
+    },
+    "tailwindcss": {
+      "command": [
+        "tailwindcss-language-server",
+        "--stdio"
+      ],
+      "extensions": [
+        ".vue",
+        ".ts",
+        ".tsx",
+        ".html",
+        ".css"
+      ]
+    }
+  }
+}
