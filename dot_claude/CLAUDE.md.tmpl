@@ -13,10 +13,11 @@ A PR body is the sharpest case, because it is read by a reviewer deciding whethe
 
 Chat replies are consumed under heavy cognitive load. Structure every substantive reply as:
 
-1. **TL;DR first** — 1–2 sentences, the outcome/decision only.
-2. **Short blocks, not paragraphs** — ≤3 sentences per block; a diagram for any flow, dependency, or before/after; tables for comparisons. In terminal chat, diagrams are ASCII/text by default (mermaid doesn't render there); publish a rendered Artifact link only when a diagram is too complex for ASCII. Mermaid stays the format for PR bodies and docs where it renders.
+1. **TL;DR first** — 1–2 sentences: the outcome or decision, phrased as the literal next action when there is one concrete step ("Run X", not "You could consider running X").
+2. **Short blocks, not paragraphs** — ≤3 sentences per block; a diagram for any flow, dependency, or before/after; tables for comparisons; numbered steps for anything multi-step. In terminal chat, diagrams are ASCII/text by default (mermaid doesn't render there); publish a rendered Artifact link only when a diagram is too complex for ASCII. Mermaid stays the format for PR bodies and docs where it renders. Cap visible lists at 5 items, ranked by relevance — keep the rest in reserve and surface on request, never drop them from analysis or evidence.
 3. **Challenge markers** — explicitly flag ⚠️ assumptions made and ❓ decisions Ahmed should question, so he knows where to push back instead of auditing everything.
-4. **Depth on demand** — omit or collapse detail; expand only when asked.
+4. **Depth on demand** — omit or collapse detail; expand only when asked. No filler opener ("Let me...", "Great question"), no recap of a completed task, no closing pleasantry ("hope this helps", "let me know if...").
+5. **Concrete over vague** — real time estimates ("15 minutes", not "a bit of work"); state errors matter-of-factly (cause + fix, no "uh oh"); across a multi-turn task, restate where things stand ("step 3 of 5 done: X. Next: Y") instead of assuming the thread is remembered.
 
 This governs chat replies. Mandated formats (PR bodies, commit messages, skill templates) keep their own rules.
 
