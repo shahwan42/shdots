@@ -1,5 +1,5 @@
 [user]
-{{ if eq .role "work" }}	email = a.shahwan@foodics.com
+{{ if and (eq .kind "vm") (eq .role "work") }}	email = a.shahwan@foodics.com
 {{ else }}	email = a.shahwan42@gmail.com
 {{ end }}	name = Ahmed Shahwan
 	# SSH signing (GPG retired: gpg-agent/pinentry breaks headless sessions).
@@ -44,3 +44,8 @@
 	format = ssh
 [gpg "ssh"]
 	allowedSignersFile = {{ .chezmoi.homeDir }}/.config/git/allowed_signers
+{{ if eq .kind "mac" -}}
+# Macs carry both identities: personal by default, work email inside work repos.
+[includeIf "gitdir:~/Code/foodics/"]
+	path = {{ .chezmoi.homeDir }}/.config/git/work.gitconfig
+{{ end -}}

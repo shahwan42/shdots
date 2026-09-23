@@ -21,7 +21,7 @@
 #           `herdr plugin list --json` .resolved_commit for drift detection,
 #           offline. For a commit-pinned entry ref == rev.
 #
-# Only as-dev is onboarded. as-host is a client placeholder; fdx-* are disabled.
+# Only as-dev is onboarded. as-host and fdx-host are client workstations; fdx-dev is disabled.
 # Do NOT populate the others from this machine.
 
 herdr:
@@ -55,9 +55,9 @@ herdr:
         - codex
         - opencode
 
-    fdx-host:
-      enabled: false
-      mode: none
+    fdx-host:                 # fallback workstation: twin of as-host
+      enabled: true
+      mode: client
       plugins: []
       integrations: []
 

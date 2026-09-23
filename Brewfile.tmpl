@@ -17,11 +17,13 @@ brew "tree"
 brew "wget"
 
 # --- GUI apps / casks (shared across Macs) ---
+cask "1password"       # desktop app: SSH agent for the work-server key
 cask "1password-cli"
 cask "alt-tab"
 cask "codex"
 cask "font-meslo-lg-nerd-font"
 cask "ghostty"
+cask "google-chrome"  # browser-harness drives Chrome over CDP
 cask "kitty"
 cask "multipass"
 cask "rectangle"
@@ -29,45 +31,3 @@ brew "tailscale"        # CLI/daemon formula — both Macs run tailscaled from i
 cask "visual-studio-code"
 cask "vlc"
 cask "zulu@17"
-
-{{- if eq .role "work" }}
-
-# --- work Mac: native services, PHP/iOS stack, heavy libs, GUI apps ---
-brew "autossh"
-brew "btop"           # kept native on Mac: mise's aqua btop is linux-only
-brew "chafa"
-brew "cliclick"
-brew "cocoapods"
-brew "container-compose"
-brew "dnsmasq"
-brew "docker"
-brew "docker-compose"
-brew "gromgit/brewtils/taproom", trusted: true
-brew "imagemagick-full", link: true
-brew "leaf-markdown-viewer"
-brew "mole"
-brew "nginx"
-brew "pcre2"
-brew "php", link: false
-brew "php@8.3", link: true
-brew "poppler"
-brew "ruby"
-brew "watchman"
-
-cask "1password"
-cask "appcleaner"
-cask "flameshot"
-cask "font-caskaydia-cove-nerd-font"
-cask "font-comic-shanns-mono-nerd-font"
-cask "font-fira-code-nerd-font"
-cask "font-hack-nerd-font"
-cask "font-symbols-only-nerd-font"
-cask "google-chrome"
-cask "kap"
-cask "keka"
-cask "localsend"
-cask "maccy"
-cask "ngrok"
-cask "time-out"
-cask "zoom"
-{{ end }}

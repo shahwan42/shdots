@@ -89,7 +89,7 @@ if [[ -n ${KITTY_WINDOW_ID:-} ]] && (( $+commands[kitten] )); then
 fi
 {{ if eq .kind "mac" }}alias mp='multipass'
 {{ end -}}
-{{ if eq .role "work" }}
+{{ if includeTemplate "has-work" . }}
 # Work aliases and environment.
 alias a='php artisan'
 alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
@@ -161,7 +161,10 @@ typeset -U path PATH
 # the history; the marker above may be absent while this still fires.
 [[ -x "$HOME/.local/bin/chezmoi-health" ]] && "$HOME/.local/bin/chezmoi-health" check 2>&1 || true
 
-# Machine-local, unmanaged extras (secrets, one-off installs).
+# 1Password-backed tokens (cached; see the file header).
+[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh"
+
+# Machine-local, unmanaged extras (one-off installs, per-machine helpers).
 if [[ -r "$HOME/.zshrc.local" ]]; then
   source "$HOME/.zshrc.local"
 fi

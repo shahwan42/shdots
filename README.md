@@ -87,18 +87,13 @@ zsh-plugin externals refresh at most every **168h**; the `~/.config/nvim` extern
 (`shahwan42/nvim-config`) has `refreshPeriod = 0`, so every apply/update runs `git pull`
 in it. Force a full refresh of all externals with `chezmoi apply --refresh-externals`.
 
-> **`GITHUB_TOKEN`**: mise's `github:`/`ubi:` backends call the GitHub API, which is
-> rate-limited to 60/hr unauthenticated — a full `mise install` will 403 partway.
-> Put a read-only PAT in the unmanaged **`~/.zshrc.local`** (where machine-local
-> secrets already live), which the shell sources:
->
-> ```sh
-> export GITHUB_TOKEN="$(op read 'op://dev-secrets/GitHub PAT/token')"
-> [ -n "$GITHUB_TOKEN" ] || unset GITHUB_TOKEN   # empty guard: never export ""
-> ```
->
-> `mise install` then picks it up from the environment. The `aqua:`/`core:`/`pipx:`
-> tools install fine without it.
+> **GitHub token for mise**: mise's `github:`/`ubi:` backends call the GitHub API,
+> which is rate-limited to 60/hr unauthenticated — a full `mise install` will 403
+> partway. The managed `~/.config/zsh/secrets.zsh` exports `MISE_GITHUB_TOKEN` (a
+> read-only PAT, 1Password item `jypxoxjttljurjhg3f72bvlx6e`) in every interactive
+> shell and caches it, and the mise apply script reuses that cache. Nothing to set
+> by hand once 1Password's service-account token is on the machine. The
+> `aqua:`/`core:`/`pipx:` tools install fine without it.
 
 ### Tool versions are locked
 
@@ -206,7 +201,8 @@ connection alive; herdr keeps the sessions alive.
 
 ## Secrets & the work SSH sync
 
-Never committed: `~/.npmrc`, `~/.ssh/id_*`, `~/.zshrc.local` (machine-local exports),
+Never committed: `~/.npmrc`, `~/.ssh/id_*`, `~/.zshrc.local` (machine-local extras),
+the token values `~/.config/zsh/secrets.zsh` reads from 1Password by UUID,
 and per-host SSH config. A gitleaks pre-commit hook is wired on every machine by
 `run_once_after_10-configure-git-hooks.sh`.
 
@@ -240,8 +236,9 @@ Role guards decide *what* decrypts *where*:
   chezmoi source. On a fresh box chezmoi clones it over HTTPS; if the directory
   already exists from an unrelated Neovim install, move it aside and re-apply.
   Local edits there are committed and pushed to that repo, not to shdots.
-- **`mise install` 403s or skips tools** — GitHub API rate limit; set
-  `GITHUB_TOKEN` (see above) and re-run `mise install`. The apply script is
+- **`mise install` 403s or skips tools** — GitHub API rate limit; open an
+  interactive shell so `secrets.zsh` caches `MISE_GITHUB_TOKEN` (see above), then
+  re-run `mise install`. The apply script is
   non-fatal on purpose, so a bootstrap can *look* complete — check
   `mise ls --missing` after any fresh install.
 - **A single ubi/aqua tool won't resolve** — run `mise install <tool>` alone for

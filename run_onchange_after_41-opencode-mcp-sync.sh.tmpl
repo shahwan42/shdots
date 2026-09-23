@@ -69,7 +69,7 @@ if cbm and os.access(cbm, os.X_OK):
         "enabled": True,
     }
 
-{{ if eq .role "personal" -}}
+{{ if includeTemplate "has-personal" . -}}
 servers["gmail"] = {
     "type": "remote",
     "url": "https://gmailmcp.googleapis.com/mcp/v1",
@@ -85,17 +85,18 @@ servers["github"] = {
     "command": ["github-mcp-server", "stdio"],
     "enabled": True,
     "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_READONLY_TOKEN}",
     },
 }
 {{ end -}}
-{{ if eq .role "work" -}}
+{{ if includeTemplate "has-work" . -}}
 servers["github-enterprise"] = {
     "type": "local",
     "command": ["github-mcp-server", "stdio"],
     "enabled": True,
     "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+        # Tokens come from ~/.config/zsh/secrets.zsh (1Password, by UUID).
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GHE_MCP_TOKEN}",
         "GITHUB_HOST": "https://github.foodics.com",
     },
 }

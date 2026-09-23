@@ -2,6 +2,6 @@
 @~/.claude/rules/mermaid-validation.md
 
 {{ template "output-preferences.md" . }}
-{{- if eq .role "work" }}
+{{- if and (eq .kind "vm") (eq .role "work") }}
 @RTK.md
 {{ end -}}

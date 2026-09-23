@@ -1,0 +1,6 @@
+# 1Password SSH agent: serve ONLY the work-server key (fdx-host's id_ed25519,
+# item "Foodics MacBook" in dev-secrets). Used by the work hosts' Match block in
+# ~/.ssh/config.d/foodics; GitHub and everything else use on-disk keys.
+[[ssh-keys]]
+item = "gvljlmfqa2z23h3ip2rchz36uu"
+vault = "dev-secrets"

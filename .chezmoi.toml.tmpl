@@ -1,5 +1,12 @@
-{{- $role := promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
 {{- $kind := promptChoiceOnce . "kind" "Machine kind" (list "mac" "vm") -}}
+{{- /* Identity lives in the dev box, not the workstation: a Mac carries both
+       personal and work tools, so only a VM is asked for its role. Templates
+       gate tools on .chezmoitemplates/has-personal / has-work, never on a Mac's
+       role. */ -}}
+{{- $role := "" -}}
+{{- if eq $kind "vm" -}}
+{{-   $role = promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
+{{- end -}}
 {{- $hostname := promptStringOnce . "hostname" "Machine hostname" (output "hostname" "-s" | trim) -}}
 {{- /* Work-only opt-in for the eod skill. Prompted once on work machines; to answer
        without a prompt, pass the prompt text: `chezmoi init --promptBool "Install eod skill=false"`. */ -}}

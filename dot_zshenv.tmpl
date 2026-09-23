@@ -24,6 +24,6 @@ typeset -U path PATH
 # 1Password service account: `ssh host 'op read …'` must work headless — that
 # is this token's whole purpose, so it belongs in the every-shell file.
 [[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
-{{ if eq .role "work" }}
+{{ if and (eq .kind "vm") (eq .role "work") }}
 export AWS_PROFILE=foodics_pay_export
 {{ end -}}

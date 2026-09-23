@@ -17,9 +17,15 @@ rendered outputs.
 2. Prefer `chezmoi edit <target>` or edit the matching file under
    `~/.local/share/chezmoi`. Do not directly edit a rendered target as the
    primary workflow.
-3. Preserve chezmoi templates and the existing `role` (`personal` or `work`)
-   and `kind` (`mac` or `vm`) conditions. Do not replace a template with one
-   machine's rendered output.
+3. Preserve chezmoi templates and their `kind` (`mac` or `vm`) and `role`
+   conditions. Do not replace a template with one machine's rendered output.
+   Machine model: a Mac is an identity-neutral **workstation** carrying both
+   personal and work tools; only a VM (dev box) has a `role` (`personal` or
+   `work`; a Mac's `role` is empty). Gate a *tool* on
+   `includeTemplate "has-personal" .` / `includeTemplate "has-work" .`
+   (true on every Mac, and on VMs of that role); gate something that must stay
+   on the work VM only (AWS profile, rtk hook) on
+   `and (eq .kind "vm") (eq .role "work")`. Never test a Mac's `role`.
 4. If a rendered target was changed outside chezmoi, inspect it with
    `chezmoi diff` and reconcile it with `chezmoi merge <target>`. Use
    `chezmoi re-add` only for non-template files.
@@ -170,7 +176,7 @@ does not imply a green log.
 (context7, citra, codebase-memory) on every machine with Claude.
 `run_onchange_after_41-opencode-mcp-sync` upserts the same shared servers into
 `~/.config/opencode/opencode.jsonc` on every machine, plus Gmail / Google
-Calendar on personal-role machines. Other OpenCode config keys are left alone.
+Calendar where personal tools live (Macs, personal VMs). Other OpenCode config keys are left alone.
 Restart OpenCode after apply; then `opencode mcp auth gmail` (and
 google-calendar) for the OAuth remotes.
 `run_onchange_after_43-codex-mcp-sync` registers the same shared servers with
@@ -183,9 +189,9 @@ The `github` (github.com) and `github-enterprise` (github.foodics.com) servers
 differ by client:
 
 - **OpenCode:** no PAT in the file. Script 41 always upserts a local
-  `github-mcp-server` entry whose token is `{env:GITHUB_TOKEN}` (work also sets
-  `GITHUB_HOST`). That env var already lives in unmanaged `~/.zshrc.local` for
-  mise.
+  `github-mcp-server` entry whose token is `{env:GITHUB_READONLY_TOKEN}`;
+  `github-enterprise` reads `{env:GHE_MCP_TOKEN}` (and sets `GITHUB_HOST`).
+  Both are exported by the managed `~/.config/zsh/secrets.zsh`.
 - **Claude:** PAT is written into `~/.claude.json` via `claude mcp add`.
   Unattended apply skips when 1Password isn't reachable — each needs a personal
   access token, and the sync script logs `skip` to `chezmoi-health` and moves on
@@ -200,11 +206,11 @@ store the PAT in 1Password:
 
 | server | 1Password item (field `credential`) | token for |
 |---|---|---|
-| `github` | `dev-secrets` / `xwug424pq6bcit35v5abzpt5vm` (`GitHub PAT (personal)`) | github.com |
-| `github-enterprise` | `GitHub PAT (foodics)` | github.foodics.com |
+| `github` | `dev-secrets` / `xwug424pq6bcit35v5abzpt5vm` (`GitHub PAT (github.com, MCP write)`) | github.com |
+| `github-enterprise` | `dev-secrets` / `i4fkk5sxnoihinvcnv2evqg7be` (`GitHub Enterprise GHE MCP PAT`) | github.foodics.com |
 
-**To register Claude and Codex GitHub MCPs on the current machine** (personal
-role → `github`, work role → `github-enterprise`; it follows the chezmoi role):
+**To register Claude and Codex GitHub MCPs on the current machine** (a Mac gets
+both `github` and `github-enterprise`; a VM gets the one for its role):
 
 ```
 mcp-github-register
@@ -218,7 +224,7 @@ run `eval "$(op signin)"` or open the 1Password desktop app, then retry.
 where either client's MCP list doesn't show it, or `chezmoi-health` shows a
 GitHub skip for script 40 or 43 and the user wants it resolved. Point them at
 `mcp-github-register`. OpenCode does not need the helper because it reads
-`GITHUB_TOKEN` from the environment.
+its tokens from `~/.config/zsh/secrets.zsh`.
 
 <!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)

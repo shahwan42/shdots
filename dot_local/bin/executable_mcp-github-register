@@ -1,7 +1,8 @@
 #!/bin/sh
-# Register this machine's GitHub MCP server for Claude Code and Codex, by role:
+# Register this machine's GitHub MCP servers for Claude Code and Codex. A Mac
+# carries both identities and gets both; a VM gets the one matching its role:
 #   personal -> `github`            github.com          PAT item: xwug424pq6bcit35v5abzpt5vm
-#   work     -> `github-enterprise` github.foodics.com  PAT: GitHub PAT (foodics)
+#   work     -> `github-enterprise` github.foodics.com  PAT item: i4fkk5sxnoihinvcnv2evqg7be
 #
 # The run_onchange MCP sync scripts skip these when unattended `chezmoi apply`
 # cannot unlock 1Password. Run this from an interactive shell once per machine
@@ -17,21 +18,9 @@ CODEX="$(command -v codex || echo "$HOME/.local/share/mise/shims/codex")"
 { command -v "$CODEX" >/dev/null 2>&1 || [ -x "$CODEX" ]; } || {
   echo "mcp-github-register: codex not found on PATH" >&2; exit 1; }
 
-role="$("$CZ" execute-template '{{ .role }}' 2>/dev/null)"
-case "$role" in
-  work)
-    name=github-enterprise
-    item='op://Private/GitHub PAT (foodics)/credential'
-    claude_host_arg='-e GITHUB_HOST=https://github.foodics.com'
-    codex_host_arg='--env GITHUB_HOST=https://github.foodics.com' ;;
-  personal)
-    name=github
-    item='op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential'
-    claude_host_arg=''
-    codex_host_arg='' ;;
-  *)
-    echo "mcp-github-register: cannot read chezmoi role (personal|work)" >&2; exit 1 ;;
-esac
+identities="$("$CZ" execute-template '{{ if includeTemplate "has-personal" . }}personal {{ end }}{{ if includeTemplate "has-work" . }}work{{ end }}' 2>/dev/null)"
+[ -n "$identities" ] || {
+  echo "mcp-github-register: cannot read this machine's identities from chezmoi (kind/role)" >&2; exit 1; }
 
 command -v op >/dev/null 2>&1 || { echo "mcp-github-register: 1Password CLI (op) not installed" >&2; exit 1; }
 if ! op whoami >/dev/null 2>&1; then
@@ -40,33 +29,54 @@ if ! op whoami >/dev/null 2>&1; then
   exit 1
 fi
 
-pat="$(op read "$item" 2>/dev/null)"
-[ -n "$pat" ] || {
-  echo "mcp-github-register: no token from '$item'." >&2
-  echo "  Create that 1Password item with a '$role' PAT in the 'credential' field." >&2
-  exit 1
+register() {
+  identity=$1
+  case "$identity" in
+    work)
+      name=github-enterprise
+      item='op://dev-secrets/i4fkk5sxnoihinvcnv2evqg7be/credential'
+      claude_host_arg='-e GITHUB_HOST=https://github.foodics.com'
+      codex_host_arg='--env GITHUB_HOST=https://github.foodics.com' ;;
+    personal)
+      name=github
+      item='op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential'
+      claude_host_arg=''
+      codex_host_arg='' ;;
+  esac
+
+  pat="$(op read "$item" 2>/dev/null)"
+  [ -n "$pat" ] || {
+    echo "mcp-github-register: no token from '$item'." >&2
+    echo "  Create that 1Password item with a '$identity' PAT in the 'credential' field." >&2
+    return 1
+  }
+
+  "$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
+  # Host argument variables are intentionally unquoted: empty for personal and
+  # two arguments for work.
+  # shellcheck disable=SC2086
+  if "$CLAUDE" mcp add "$name" --scope user \
+       -e GITHUB_PERSONAL_ACCESS_TOKEN="$pat" $claude_host_arg -- github-mcp-server stdio; then
+    echo "mcp-github-register: registered '$name' for Claude ($identity)"
+  else
+    echo "mcp-github-register: 'claude mcp add $name' failed" >&2
+    return 1
+  fi
+
+  "$CODEX" mcp remove "$name" >/dev/null 2>&1
+  # shellcheck disable=SC2086
+  if "$CODEX" mcp add "$name" \
+       --env "GITHUB_PERSONAL_ACCESS_TOKEN=$pat" $codex_host_arg -- github-mcp-server stdio; then
+    echo "mcp-github-register: registered '$name' for Codex ($identity)"
+  else
+    echo "mcp-github-register: 'codex mcp add $name' failed" >&2
+    return 1
+  fi
+  unset pat
 }
 
-"$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
-# Host argument variables are intentionally unquoted: empty for personal and
-# two arguments for work.
-# shellcheck disable=SC2086
-if "$CLAUDE" mcp add "$name" --scope user \
-     -e GITHUB_PERSONAL_ACCESS_TOKEN="$pat" $claude_host_arg -- github-mcp-server stdio; then
-  echo "mcp-github-register: registered '$name' for Claude (role: $role)"
-else
-  echo "mcp-github-register: 'claude mcp add $name' failed" >&2
-  exit 1
-fi
-
-"$CODEX" mcp remove "$name" >/dev/null 2>&1
-# shellcheck disable=SC2086
-if "$CODEX" mcp add "$name" \
-     --env "GITHUB_PERSONAL_ACCESS_TOKEN=$pat" $codex_host_arg -- github-mcp-server stdio; then
-  echo "mcp-github-register: registered '$name' for Codex (role: $role)"
-else
-  echo "mcp-github-register: 'codex mcp add $name' failed" >&2
-  exit 1
-fi
-
-unset pat
+rc=0
+for identity in $identities; do
+  register "$identity" || rc=1
+done
+exit "$rc"

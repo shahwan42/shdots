@@ -90,8 +90,8 @@ rust = "1.98.1"
 bun = "1.4.1"
 go = "1.27.1"
 {{ end -}}
-{{ if eq .role "work" }}
-# --- work only ---
+{{ if includeTemplate "has-work" . }}
+# --- work tools (Macs + work VMs) ---
 # zellij and deno were dropped fleet-wide 2026-08-29: herdr is the multiplexer,
 # Eternal Terminal the connection keep-alive, and Node (above) the JS runtime.
 awscli = "2.36.34"
