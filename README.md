@@ -1,15 +1,17 @@
 # shdots
 
 Personal + work dotfiles, managed with [chezmoi](https://chezmoi.io). One source
-serves four machine classes, selected at init by two answers:
+serves three machine classes, selected at init:
 
 | data   | values            |
 |--------|-------------------|
-| `role` | `personal` \| `work` |
 | `kind` | `mac` \| `vm`      |
+| `role` | `personal` \| `work` — asked on a `vm` only |
 
-Work machines get one more yes/no prompt, `Install eod skill` (default yes), which
-installs the `eod` Claude skill. Answer it non-interactively with
+A Mac is an identity-neutral workstation with both personal and work tools; a VM
+(dev box) carries one identity. Machines with work tools (every Mac, work VMs) get
+one more yes/no prompt, `Install eod skill` (default yes), which installs the `eod`
+Claude skill. Answer it non-interactively with
 `chezmoi init --promptBool "Install eod skill=false"`.
 
 ## Bootstrap a new machine
@@ -34,7 +36,7 @@ and is installed by the VM's cloud-init):
 > (`gpgsign = true`) and fails loudly until it exists.
 
 ```sh
-# 1. chezmoi installs itself and applies this repo (prompts for role + kind, and eod on work)
+# 1. chezmoi installs itself and applies this repo (prompts for kind, role on a VM, eod where work tools live)
 sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
 
 # 2. mise is installed automatically by run_once_before_00-install-mise.sh

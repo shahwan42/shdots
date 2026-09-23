@@ -80,8 +80,8 @@ Library
 .ssh/config.d/foodics
 {{ end -}}
 
-{{ if not (and (eq .role "work") (dig "eod" true .)) -}}
-# The eod skill is work-only and opt-in (the `eod` prompt in .chezmoi.toml.tmpl).
-# Machines that have not re-run `chezmoi init` yet default to installed on work.
+{{ if not (and (includeTemplate "has-work" .) (dig "eod" true .)) -}}
+# The eod skill needs work tools (every Mac, work VMs) and is opt-in (the `eod`
+# prompt in .chezmoi.toml.tmpl). Not yet re-init'ed machines default to installed.
 .claude/skills/eod
 {{ end -}}

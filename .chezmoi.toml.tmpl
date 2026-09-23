@@ -8,10 +8,11 @@
 {{-   $role = promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
 {{- end -}}
 {{- $hostname := promptStringOnce . "hostname" "Machine hostname" (output "hostname" "-s" | trim) -}}
-{{- /* Work-only opt-in for the eod skill. Prompted once on work machines; to answer
-       without a prompt, pass the prompt text: `chezmoi init --promptBool "Install eod skill=false"`. */ -}}
+{{- /* Opt-in for the work-only eod skill. Prompted once wherever work tools live
+       (every Mac, work VMs); to answer without a prompt, pass the prompt text:
+       `chezmoi init --promptBool "Install eod skill=false"`. */ -}}
 {{- $eod := false -}}
-{{- if eq $role "work" -}}
+{{- if or (eq $kind "mac") (eq $role "work") -}}
 {{-   $eod = promptBoolOnce . "eod" "Install eod skill" true -}}
 {{- end -}}
 # Encryption on every machine class: the 1Password service-account token is a

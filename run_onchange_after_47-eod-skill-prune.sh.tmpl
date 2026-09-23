@@ -1,6 +1,6 @@
-{{ if not (and (eq .role "work") (dig "eod" true .)) -}}
+{{ if not (and (includeTemplate "has-work" .) (dig "eod" true .)) -}}
 #!/bin/sh
-# The eod skill is ignored on this machine (personal role, or `eod = false` from
+# The eod skill is ignored on this machine (personal VM, or `eod = false` from
 # `chezmoi init`). Ignored targets are left in place and .chezmoiremove skips
 # them, so delete any copy left from before the opt-out. Rendered empty (and so
 # skipped) wherever the skill is enabled.
