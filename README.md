@@ -8,6 +8,10 @@ serves four machine classes, selected at init by two answers:
 | `role` | `personal` \| `work` |
 | `kind` | `mac` \| `vm`      |
 
+Work machines get one more yes/no prompt, `Install eod skill` (default yes), which
+installs the `eod` Claude skill. Answer it non-interactively with
+`chezmoi init --promptBool "Install eod skill=false"`.
+
 ## Bootstrap a new machine
 
 Two cross-platform `curl` one-liners — no Homebrew required (`curl` ships on macOS
@@ -30,7 +34,7 @@ and is installed by the VM's cloud-init):
 > (`gpgsign = true`) and fails loudly until it exists.
 
 ```sh
-# 1. chezmoi installs itself and applies this repo (prompts for role + kind)
+# 1. chezmoi installs itself and applies this repo (prompts for role + kind, and eod on work)
 sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
 
 # 2. mise is installed automatically by run_once_before_00-install-mise.sh

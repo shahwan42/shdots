@@ -75,3 +75,9 @@ Library
 # flameshot is installed by the work Brewfile only.
 .config/flameshot
 {{ end -}}
+
+{{ if not (and (eq .role "work") (dig "eod" true .)) -}}
+# The eod skill is work-only and opt-in (the `eod` prompt in .chezmoi.toml.tmpl).
+# Machines that have not re-run `chezmoi init` yet default to installed on work.
+.claude/skills/eod
+{{ end -}}

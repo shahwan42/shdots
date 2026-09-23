@@ -1,6 +1,6 @@
 ---
 name: eod
-description: "End-of-day work log + Geekbot standup for Ahmed Shahwan. Sweeps local git (the 4 cashflow repos), GitHub Enterprise (github.foodics.com), Jira, Confluence, Slack, Gmail, Calendar, and Drive for the day's activity; consolidates and prepends a dated entry to ~/Notes/work/foodics/foodics_daily.md, backfilling any un-logged gap days; then interactively answers the Geekbot standup's 3 questions and posts the reply. Activates on: /eod, end of day, daily log, wrap up my day, do my standup, log what I did today."
+description: "End-of-day work log + Geekbot standup for Ahmed Shahwan. Sweeps every local Foodics git repo under ~/Code (cashflow, capital, pay-*), all of his GitHub Enterprise (github.foodics.com) activity across every org and repo, Jira, Confluence, Slack, Gmail, Calendar, Drive, and on-call tools (Datadog, Sentry) for the day's activity; consolidates and prepends a dated entry to ~/Notes/work/foodics/foodics_daily.md, backfilling any un-logged gap days; then interactively answers the Geekbot standup's 3 questions and posts the reply. Activates on: /eod, end of day, daily log, wrap up my day, do my standup, log what I did today."
 ---
 
 # EOD — daily work log + Geekbot standup
@@ -10,9 +10,10 @@ the end of the workday: sweep every work tool, consolidate into the notes file
 (backfilling any days I forgot), then walk the Geekbot standup questions and post them.
 
 Run this at Ahmed's desk — the Geekbot phase is interactive (prompt-and-wait), so it
-cannot be a headless cron. A companion headless task `eod-prefetch` runs at 20:00
-Sun–Thu and drops a draft at `~/.claude/eod-drafts/eod-<YYYY-MM-DD>.md` so this skill is
-fast; if that draft exists, start from it, but still fill the gaps it couldn't reach.
+cannot be a headless cron. On machines that have it, a companion headless task
+`eod-prefetch` runs at 20:00 Sun–Thu and drops a draft at
+`~/.claude/eod-drafts/eod-<YYYY-MM-DD>.md`; if that draft exists, start from it, but still
+fill the gaps it couldn't reach. No draft is normal (the task is not on every machine).
 
 `--dry-run`: do Phases 0–2 compose + preview only — no notes write, no Geekbot send.
 
@@ -23,14 +24,16 @@ fast; if that draft exists, start from it, but still fill the gaps it couldn't r
 | Notes file | `{{ .chezmoi.homeDir }}/Notes/work/foodics/foodics_daily.md` (NOT `~/Notes/foodics/`) |
 | Entry order | **Prepended, newest at top**; heading `# YYYY-MM-DD` (no weekday, no emoji) |
 | Bullets | `-` / `- [ ]` open / `- [x]` done; 2-space nesting; `---` between days |
-| Repos | meta `{{ .chezmoi.homeDir }}/Code/foodics/cashflow`, + `cashflow-api`, `cashflow-console`, `cashflow-e2e`, worktrees `wt-*` |
+| Repos | **Discovered, not listed** — every git repo under `{{ .chezmoi.homeDir }}/Code` whose `origin` is on `github.foodics.com`, plus its worktrees (layout differs per machine) |
+| GitHub orgs | Mostly `pay` (cashflow-*, capital-*, pay-*, bank, nexus, …), but search is instance-wide — never filter to one org |
 | Git identity | filter by **name** `"Ahmed Shahwan"` (he commits under two emails) |
 | GitHub | `export GH_HOST=github.foodics.com` — mandatory (gh is also on github.com, which silently returns nothing) |
-| Jira/Confluence | Atlassian MCP `mcp__099f1c0c-…`, cloudId `foodics-products.atlassian.net`, `EE-XXXX` |
-| Slack | MCP `mcp__1c94dadb-…`; his user_id `U08QX477F8T` |
+| Jira/Confluence | Atlassian MCP (`*Atlassian__searchJiraIssuesUsingJql`, `*__searchConfluenceUsingCql`), cloudId `foodics-products.atlassian.net`, `EE-XXXX`; `twg` CLI is a fallback |
+| Slack | Slack MCP (`*Slack__slack_search_public_and_private`, `*__slack_read_channel`); his user_id `U08QX477F8T` |
 | Geekbot DM | channel `D09RSDJTYFL` |
-| Gmail / Calendar / Drive | MCP `mcp__56bf9158-…` / `mcp__e0172b3b-…` / `mcp__dedec47d-…` |
-| Load MCP tools | via `ToolSearch "select:<toolname>,…"` before calling — do NOT use `plugin:engineering:*` variants (unauthorized) |
+| Gmail / Calendar / Drive | `*Gmail__search_threads` / `*Google_Calendar__list_events` / `*Google_Drive__list_recent_files` |
+| Datadog / Sentry | `*Datadog__search_datadog_incidents` / `*Sentry__search_issues` (optional, on-call signal) |
+| Load MCP tools | Connector prefixes differ per client (`mcp__claude_ai_<Name>__…` or a hash). Find them with a keyword `ToolSearch` (e.g. `"+Atlassian jira search"`), then load with `select:` before calling — do NOT use `plugin_engineering_*` variants (unauthorized) |
 
 ## Preferences (from feedback — honor these)
 
@@ -52,24 +55,46 @@ fast; if that draft exists, start from it, but still fill the gaps it couldn't r
 Load the MCP tools you'll need in ONE `ToolSearch` call. For each source not already
 covered by the draft, query the whole window.
 
-- **Local git** (authoritative for commits) — per repo and worktree:
+- **Local git** (authoritative for commits) — discover every Foodics repo and worktree,
+  then sweep each:
   ```bash
-  for d in "" cashflow-api cashflow-console cashflow-e2e wt-*; do
-    p="{{ .chezmoi.homeDir }}/Code/foodics/cashflow/$d"
-    git -C "$p" log --author="Ahmed Shahwan" --since="<from> 00:00" --until="<to> 23:59" \
-        --pretty=format:'%ad %h %s' --date=short 2>/dev/null
+  find {{ .chezmoi.homeDir }}/Code -maxdepth 4 \( -name .git -type d -o -name .git -type f \) \
+       -not -path '*/node_modules/*' -not -path '*/vendor/*' 2>/dev/null |
+  while read -r g; do
+    p="${g%/.git}"
+    git -C "$p" remote get-url origin 2>/dev/null | grep -q 'github.foodics.com' || continue
+    echo "== ${p#{{ .chezmoi.homeDir }}/}"
+    git -C "$p" log --all --author="Ahmed Shahwan" --since="<from> 00:00" --until="<to> 23:59" \
+        --pretty=format:'%ad %h %d %s' --date=short 2>/dev/null
     git -C "$p" status -sb 2>/dev/null | head -3
     git -C "$p" log --branches --not --remotes --author="Ahmed Shahwan" \
         --pretty=format:'unpushed: %ad %h %s' --date=short 2>/dev/null   # WIP
   done
   ```
-- **GitHub** (`export GH_HOST=github.foodics.com`):
+  (`.git` as a file = a linked worktree or submodule — both are covered.) Repos with no
+  output are silent; mention the count of repos scanned, not each empty one.
+- **GitHub Enterprise — everything, every org** (`export GH_HOST=github.foodics.com`).
+  PR search is instance-wide, so it already covers all `pay/*` repos and any other org:
   ```bash
-  gh search prs   --author=@me      --json number,title,repository,state,updatedAt,url "updated:>=<from>"
-  gh search prs   --reviewed-by=@me --json number,title,repository,state,updatedAt,url "updated:>=<from>"
-  gh search prs   --involves=@me    --json number,title,repository,state,updatedAt,url "updated:>=<from>"
+  F=number,title,repository,state,updatedAt,url
+  gh search prs    --author=@me       --json $F --limit 200 "updated:>=<from>"
+  gh search prs    --reviewed-by=@me  --json $F --limit 200 "updated:>=<from>"
+  gh search prs    --commenter=@me    --json $F --limit 200 "updated:>=<from>"
+  gh search prs    --involves=@me     --json $F --limit 200 "updated:>=<from>"
+  gh search issues --involves=@me     --json $F --limit 100 "updated:>=<from>"
+  gh search commits --author=@me --json sha,commit,repository --limit 200 "author-date:>=<from>"
   ```
-  Per-PR detail if needed: `gh api repos/pay/<repo>/pulls/<N>/reviews` and `/comments`.
+  Then the activity feed, which catches what search misses (pushes to branches with no
+  PR, review comments, branch creation/deletion, releases, repos he doesn't have cloned):
+  ```bash
+  me=$(gh api user --jq .login)
+  gh api --paginate "users/$me/events?per_page=100" \
+    --jq '.[] | select(.created_at >= "<from>") | [.created_at[0:10], .type, .repo.name, (.payload.ref // .payload.action // "")] | @tsv'
+  ```
+  The feed only reaches back ~90 days / 300 events — enough for any realistic gap.
+  Per-PR detail if needed: take owner/repo from the result (`repository.nameWithOwner`) —
+  never assume `pay/` — then `gh api repos/<owner>/<repo>/pulls/<N>/reviews` and `/comments`.
+  Repos that appear only here (not cloned locally) are still his work — include them.
 - **Jira** — `searchJiraIssuesUsingJql`, cloudId `foodics-products.atlassian.net`:
   `(assignee = currentUser() OR worklogAuthor = currentUser()) AND updated >= "<from>" ORDER BY updated DESC`,
   `fields: [summary,status,issuetype,updated]`. If the result is too large to inline, it's
@@ -79,6 +104,9 @@ covered by the draft, query the whole window.
 - **Gmail** — `search_threads` `from:me after:<from>` (mostly calendar accepts/declines — mine for meeting signal, not real correspondence).
 - **Calendar** — `list_events` for the window → the `Meetings` group.
 - **Drive** — `list_recent_files` / `search_files` → docs touched (link inline).
+- **Datadog / Sentry** (optional) — incidents he commanded or responded to, and Sentry
+  issues assigned to him, in the window. Only list items with his action on them; this is
+  on-call signal, not a dashboard dump.
 
 If a connector errors or is absent, note it as a coverage gap; never fail the whole run.
 
@@ -92,9 +120,9 @@ status change.
 - One `# YYYY-MM-DD` block per active day, **newest-first**.
 - `- [x]` merged/done, `- [ ]` open/in-flight; informal group labels seen in the file:
   `Merged — <repo>`, `My open PRs — follow-up`, `PR Reviews — peers`, `Tickets follow-up`,
-  `Docs`, `Meetings`, `WIP (unpushed)`, `Exploring:`, `AI review fixes — acted on my approval`.
+  `Docs`, `Meetings`, `On-call`, `WIP (unpushed)`, `Exploring:`, `AI review fixes — acted on my approval`.
 - Links: Jira `https://foodics-products.atlassian.net/browse/EE-XXXX`; GitHub
-  `https://github.foodics.com/pay/<repo>/pull/<n>`; append `— author/status` on peer-review lines.
+  `https://github.foodics.com/<owner>/<repo>/pull/<n>`; append `— author/status` on peer-review lines.
 - **Preview the full composed block(s) and wait for confirmation** before writing (it's
   his long-lived notes). Call out any judgment calls (weekend days, inferred PR numbers,
   AI-fix PRs).
@@ -111,7 +139,7 @@ status change.
 2. Ask **one question at a time, waiting for each answer**:
    - **Q1 — "What have you done since <date>?"** Pre-fill a themed draft synthesized from
      the notes (read the file across the whole "since" span, not just today). Group by
-     epic/theme (SADAD, Modular Monolith, VIBAN/SNB, E2E suite, AI tooling, Reviews). User edits/confirms.
+     epic/theme (SADAD, Modular Monolith, VIBAN/SNB, Capital, E2E suite, AI tooling, Reviews). User edits/confirms.
    - **Q2 — "What will you do tomorrow?"** Propose from his open PRs + in-progress/code-review
      Jira + upcoming calendar. Note OOO days (a declined standup invite = OOO). User confirms.
    - **Q3 — "Anything blocking your progress?"** Ask; default `No blockers.` if none.
@@ -128,4 +156,7 @@ status change.
 - Creating commits/PRs, editing tickets, transitioning Jira, or replying in team channels.
 - Auto-sending Geekbot answers without per-answer confirmation.
 - Writing the notes file without showing the preview first.
-- The headless gather — that's `eod-prefetch` (see `~/.claude/scheduled-tasks/eod-prefetch/`).
+- The headless gather — that's `eod-prefetch` (see `~/.claude/scheduled-tasks/eod-prefetch/`
+  where installed).
+- Installing this skill on non-work machines — chezmoi installs it only where
+  `role = work` and `eod = true` (see `.chezmoiignore.tmpl`).
