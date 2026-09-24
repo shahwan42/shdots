@@ -33,3 +33,8 @@ active_border_color #61afef
 inactive_border_color #3f444a
 # ghostty: tabs sit at the top on macOS
 tab_bar_edge top
+
+# OSC 52 both ways, no prompt: remote nvim (ssh / et / herdr --remote) yanks into
+# and pastes from the Mac clipboard. Trade-off: any program on a remote box can
+# read the clipboard. ghostty: clipboard-read = allow
+clipboard_control write-clipboard write-primary read-clipboard read-primary
