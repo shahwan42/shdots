@@ -8,6 +8,10 @@ rendered outputs.
 > chezmoi auto-update timer (launchd on Macs, systemd on VMs) that pulls and
 > applies `origin/main`. Treat every push as a deployment.
 
+> **Fleet plan in progress:** `docs/plans/fleet-topology.md` holds the target
+> topology, the decision log, the gotchas, and the remaining phases. Read it
+> before changing provisioning, SSH keys, secrets, or machine roles.
+
 ## Required workflow
 
 1. Before changing managed configuration, inspect both layers:
