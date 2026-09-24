@@ -1,32 +1,36 @@
 #!/usr/bin/env bash
-# Launch a dev VM from provision/dev-vm-cloud-init.yaml.
+# Launch a dev VM from provision/dev-vm-cloud-init.yaml. The Multipass launcher:
+# provision/new-box calls this, and it is also usable standalone.
 #
 # The CPUS/MEMORY/DISK/IMAGE defaults below are the fleet standard, one spec for
 # every dev box. See AGENTS.md "Dev VM spec" before changing a default vs. passing
 # a one-off --cpus/--memory/--disk flag for a single launch.
 #
-# One cloud-init serves every dev box; this script fills in the two things that differ:
-# the VM's name and the launching Host's own SSH public key (so each VM trusts the Mac
-# that created it — ~/.ssh/id_ed25519.pub if present, else ~/.ssh/id_rsa.pub;
-# override with --pubkey or $DEV_VM_PUBKEY).
+# One cloud-init serves every dev box; this script fills in what differs per launch:
+# the VM's name, both workstations' SSH public keys (read from .chezmoidata/fleet.yaml
+# — every dev box trusts both Macs, not just the one that launched it), and
+# MAC_ACCESS=gateway (this is the Multipass launcher, so the Mac-bridge firewall
+# allow rule in the cloud-init is always on here; a future VPS launcher would leave
+# it "none").
 #
 #   ./launch-dev-vm.sh as-dev                              # personal VM (defaults below)
 #   ./launch-dev-vm.sh fdx-dev                             # work VM, same spec
 #   ./launch-dev-vm.sh as-dev --dry-run                    # print the plan, launch nothing
 #
-# Post-launch steps are interactive and live in provision/README.md; the script prints
-# them on success.
+# Post-launch: provision/new-box drives cloud-init wait, key seeding, GitHub SSH-key
+# registration, and chezmoi init non-interactively. See provision/README.md for the
+# manual fallback and verification checks.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$SCRIPT_DIR/dev-vm-cloud-init.yaml"
+FLEET_YAML="$SCRIPT_DIR/../.chezmoidata/fleet.yaml"
 
 VM_NAME=""
 CPUS=6
 MEMORY=12G
 DISK=220G
 IMAGE=24.04
-PUBKEY="${DEV_VM_PUBKEY:-}"
 DRY_RUN=0
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
@@ -40,8 +44,6 @@ Options:
   --memory SIZE     RAM, e.g. 12G                  (default: 12G)
   --disk SIZE       disk ceiling, e.g. 220G        (default: 220G; qemu allocates sparsely)
   --image NAME      multipass image                (default: 24.04)
-  --pubkey PATH     Host public key to authorize   (default: $DEV_VM_PUBKEY, else
-                    ~/.ssh/id_ed25519.pub, else ~/.ssh/id_rsa.pub)
   --dry-run         print the rendered cloud-init and the multipass command, then exit
   -h, --help        this message
 USAGE
@@ -53,7 +55,6 @@ while [ $# -gt 0 ]; do
     --memory)  MEMORY="${2:?--memory needs a value}"; shift 2 ;;
     --disk)    DISK="${2:?--disk needs a value}";    shift 2 ;;
     --image)   IMAGE="${2:?--image needs a value}";  shift 2 ;;
-    --pubkey)  PUBKEY="${2:?--pubkey needs a value}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*)        die "unknown option: $1 (try --help)" ;;
@@ -68,27 +69,25 @@ case "$VM_NAME" in
   *[!a-zA-Z0-9-]*) die "VM name must be alphanumeric with dashes: '$VM_NAME'" ;;
 esac
 [ -f "$TEMPLATE" ] || die "template not found: $TEMPLATE"
+[ -f "$FLEET_YAML" ] || die "fleet data not found: $FLEET_YAML"
 if [ "$DRY_RUN" -eq 0 ]; then
   command -v multipass >/dev/null 2>&1 || die "multipass not on PATH (brew install --cask multipass)"
 fi
 
-# --- resolve the Host public key ---------------------------------------------------
-if [ -z "$PUBKEY" ]; then
-  for candidate in "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/id_rsa.pub"; do
-    [ -f "$candidate" ] && PUBKEY="$candidate" && break
-  done
-fi
-[ -n "$PUBKEY" ] || die "no Host public key found; pass --pubkey PATH or set \$DEV_VM_PUBKEY"
-[ -f "$PUBKEY" ] || die "public key not readable: $PUBKEY"
-case "$PUBKEY" in
-  *.pub) ;;
-  *) die "refusing to use '$PUBKEY': expected a .pub file, not a private key" ;;
-esac
-KEY_LINE="$(head -n1 "$PUBKEY")"
-case "$KEY_LINE" in
-  ssh-*|ecdsa-*|sk-ssh-*|sk-ecdsa-*) ;;
-  *) die "'$PUBKEY' does not look like an OpenSSH public key" ;;
-esac
+# --- resolve both workstation public keys from .chezmoidata/fleet.yaml -------------
+extract_key() {
+  awk -F': *' -v k="$1" '$1 ~ "^[[:space:]]*"k"$" { gsub(/"/, "", $2); print $2; exit }' "$FLEET_YAML"
+}
+AS_HOST_KEY="$(extract_key as_host)"
+FDX_HOST_KEY="$(extract_key fdx_host)"
+[ -n "$AS_HOST_KEY" ] || die "as_host key not found in $FLEET_YAML"
+[ -n "$FDX_HOST_KEY" ] || die "fdx_host key not found in $FLEET_YAML"
+for key in "$AS_HOST_KEY" "$FDX_HOST_KEY"; do
+  case "$key" in
+    ssh-*|ecdsa-*|sk-ssh-*|sk-ecdsa-*) ;;
+    *) die "fleet.yaml key does not look like an OpenSSH public key: '$key'" ;;
+  esac
+done
 
 if [ "$DRY_RUN" -eq 0 ] && multipass info "$VM_NAME" >/dev/null 2>&1; then
   die "instance '$VM_NAME' already exists — 'multipass delete --purge $VM_NAME' first, or pick another name"
@@ -102,8 +101,10 @@ trap 'rm -f "$RENDERED"' EXIT
 # key comment can't corrupt the output.
 esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/&/\\\&/g'; }
 
-BH_KEY="$(esc "$KEY_LINE")" BH_NAME="$(esc "$VM_NAME")" awk '
-  { gsub(/@@HOST_SSH_PUBKEY@@/, ENVIRON["BH_KEY"])
+BH_AS_KEY="$(esc "$AS_HOST_KEY")" BH_FDX_KEY="$(esc "$FDX_HOST_KEY")" BH_NAME="$(esc "$VM_NAME")" awk '
+  { gsub(/@@AS_HOST_PUBKEY@@/,  ENVIRON["BH_AS_KEY"])
+    gsub(/@@FDX_HOST_PUBKEY@@/, ENVIRON["BH_FDX_KEY"])
+    gsub(/@@MAC_ACCESS@@/,      "gateway")
     gsub(/@@VM_NAME@@/,         ENVIRON["BH_NAME"])
     print }
 ' "$TEMPLATE" > "$RENDERED"
@@ -116,7 +117,7 @@ fi
 printf 'name       %s\n' "$VM_NAME"
 printf 'image      %s\n' "$IMAGE"
 printf 'resources  %s cpu / %s ram / %s disk\n' "$CPUS" "$MEMORY" "$DISK"
-printf 'host key   %s\n' "$PUBKEY"
+printf 'authorized as_host, fdx_host (from .chezmoidata/fleet.yaml)\n'
 printf '\n'
 
 set -- multipass launch "$IMAGE" \
@@ -147,23 +148,21 @@ fi
 
 cat <<EOF
 
-$VM_NAME is up. cloud-init finished the unattended half; these need you:
+$VM_NAME is up. cloud-init finished the unattended half, including ufw (with the
+Mac-bridge allow rule) and chrony. Called from provision/new-box, the rest — age key,
+ssh-keygen -R, an SSH key generated on the box, GitHub registration, and a
+non-interactive chezmoi init --apply — is automated; run that instead of the manual
+steps below.
 
-  1. tailscale   multipass shell $VM_NAME
-                 sudo tailscale up --ssh --hostname=$VM_NAME    # browser auth
-                 sudo tailscale set --auto-update
-  2. age key     ssh $VM_NAME 'mkdir -p ~/.config/chezmoi'
-                 scp ~/.config/chezmoi/key.txt $VM_NAME:~/.config/chezmoi/key.txt
-  3. ssh keys    personal VM:  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_personal
-                 work VM:      generate BOTH id_ed25519_foodics AND id_ed25519_personal
-                 (the managed ssh config offers the personal key to github.com on
-                 work VMs too). Add each .pub to its GitHub as BOTH an authentication
-                 and a signing key, then append to dot_config/git/allowed_signers
-  4. token       export GITHUB_TOKEN=...              # current shell, for step 5
-                 echo 'export GITHUB_TOKEN=...' >> ~/.zshrc.local   # persist
-                 (else mise install 403s partway)
-  5. chezmoi     sh -c "\$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
-  6. firewall    sudo ufw enable   # only after confirming 'multipass shell $VM_NAME' works
+Manual fallback, if not using new-box:
+
+  1. age key     ssh -o BatchMode=yes ubuntu@$VM_NAME.local 'mkdir -p ~/.config/chezmoi'
+                 scp ~/.config/chezmoi/key.txt ubuntu@$VM_NAME.local:~/.config/chezmoi/key.txt
+  2. ssh key     ssh ubuntu@$VM_NAME.local 'ssh-keygen -t ed25519 -N "" -C $VM_NAME -f ~/.ssh/id_ed25519'
+                 Add the .pub to GitHub as BOTH an authentication and a signing key
+                 (github.foodics.com too for a work box) — see provision/new-box.
+  3. chezmoi     ssh ubuntu@$VM_NAME.local
+                 sh -c "\$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
 
 Full detail and verification checks: provision/README.md
 EOF

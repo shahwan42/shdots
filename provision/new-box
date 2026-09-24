@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# provision/new-box — turn a name into a working dev box with no manual steps
+# except AI-CLI sign-in. See docs/plans/fleet-topology.md, Phase 2.
+#
+#   provision/new-box <name> --role personal|work [--cpus N] [--memory SIZE] [--disk SIZE]
+#   provision/new-box <name> --dry-run ...                # print the plan, do nothing
+#   provision/new-box destroy <name> [--dry-run]           # delete GitHub keys + the box
+#
+# What it does, roughly in order:
+#   1. multipass launch (provision/launch-dev-vm.sh), both workstation pubkeys trusted
+#   2. wait for cloud-init (ssh, not multipass exec — see dev-vm-cloud-init.yaml)
+#   3. ssh-keygen -R <name>.local; seed the age identity (~/.config/chezmoi/key.txt)
+#   4. generate ~/.ssh/id_ed25519 on the box; register it with GitHub as
+#      authentication + signing on github.com (and github.foodics.com for --role work
+#      — one key, two hosts, per decision D10); delete any stale AUTH key with the
+#      same title first, never a signing key
+#   5. chezmoi init --apply shahwan42/shdots, answered non-interactively
+#   6. prime mise (needs one interactive shell for secrets.zsh to cache a GitHub
+#      token), then run the "Verifying a new VM" checks from provision/README.md
+#
+# Every remote command uses /usr/bin/ssh — interactive `ssh` is aliased to kitty's
+# `kitten ssh`, which needs a TTY (fleet-topology.md gotcha 5).
+#
+# Known gap (by design, not a bug): a --role work box created here fails the
+# git-signing-key check below until Phase 3 step 6 collapses
+# .chezmoitemplates/git-signing-key and the work-VM branch of
+# private_dot_ssh/config.tmpl — both still expect a separate ~/.ssh/id_ed25519_foodics
+# that new-box deliberately does not create (D10 already calls for one key; the
+# templates just haven't caught up yet, on purpose — see fleet-topology.md Phase 2
+# step 6 and Phase 3 step 5).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCH="$SCRIPT_DIR/launch-dev-vm.sh"
+REPO="shahwan42/shdots"
+
+die() { printf 'error: %s\n' "$1" >&2; exit 1; }
+
+usage() {
+  awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 && !/^#/ { exit }' "${BASH_SOURCE[0]}"
+}
+
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8)
+
+ssh_box() {
+  local name="$1"; shift
+  /usr/bin/ssh "${SSH_OPTS[@]}" "ubuntu@${name}.local" "$@"
+}
+
+# --- argument parsing ---------------------------------------------------------------
+NAME=""
+ROLE=""
+CPUS=""
+MEMORY=""
+DISK=""
+DRY_RUN=0
+DESTROY=0
+
+if [ "${1:-}" = "destroy" ]; then
+  DESTROY=1
+  shift
+fi
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --role)     ROLE="${2:?--role needs a value}";   shift 2 ;;
+    --cpus)     CPUS="${2:?--cpus needs a value}";   shift 2 ;;
+    --memory)   MEMORY="${2:?--memory needs a value}"; shift 2 ;;
+    --disk)     DISK="${2:?--disk needs a value}";   shift 2 ;;
+    --dry-run)  DRY_RUN=1; shift ;;
+    --destroy)  DESTROY=1; shift ;;
+    -h|--help)  usage; exit 0 ;;
+    -*)         die "unknown option: $1 (try --help)" ;;
+    *)
+      [ -z "$NAME" ] || die "unexpected argument: $1 (one box name only)"
+      NAME="$1"; shift ;;
+  esac
+done
+
+[ -n "$NAME" ] || { usage; exit 1; }
+
+validate_name() {
+  local name="$1"
+  case "$name" in
+    *[!a-zA-Z0-9-]*) die "box name must be alphanumeric with dashes: '$name'" ;;
+  esac
+  case "$name" in
+    -*|*-) die "box name must not start or end with a dash: '$name'" ;;
+  esac
+  case "$name" in
+    *-prod-*) die "'$name' contains '-prod-', reserved for prod boxes (not chezmoi-managed, see fleet-topology.md D4)" ;;
+  esac
+  case "$name" in
+    as-host|fdx-host|primary) die "'$name' is a reserved workstation name, not a dev box" ;;
+  esac
+}
+validate_name "$NAME"
+
+# --- destroy --------------------------------------------------------------------------
+delete_auth_key_by_title() {
+  local host="$1" title="$2" id
+  id="$(GH_HOST="$host" gh api user/keys --jq ".[] | select(.title==\"$title\") | .id" 2>/dev/null || true)"
+  if [ -n "$id" ]; then
+    GH_HOST="$host" gh api -X DELETE "user/keys/$id" >/dev/null
+    echo "$host: deleted authentication key titled '$title' (id $id)"
+  else
+    echo "$host: no authentication key titled '$title' (nothing to delete)"
+  fi
+}
+
+cmd_destroy() {
+  local name="$1"
+  case "$name" in
+    as-dev|fdx-dev) die "refusing to destroy '$name' — it is a real dev box, not scratch (AGENTS.md hard rules)" ;;
+  esac
+
+  echo "destroy plan for $name:"
+  echo "  - delete GitHub AUTHENTICATION keys titled '$name' on github.com and github.foodics.com (signing keys are never touched — /user/keys is auth-only)"
+  echo "  - multipass delete --purge $name"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "(dry run — nothing done)"
+    return 0
+  fi
+
+  delete_auth_key_by_title github.com "$name"
+  delete_auth_key_by_title github.foodics.com "$name"
+
+  if multipass info "$name" >/dev/null 2>&1; then
+    multipass delete --purge "$name"
+    echo "multipass: $name purged"
+  else
+    echo "multipass: no instance named '$name' (nothing to purge)"
+  fi
+}
+
+if [ "$DESTROY" -eq 1 ]; then
+  cmd_destroy "$NAME"
+  exit 0
+fi
+
+# --- create ----------------------------------------------------------------------------
+case "$ROLE" in
+  personal|work) ;;
+  *) die "--role personal|work is required" ;;
+esac
+
+echo "=== 1/6 launch ($NAME, role=$ROLE) ==="
+LAUNCH_ARGS=()
+[ -n "$CPUS" ]   && LAUNCH_ARGS+=(--cpus "$CPUS")
+[ -n "$MEMORY" ] && LAUNCH_ARGS+=(--memory "$MEMORY")
+[ -n "$DISK" ]   && LAUNCH_ARGS+=(--disk "$DISK")
+[ "$DRY_RUN" -eq 1 ] && LAUNCH_ARGS+=(--dry-run)
+
+"$LAUNCH" "$NAME" "${LAUNCH_ARGS[@]}"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo
+  echo "(dry run — stopping after the launch plan; nothing further would run for role=$ROLE)"
+  exit 0
+fi
+
+echo
+echo "=== 2/6 known_hosts + wait for cloud-init ==="
+# Must precede the first SSH attempt: a reused name would otherwise carry a stale
+# host key from a previous box (fleet-topology.md gotcha 6).
+ssh-keygen -R "${NAME}.local" >/dev/null 2>&1 || true
+
+TRIES=0
+until /usr/bin/ssh "${SSH_OPTS[@]}" "ubuntu@${NAME}.local" true 2>/dev/null; do
+  TRIES=$((TRIES + 1))
+  [ "$TRIES" -le 90 ] || die "timed out waiting for ssh to ${NAME}.local"
+  sleep 5
+done
+
+CI_RC=0
+ssh_box "$NAME" "cloud-init status --wait --long" || CI_RC=$?
+case "$CI_RC" in
+  0) echo "cloud-init: done" ;;
+  2) echo "cloud-init: done, with recoverable errors/deprecations (see --long output above)" ;;
+  *) die "cloud-init failed on $NAME (exit $CI_RC)" ;;
+esac
+
+echo
+echo "=== 3/6 seed the age identity ==="
+ssh_box "$NAME" "mkdir -p -m 700 ~/.config/chezmoi"
+scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+  "$HOME/.config/chezmoi/key.txt" "ubuntu@${NAME}.local:.config/chezmoi/key.txt"
+
+echo
+echo "=== 4/6 SSH key + GitHub registration ==="
+ssh_box "$NAME" "mkdir -p -m 700 ~/.ssh; test -f ~/.ssh/id_ed25519 || ssh-keygen -t ed25519 -N '' -C '$NAME' -f ~/.ssh/id_ed25519"
+
+PUBKEY_TMP="$(mktemp -t "${NAME}-id_ed25519.pub")"
+trap 'rm -f "$PUBKEY_TMP"' EXIT
+scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+  "ubuntu@${NAME}.local:.ssh/id_ed25519.pub" "$PUBKEY_TMP" >/dev/null
+
+register_github_key() {
+  local host="$1" title="$2" keyfile="$3" existing
+  existing="$(GH_HOST="$host" gh api user/keys --jq ".[] | select(.title==\"$title\") | .id" 2>/dev/null || true)"
+  if [ -n "$existing" ]; then
+    GH_HOST="$host" gh api -X DELETE "user/keys/$existing" >/dev/null
+    echo "$host: deleted stale authentication key titled '$title' (id $existing)"
+  fi
+  GH_HOST="$host" gh ssh-key add "$keyfile" --title "$title" --type authentication
+  GH_HOST="$host" gh ssh-key add "$keyfile" --title "$title" --type signing
+  echo "$host: registered '$title' as authentication + signing"
+}
+
+register_github_key github.com "$NAME" "$PUBKEY_TMP"
+if [ "$ROLE" = "work" ]; then
+  register_github_key github.foodics.com "$NAME" "$PUBKEY_TMP"
+fi
+
+echo
+echo "=== 5/6 chezmoi init --apply (non-interactive) ==="
+EOD_VAL="false"
+[ "$ROLE" = "work" ] && EOD_VAL="true"
+ssh_box "$NAME" "sh -c \"\$(curl -fsLS get.chezmoi.io/lb)\" -- init --apply $REPO \
+  --promptChoice 'Machine kind=vm,Machine role=$ROLE' \
+  --promptString 'Machine hostname=$NAME' \
+  --promptBool 'Install eod skill=$EOD_VAL'"
+
+echo
+echo "=== priming mise (one interactive shell so secrets.zsh caches a GitHub token, then mise install -y) ==="
+ssh_box "$NAME" "zsh -ic 'mise install -y'" \
+  || echo "note: mise install (priming) reported a non-zero exit — checked again below with 'mise ls --missing'"
+
+echo
+echo "=== 6/6 verifying (provision/README.md 'Verifying a new VM') ==="
+run_verification() {
+  local name="$1" role="$2"
+  local remote_cmd="zsh -ic 'bash -s -- $role'"
+  /usr/bin/ssh "${SSH_OPTS[@]}" "ubuntu@${name}.local" "$remote_cmd" <<'REMOTE_EOF'
+set -u
+ROLE="$1"
+pass() { printf 'PASS %-14s %s\n' "$1" "$2"; }
+fail() { printf 'FAIL %-14s %s\n' "$1" "$2"; }
+
+DATA="$(chezmoi data 2>&1)"
+if printf '%s' "$DATA" | grep -q '"kind"[: ]*"vm"' && printf '%s' "$DATA" | grep -q "\"role\"[: ]*\"$ROLE\""; then
+  pass data "kind=vm role=$ROLE"
+else
+  fail data "$(printf '%s' "$DATA" | grep -iE 'role|kind' | tr '\n' ' ')"
+fi
+
+STATUS="$(chezmoi status 2>&1)"
+if [ -z "$STATUS" ]; then pass status "empty"; else fail status "$STATUS"; fi
+
+if ZSHN_ERR="$(chezmoi cat ~/.zshrc | zsh -n 2>&1)"; then
+  pass zshrc-parse "ok"
+else
+  fail zshrc-parse "$ZSHN_ERR"
+fi
+
+MISSING="$(mise ls --missing 2>&1)"
+if [ -z "$MISSING" ]; then pass mise-missing "empty"; else fail mise-missing "$MISSING"; fi
+
+if NVIM_URL="$(git -C ~/.config/nvim remote get-url origin 2>&1)" && [ -n "$NVIM_URL" ]; then
+  pass nvim-external "$NVIM_URL"
+else
+  fail nvim-external "${NVIM_URL:-no output}"
+fi
+
+DOCKER_OUT="$(docker run --rm hello-world 2>&1)"
+if printf '%s' "$DOCKER_OUT" | grep -q "Hello from Docker"; then
+  pass docker-hello "ok"
+else
+  fail docker-hello "$(printf '%s' "$DOCKER_OUT" | tail -3 | tr '\n' ' ')"
+fi
+
+ET_STATE="$(systemctl is-active et 2>&1)"
+if [ "$ET_STATE" = "active" ]; then pass et-active "$ET_STATE"; else fail et-active "$ET_STATE"; fi
+
+TIMER_STATE="$(systemctl --user is-enabled chezmoi-update.timer 2>&1)"
+if [ "$TIMER_STATE" = "enabled" ]; then pass update-timer "$TIMER_STATE"; else fail update-timer "$TIMER_STATE"; fi
+
+if git -C ~/.local/share/chezmoi config commit.gpgsign >/dev/null 2>&1; then
+  SIGNKEY="$(git -C ~/.local/share/chezmoi config user.signingkey 2>&1)"
+  if [ -f "$SIGNKEY" ]; then
+    pass git-signing "gpgsign on, key=$SIGNKEY"
+  else
+    fail git-signing "signingkey file missing: $SIGNKEY"
+  fi
+else
+  fail git-signing "commit.gpgsign not set"
+fi
+
+if [ "$ROLE" = "personal" ]; then
+  if [ ! -e ~/.ssh/config.d/foodics ]; then
+    pass role-guard "absent (correct for role=personal)"
+  else
+    fail role-guard "present but role=personal"
+  fi
+else
+  if [ -e ~/.ssh/config.d/foodics ]; then
+    pass role-guard "present (expected for role=work)"
+  else
+    fail role-guard "absent but role=work"
+  fi
+fi
+REMOTE_EOF
+}
+
+run_verification "$NAME" "$ROLE"

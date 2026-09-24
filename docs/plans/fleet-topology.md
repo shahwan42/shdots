@@ -302,6 +302,19 @@ publishes `5432:5432`.
 
 - **Q1** Prod app secrets (`.env` delivery) and per-app data persistence: deferred on purpose. Phase 4 must leave room for both.
 - **Q2** Does netcup accept cloud-init user-data at server creation? Unverified. Fallback: copy the file over SSH and run `cloud-init` against it.
-- **Q3** Box signing keys and `allowed_signers`: box keys rotate on every rebuild. Should boxes be able to push signed commits to shdots (then `new-box` must add the key to `allowed_signers` and push), or should shdots changes only come from workstations?
+- **Q3 — answered 2026-09-25.** Only the existing signers are trusted for shdots
+  commits: the workstations and the current as-dev + fdx-dev keys already in
+  `dot_config/git/allowed_signers`. `new-box` does **not** add a new box's key to
+  `allowed_signers`, and never pushes. New boxes still register their key on
+  GitHub as authentication + signing (for project repos, not shdots). **Revisit in
+  Phase 3:** rebuilding as-dev/fdx-dev rotates their keys, so both drop out of
+  `allowed_signers` the moment they're rebuilt — Phase 3 must either add the new
+  keys (from a workstation, signed by a still-trusted key) before or as part of the
+  rebuild, or accept that old commits signed by the retired keys stop verifying.
 - **Q4** Custom dev-box names (for example `as-blog`, `fdx-cashflow`): explored, parked. If picked up: prefix convention `as-`/`fdx-` sets the role, per-class herdr defaults instead of per-host entries, and size tiers, because RAM is the real limit.
-- **Q5** herdr: how a new box is registered on the Mac's herdr client (`herdr machine add`?) is unverified.
+- **Q5 — answered 2026-09-25.** Skipped for now: `new-box` does not register a new
+  box with the Mac's herdr client. `.chezmoidata/herdr.yaml` still names only
+  `as-dev` as onboarded; a box created by `new-box` gets no herdr desired-state
+  entry and `run_onchange_after_45-herdr-plugins.sh.tmpl` no-ops for it (falls into
+  its "no Herdr desired-state ... nothing to do" branch). Revisit if/when herdr
+  registration for a fresh box is worked out.

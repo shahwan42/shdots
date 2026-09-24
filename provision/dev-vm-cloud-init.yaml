@@ -1,11 +1,17 @@
 # Cloud-init for a dev VM — one template, every dev box (fdx-dev on the work Host,
 # as-dev on the personal Host). Nothing here is machine-specific: identity comes from
-# the multipass --name flag and `tailscale up --hostname=<name>` afterwards.
+# the multipass --name flag; boxes reach each other and the Mac by <name>.local
+# (avahi/mDNS), not Tailscale (Phase 2 — dev boxes dropped Tailscale; it remains
+# prod-only, see docs/plans/fleet-topology.md D7).
 #
 # NOT a chezmoi template — `provision` is excluded in .chezmoiignore.tmpl, so
 # chezmoi never renders or applies this. The `@@`-delimited placeholders are
-# substituted by provision/launch-dev-vm.sh, which is the only supported way to
-# use this file:
+# substituted by a launcher script at launch time (today: provision/launch-dev-vm.sh,
+# called by provision/new-box — the supported entry point for a new box). One
+# placeholder is provider-neutral by design: it's either "gateway" (Multipass) or
+# "none" (a future non-Multipass/VPS launcher would leave it this way), and picks
+# whether the Mac-bridge firewall allow rule below is on — see the docker-user-fw.sh
+# write_files entry.
 #
 #   ./launch-dev-vm.sh as-dev                 # personal VM, defaults below
 #   ./launch-dev-vm.sh fdx-dev                # work VM, same spec
@@ -14,24 +20,26 @@
 # sets — "reproducible" here means same shape, not bit-identical.
 #
 # Deliberately NOT in this file (interactive or decision-gated):
-#   - `tailscale up --ssh --hostname=...`  (needs browser auth + admin approval)
-#   - `ufw enable`                          (enabled manually AFTER tailscale0 exists
-#                                            and after verifying the multipass NIC
-#                                            allow rule — see handover step 6)
-#   - chezmoi bootstrap + role/kind answers (prompts; see provision/README.md)
-#   - age identity, SSH keys, GITHUB_TOKEN  (secrets, seeded out-of-band)
-#   - PHP/Node versions via mise            (pinned from the repo's constraints after clone)
+#   - chezmoi bootstrap + role/kind answers (prompts; provision/new-box answers them
+#     non-interactively — see provision/README.md)
+#   - age identity, SSH keys                (secrets, seeded out-of-band by new-box)
+#   - PHP/Node versions via mise             (pinned from the repo's constraints after clone)
+#
+# GitHub tokens for mise are no longer a manual step: the managed
+# ~/.config/zsh/secrets.zsh pulls them from 1Password once the age identity and
+# the age-encrypted 1Password service-account token are on the box (both copied/
+# decrypted during chezmoi apply, out of band from this file).
 
 timezone: Africa/Cairo
 
 # Direct SSH from the Host (ubuntu@<vm-ip>) — do not depend on `multipass exec`:
 # with Docker installed in the guest, the multipass client can pick the docker0
 # bridge IP (172.17.0.1) and fail with "No route to host". Field-tested 2026-08-25.
-# The key is the LAUNCHING Host's own public key, injected by launch-dev-vm.sh, so
-# each VM trusts the Mac that created it (id_ed25519.pub if present, else id_rsa.pub;
-# --pubkey overrides).
+# Both workstation public keys (.chezmoidata/fleet.yaml) are authorized, not just
+# the launching Mac's — either workstation may need to reach any dev box.
 ssh_authorized_keys:
-  - @@HOST_SSH_PUBKEY@@
+  - @@AS_HOST_PUBKEY@@
+  - @@FDX_HOST_PUBKEY@@
 
 package_update: true
 package_upgrade: true
@@ -42,6 +50,10 @@ packages:
   - build-essential
   - ufw
   - chrony
+  # <name>.local resolution from the Mac (D7/D16 — Multipass dev boxes use plain
+  # SSH over mDNS, not Tailscale). Verified 2026-09-22: Multipass's default ufw
+  # rules already allow mDNS, so no extra ufw rule is needed for this.
+  - avahi-daemon
   # provides add-apt-repository, used below for the Eternal Terminal PPA
   - software-properties-common
   # zsh is the login shell on every machine class (dot_zshrc.tmpl is applied
@@ -76,49 +88,82 @@ apt:
       keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 
 write_files:
-  # Host sleep freezes the guest clock; on wake it can be behind by hours and
-  # timesyncd's backed-off polling leaves a long wrong-clock window (TLS/apt/token
-  # failures). chrony with unrestricted makestep fixes it promptly.
-  - path: /etc/chrony/conf.d/99-vm.conf
-    content: |
-      makestep 1.0 -1
   # Security updates only is the Ubuntu default; never auto-reboot — a surprise
   # reboot takes down the whole stack (see architecture doc, Day-2 operations).
   - path: /etc/apt/apt.conf.d/51-no-auto-reboot
     content: |
       Unattended-Upgrade::Automatic-Reboot "false";
-  # ufw does NOT filter Docker-published ports (they bypass INPUT via DOCKER chains).
-  # This unit drops new inbound connections to containers arriving on the multipass
-  # NAT NIC; tailscale0/lo/bridge traffic is untouched. Interface name is looked up
-  # at runtime rather than hardcoded.
+  # ufw does NOT filter Docker-published ports (they bypass INPUT via DOCKER chains),
+  # and iptables rules don't survive a reboot, so this reconciles the DOCKER-USER
+  # chain (and, on Multipass, et's ufw rule) every boot rather than once at
+  # cloud-init time. See docker-user-fw.service below for why this runs as a unit
+  # instead of inline in runcmd.
+  # No `permissions:` field here on purpose: Multipass re-serializes this file
+  # before cloud-init sees it, and round-tripping through its YAML encoder drops
+  # the quotes around an octal-looking string like "0755" — cloud-init then
+  # reads the bare number 493 and fails schema validation (field-tested
+  # 2026-09-25, `cloud-init status --long` -> degraded, `cloud-init schema
+  # --system` -> "write_files.1.permissions: 493 is not of type 'string'").
+  # chmod it in runcmd instead.
+  - path: /usr/local/sbin/docker-user-fw.sh
+    content: |
+      #!/bin/sh
+      # Drop new inbound connections to Docker-published ports arriving on the
+      # multipass NAT NIC (tailscale0/lo/bridge traffic is untouched); on Multipass,
+      # additionally allow new connections from the Mac's bridge address to those
+      # ports and to et (2022) — that address is the box's own default gateway, so
+      # it survives an IP change without a relaunch. MAC_ACCESS is baked in at
+      # launch by the launcher: Multipass -> "gateway"; a future VPS launcher would
+      # leave it "none" and keep the plain drop-all (D6).
+      set -eu
+      MAC_ACCESS="@@MAC_ACCESS@@"
+      IF=$(ip -br link | awk '/^enp/{print $1; exit}')
+      [ -n "$IF" ] || { echo "docker-user-fw: no enp* interface found" >&2; exit 1; }
+
+      iptables -C DOCKER-USER -i "$IF" -m conntrack --ctstate NEW -j DROP 2>/dev/null \
+        || iptables -I DOCKER-USER -i "$IF" -m conntrack --ctstate NEW -j DROP
+
+      if [ "$MAC_ACCESS" = "gateway" ]; then
+        GW=$(ip route show default | awk '{print $3; exit}')
+        [ -n "$GW" ] || { echo "docker-user-fw: MAC_ACCESS=gateway but no default gateway found" >&2; exit 1; }
+        # Idempotent for the current GW: -C checks before inserting, so a re-run
+        # with the same address adds nothing twice. If the Mac's bridge address
+        # ever changes, the old ACCEPT/ufw rule is harmless leftover (an allow for
+        # an address nothing uses any more) rather than something actively cleaned
+        # up here — acceptable for a disposable dev box; a relaunch clears it.
+        iptables -C DOCKER-USER -i "$IF" -s "$GW" -m conntrack --ctstate NEW -j ACCEPT 2>/dev/null \
+          || iptables -I DOCKER-USER 1 -i "$IF" -s "$GW" -m conntrack --ctstate NEW -j ACCEPT
+
+        ufw allow in on "$IF" from "$GW" to any port 2022 proto tcp comment 'et from Mac bridge' >/dev/null 2>&1 || true
+      fi
   - path: /etc/systemd/system/docker-user-fw.service
     content: |
       [Unit]
-      Description=Drop container-published ports on the multipass NAT interface
-      After=docker.service
+      Description=Reconcile the DOCKER-USER chain and et's ufw rule for the NAT NIC
+      After=docker.service network-online.target
+      Wants=network-online.target
       Requires=docker.service
 
       [Service]
       Type=oneshot
       RemainAfterExit=yes
-      ExecStart=/bin/sh -c 'IF=$(ip -br link | awk "/^enp/{print \$1; exit}"); iptables -C DOCKER-USER -i $IF -m conntrack --ctstate NEW -j DROP 2>/dev/null || iptables -I DOCKER-USER -i $IF -m conntrack --ctstate NEW -j DROP'
+      ExecStart=/usr/local/sbin/docker-user-fw.sh
 
       [Install]
       WantedBy=multi-user.target
 
 runcmd:
+  # Chrony fix (fleet-topology.md gotcha 1): /etc/chrony/chrony.conf sets
+  # `makestep 1 3` AFTER its own confdir line, so a conf.d/*.conf drop-in never
+  # wins — edit chrony.conf's own makestep line directly, then restart.
+  - sed -i 's/^makestep .*/makestep 1.0 -1/' /etc/chrony/chrony.conf
+  - systemctl restart chrony
   # Docker Engine + Compose plugin (native, no colima on Linux)
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - usermod -aG docker ubuntu
+  - chmod 0755 /usr/local/sbin/docker-user-fw.sh
   - systemctl daemon-reload
   - systemctl enable --now docker-user-fw.service
-  # Tailscale from its signed apt repo (no curl|sh); `tailscale up` stays manual.
-  # The downloaded keyring is verified against Tailscale's published signing-key
-  # fingerprint before apt ever trusts it — a mismatch removes it and fails here.
-  - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.noarmor.gpg" -o /usr/share/keyrings/tailscale-archive-keyring.gpg'
-  - sh -c 'fpr=$(gpg --show-keys --with-colons /usr/share/keyrings/tailscale-archive-keyring.gpg | grep "^fpr" | head -n1 | cut -d":" -f10); [ "$fpr" = "2596A99EAAB33821893C0A79458CA832957F5868" ] || { echo "tailscale keyring fingerprint mismatch ($fpr)"; rm -f /usr/share/keyrings/tailscale-archive-keyring.gpg; exit 1; }'
-  - sh -c '. /etc/os-release; curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/${VERSION_CODENAME}.tailscale-keyring.list" -o /etc/apt/sources.list.d/tailscale.list'
-  - apt-get update && apt-get install -y tailscale
   # Eternal Terminal: reconnect-surviving remote shells (`et @@VM_NAME@@` from any Mac).
   # et keeps the connection alive; herdr (a mise tool) keeps the sessions alive.
   # add-apt-repository fetches the PPA key from Launchpad and embeds it in the
@@ -133,13 +178,15 @@ runcmd:
   # Activated for bash too: chezmoi's bootstrap scripts run from a bare shell.
   - su - ubuntu -c 'curl -fsSL https://mise.jdx.dev/install.sh | sh'
   - su - ubuntu -c 'echo '\''eval "$(~/.local/bin/mise activate bash)"'\'' >> ~/.bashrc'
-  # ufw rules staged but NOT enabled (see header). The multipass NIC port-22 allow
-  # keeps `multipass shell/exec/stop` working after enable — losing it turns every
-  # `multipass stop` into a hard power-off.
+  # ufw rules staged, then enabled below in the same boot — order matters: the
+  # multipass NAT NIC port-22 allow rule must exist BEFORE `ufw enable`, or
+  # `multipass stop`/`shell`/`exec` becomes a hard power-off the moment ufw comes
+  # up. docker-user-fw.service (started above) already staged its own rules
+  # (DOCKER-USER accept/drop, and on Multipass the et/2022 ufw allow) before we
+  # get here.
   - ufw default deny incoming
   - ufw allow in on lo
-  - ufw allow in on tailscale0
-  - ufw allow 41641/udp comment 'tailscale direct (avoids DERP relay)'
   - sh -c 'IF=$(ip -br link | awk "/^enp/{print \$1; exit}"); ufw allow in on $IF to any port 22 proto tcp comment "multipass control channel"'
+  - ufw --force enable
 
-final_message: "cloud-init done for @@VM_NAME@@. Manual next steps (provision/README.md): tailscale up --ssh --hostname=@@VM_NAME@@; tailscale set --auto-update; seed ~/.config/chezmoi/key.txt; generate ~/.ssh/id_ed25519_*; GITHUB_TOKEN in ~/.zshrc.local; sh -c \"$(curl -fsLS get.chezmoi.io/lb)\" -- init --apply shahwan42/shdots; ufw enable (verify multipass shell still works!)."
+final_message: "cloud-init done for @@VM_NAME@@. Manual next steps (provision/README.md): seed ~/.config/chezmoi/key.txt; generate ~/.ssh/id_ed25519 and register it with gh; sh -c \"$(curl -fsLS get.chezmoi.io/lb)\" -- init --apply shahwan42/shdots. provision/new-box automates all of this."
