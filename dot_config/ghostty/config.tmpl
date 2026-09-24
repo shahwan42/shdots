@@ -10,11 +10,6 @@ shell-integration = zsh
 # Auto-install Ghostty's terminfo on ssh hosts (fixes garbled TUIs on remotes
 # that don't know TERM=xterm-ghostty); ssh-env exports safe TERM fallbacks.
 shell-integration-features = ssh-env,ssh-terminfo
-# OSC 52 both ways, no prompt: remote nvim (ssh / et / herdr --remote) yanks into
-# and pastes from the Mac clipboard. Trade-off: any program on a remote box can
-# read the clipboard.
-clipboard-read = allow
-clipboard-write = allow
 confirm-close-surface = true
 # Preserve Ghostty's existing cell-height tuning.
 adjust-cell-height = 60%
