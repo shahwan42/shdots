@@ -40,7 +40,14 @@ exit 0
 {{ else if not $h.enabled -}}
 echo "Herdr desired-state for {{ .hostname }} is disabled (enabled: false) — nothing to do."
 exit 0
-{{ end -}}
+{{ else -}}
+# Everything below is inside this {{`{{ else }}`}}: a bare {{`{{ if not $h }}`}}...{{`{{ end }}`}}
+# above does NOT stop the template engine from still rendering $h.plugins/$h.integrations
+# further down (Go templates have no early "return"), so a host absent from
+# .chezmoidata/herdr.yaml — every box `provision/new-box` creates, by design (Q5,
+# fleet-topology.md) — made chezmoi apply fail here with "nil data; no entry for
+# key 'plugins'" instead of printing the message above and exiting. Field-tested
+# 2026-09-25 on a fresh box.
 
 # Desired plugins: one "source|ref|rev" record per line.
 PLUGINS=$(cat <<'EOF'
@@ -116,3 +123,4 @@ done
 "$HERDR" server reload-config >/dev/null 2>&1 || :
 
 exit 0
+{{ end -}}
