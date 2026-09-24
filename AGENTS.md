@@ -49,7 +49,9 @@ re-add` them, and do not expect them under `~/.local/share/chezmoi`:
   [`shahwan42/nvim-config`](https://github.com/shahwan42/nvim-config)
   (`type = "git-repo"`, `refreshPeriod = 0`). To change it, edit the files in
   place, then `git -C ~/.config/nvim commit` and `git push` to that repo. Every
-  `chezmoi apply` / `chezmoi update` runs `git pull` in it. Its local `origin`
+  `chezmoi apply` / `chezmoi update` runs `git pull` in it. `chezmoi-autoupdate`
+  also pulls it (`--ff-only`) on runs where this repo has nothing new, logging
+  `autoupdate nvim-config` to `chezmoi-health`. Its local `origin`
   is SSH (for pushing); the external URL is HTTPS (so fresh machines clone
   without a key) — a new machine that needs to push runs
   `git -C ~/.config/nvim remote set-url origin git@github.com:shahwan42/nvim-config.git`.

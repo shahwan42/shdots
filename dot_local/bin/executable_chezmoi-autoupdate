@@ -75,7 +75,21 @@ git -C "$SRC" rev-parse --verify -q "$UPSTREAM^{commit}" >/dev/null \
 BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)"
 [ -n "$BEHIND" ] || warn "chezmoi: cannot compare against $UPSTREAM — reconcile manually"
 
+# The nvim config is a git-repo external: only 'chezmoi apply' pulls it, and
+# apply runs only when this repo moves. Pull it on quiet runs too, or nvim-only
+# pushes never reach the fleet. Fast-forward only; a failure is noted, not fatal.
+refresh_nvim() {
+  NV="$HOME/.config/nvim"
+  [ -d "$NV/.git" ] || return 0
+  if nv_out="$($TO git -C "$NV" pull -q --ff-only 2>&1)"; then
+    hn note autoupdate nvim-config ok "$(git -C "$NV" rev-parse --short HEAD 2>/dev/null)"
+  else
+    hn note autoupdate nvim-config degraded "git pull --ff-only failed: $(printf '%s' "$nv_out" | tail -n 1)"
+  fi
+}
+
 if [ "$BEHIND" -eq 0 ]; then
+  refresh_nvim
   config_drift && warn "chezmoi: config template changed upstream — run 'chezmoi init'"
   if converged; then hn run ok ""; rm -f "$MARKER"
   else warn "chezmoi: source is current but \$HOME is not applied — run 'chezmoi apply'"; fi
