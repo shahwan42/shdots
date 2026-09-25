@@ -276,7 +276,7 @@ TIMER_STATE="$(systemctl --user is-enabled chezmoi-update.timer 2>&1)"
 if [ "$TIMER_STATE" = "enabled" ]; then pass update-timer "$TIMER_STATE"; else fail update-timer "$TIMER_STATE"; fi
 
 if git -C ~/.local/share/chezmoi config commit.gpgsign >/dev/null 2>&1; then
-  SIGNKEY="$(git -C ~/.local/share/chezmoi config user.signingkey 2>&1)"
+  SIGNKEY="$(git -C ~/.local/share/chezmoi config --path user.signingkey 2>&1)"
   if [ -f "$SIGNKEY" ]; then
     pass git-signing "gpgsign on, key=$SIGNKEY"
   else
