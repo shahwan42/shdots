@@ -1,6 +1,7 @@
 # Fleet topology plan: one workstation, disposable boxes
 
-Status: **Phase 1 done (2026-09-23). Phases 2–5 not started.**
+Status: **Phase 1 done (2026-09-23). Phase 2 done 2026-09-25, committed locally,
+not pushed (Ahmed approves). Phases 3–5 not started.**
 Owner: Ahmed. Written for any agent (Claude, Codex, OpenCode) picking this up.
 
 Read this whole file before starting a phase. Then re-check the live state
@@ -139,6 +140,40 @@ as-host has 32 GiB RAM and 10 CPUs, so two 12G boxes is the practical ceiling.
     Ubuntu 24.04's OpenSSH 9.6 rejected the whole file, breaking all SSH from
     the VMs until `c244b86` fixed it. Before pushing an SSH config change, run
     `ssh -G <host>` against the rendered file on a Mac **and** on a VM.
+12. **A fresh box `chezmoi init --apply`s `origin/main`, not your working
+    tree.** An unpushed fix (even one already committed) has zero effect on a
+    box's own clone. To test a fix on a real box before pushing: commit it,
+    `git bundle create x.bundle origin/main..main`, `scp` the bundle over,
+    `git -C ~/.local/share/chezmoi pull --ff-only x.bundle main` on the box,
+    then `chezmoi apply`. Field-tested 2026-09-25 to land the fix in gotcha 15
+    on `as-scratch` without pushing.
+13. **Multipass silently drops the quotes around a `write_files:` string that
+    looks like a number.** `permissions: "0755"` in
+    `provision/dev-vm-cloud-init.yaml` survives Multipass's own YAML
+    re-serialization as the bare number `493` (0755 read as octal, YAML 1.1
+    rules), and `cloud-init schema --system` then rejects it —
+    `cloud-init status --long` reports `degraded`. Don't set `permissions:` on
+    a `write_files` entry there; `chmod` it in `runcmd` instead.
+14. **Relaunching (or even just stopping/starting) a Multipass box under the
+    same name can trigger an mDNS conflict.** avahi on the box detects what it
+    thinks is still another host answering for `<name>.local` (stale
+    announcement from an earlier instance of the same name) and silently
+    renames itself to `<name>-2.local`; `ssh <name>.local` then fails to
+    resolve even though the box is up and healthy. `journalctl -u avahi-daemon`
+    on the box shows `Host name conflict, retrying with <name>-2`. No fix
+    applied yet — noted here for whoever hits it next; a full `multipass delete
+    --purge` + relaunch (not just stop/start) seems to avoid it, but wasn't
+    confirmed to always avoid it.
+15. **`docker-user-fw.sh`'s Mac-bridge allow rule is IPv4-only.** The DOCKER-USER
+    chain's IPv6 half (`ip6tables -S DOCKER-USER`) is created but left with no
+    rules at all — neither the drop-all nor the Mac-only accept — so a
+    container port is unfiltered over IPv6 to anything that can route to the
+    box's ULA address (`fd0d:...`), which in practice means other hosts on the
+    same L2/bridge. IPv4 access from the Mac is correctly scoped (verified
+    2026-09-25: `iptables -L DOCKER-USER -v -n` shows the Mac's bridge address
+    ACCEPTed above a DROP-all). Needs an Ahmed call: mirror the same two rules
+    into `ip6tables`, or disable IPv6 on the Docker daemon for dev boxes
+    (`ipv6: false` in `/etc/docker/daemon.json`).
 
 ---
 
@@ -166,7 +201,35 @@ Leftovers for Ahmed (at fdx-host's keyboard): `brew bundle`,
 **Goal:** `provision/new-box <name> --role personal|work` produces a working dev
 box with no manual steps except AI-CLI sign-in.
 
-**State:** not started.
+**State:** steps 1–5 and 7 done 2026-09-25, committed locally (`e7218c8`,
+`69c83c9`, `7331d18`), **not pushed** — Ahmed approves the push. Step 6 (collapse
+per-role key naming) is explicitly Phase 3, not done.
+
+Done-check ran for real on a throwaway `as-scratch` box (`--role personal`,
+2 cpu/4G/20G). It surfaced and fixed one pre-existing bug that isn't
+Phase-2-scoped but blocked every box `new-box` creates:
+`run_onchange_after_45-herdr-plugins.sh.tmpl` crashed `chezmoi apply` on any
+host absent from `.chezmoidata/herdr.yaml` (gotcha 12 explains the Go-template
+root cause). Fixed in `e7218c8`. Because a fresh box clones `origin/main`, not
+this working tree, the fix could only be exercised on the real box via the
+git-bundle method in gotcha 12 (**not** by pushing) — do that again if this
+plan is picked up again before `e7218c8`/`69c83c9` land on `main`.
+
+All 10 "Verifying a new VM" checks passed (`data`, `status`, `zshrc-parse`,
+`mise-missing`, `nvim-external`, `docker-hello`, `et-active`, `update-timer`,
+`git-signing`, `role-guard`). From as-host: `ssh as-scratch.local`,
+`et as-scratch.local`, and `curl` to a `docker run -p 8080:80 nginx` on the box
+all worked; `iptables -L DOCKER-USER -v -n` showed the Mac's bridge address
+ACCEPTed above the DROP-all; a full `multipass stop`/`start` proved the ufw
+rules, `docker-user-fw.service`, and the container's `--restart unless-stopped`
+all survive a reboot. `new-box destroy as-scratch` removed its GitHub
+authentication key and purged the instance; `multipass list` and
+`gh api user/keys` confirmed a clean fleet afterward.
+
+Two things fell out of scope for a fix here, both new gotchas (14, 15): the
+stop/start cycle triggered an mDNS name conflict (avahi renamed the box to
+`as-scratch-2.local`), and the Mac-bridge firewall allow is IPv4-only — the
+IPv6 half of DOCKER-USER has no rules at all.
 
 **Files**
 - `provision/dev-vm-cloud-init.yaml` — edit.
