@@ -242,8 +242,9 @@ their own `AGENTS.md`, `.agents/skills`, and MCP config.
 - **Shared instruction baseline:** `.chezmoitemplates/ai-baseline.md` (output
   preferences, mermaid rule, codebase-memory graph guidance). Rendered into
   each tool's native global file: `dot_codex/AGENTS.md.tmpl`,
-  `dot_claude/CLAUDE.md.tmpl` (plus Claude-only lines), and `dot_config/opencode/instructions/baseline.md.tmpl` (referenced
-  from `opencode.jsonc` `instructions` by script 41; the global OpenCode
+  `dot_claude/CLAUDE.md.tmpl` (plus Claude-only lines), and
+  `dot_config/opencode/instructions/baseline.md.tmpl` (referenced from
+  `opencode.jsonc` `instructions` by script 41; the global OpenCode
   `AGENTS.md` belongs to the Caveman installer). Edit the baseline once.
 - **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, read
   natively by Codex and OpenCode. Provenance and the upgrade flow are in
@@ -251,6 +252,9 @@ their own `AGENTS.md`, `.agents/skills`, and MCP config.
   (Caveman, `npx skills`, herdr, browser-harness) also write there.
 - **Claude adapter:** `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
   Claude-only skills (`eod`, `qa-manual`) stay under `dot_claude/skills`.
+  Claude runs a personal skill over a same-named project skill, so never add
+  an adapter whose name a project under `~/Code` already uses (see
+  `docs/ai/skills.md`).
 - **Ownership (Mac):** Codex = Homebrew cask, Claude = native installer,
   OpenCode = mise. VMs: all three via mise.
 - **Deferred parity work:** `docs/plans/ai-tooling-followups.md`.
