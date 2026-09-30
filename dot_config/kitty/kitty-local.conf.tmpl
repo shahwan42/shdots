@@ -16,6 +16,10 @@ hide_window_decorations yes
 auto_reload_config 1
 enabled_layouts splits,tall,stack
 
+# New windows (including splits) inherit the active window's working directory.
+map kitty_mod+enter new_window_with_cwd
+map cmd+enter       new_window_with_cwd
+
 # ported from ghostty (dot_config/ghostty/config.tmpl).
 # kitty has no inline comments -- keep notes on their own lines.
 
