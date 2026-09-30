@@ -68,6 +68,16 @@ if command -v codex >/dev/null 2>&1; then
       --skill cavecrew caveman caveman-commit caveman-compress \
       caveman-help caveman-review caveman-stats -a codex --yes; then
     hn codex-skills ok "release ${CAVEMAN_REF} Caveman skills installed"
+    # OpenCode reads ~/.agents/skills natively, and the upstream installer has
+    # no way to skip its own OpenCode skill copies. Drop those copies once the
+    # shared one exists, so each Caveman skill is defined in one place.
+    for s in cavecrew caveman caveman-commit caveman-compress \
+        caveman-help caveman-review caveman-stats; do
+      if [ -f "$HOME/.agents/skills/$s/SKILL.md" ] \
+          && [ -d "$HOME/.config/opencode/skills/$s" ]; then
+        rm -rf "$HOME/.config/opencode/skills/$s"
+      fi
+    done
   else
     echo "caveman: Codex skill install failed; retry after checking npx." >&2
     hn codex-skills fail "selected skill install failed for ${CAVEMAN_REF}"
