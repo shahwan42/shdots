@@ -34,7 +34,7 @@ difference is the adaptation listed below.
 | implement-spec | `skills/in-progress/implement-spec` | `1ec4cd3fbcc62d57cd32cf1d907c4c4761355e2b` | yes |
 | research | `skills/engineering/research` | `0a6796c5667e95ed2301ba7381c123b4acb2ae1a` | yes |
 | resolving-merge-conflicts | `skills/engineering/resolving-merge-conflicts` | `77f0d7de3143abbf03e55a63522d30bff31ae908` | yes |
-| tdd | `skills/engineering/tdd` | `79288be15c67b849f22b6572056601090fd20913` | yes |
+| tdd | `skills/engineering/tdd` | `79288be15c67b849f22b6572056601090fd20913` | no: shadows project `tdd` skills in Claude (see below) |
 | writing-for-agents | `skills/productivity/writing-for-agents` | `ad2925850efb8973a72d2e666f7a975f9a2d4a9b` | yes |
 
 Adaptation: `code-review/SKILL.md` no longer tells the user to run
@@ -56,6 +56,15 @@ live (Macs and personal VMs).
 
 `browser-harness` has a Claude adapter only (Macs). Its target,
 `~/.agents/skills/browser-harness`, is written by the browser-harness install.
+
+## Name clashes with project skills
+
+In Claude Code, a personal skill (`~/.claude/skills`) runs instead of a project
+skill (`.claude/skills`) with the same name. A Claude adapter must therefore not
+reuse a name that a project defines, or it shadows the project's skill. On
+2026-09-30, `foodics/repos/cashflow/cashflow-api` had a project `tdd`, so `tdd`
+has no Claude adapter. Before adding an adapter, check for clashes:
+`find ~/Code -maxdepth 6 -path '*/.claude/skills/<name>'`.
 
 ## Deferred
 
