@@ -8,10 +8,19 @@ Host *
 # Work and personal SSH hosts land here, decrypted.
 Include ~/.ssh/config.d/*
 
-# Multipass dev VMs, by tailnet name.
+# Multipass dev VMs, by tailnet name. Kept alongside the *.local block below
+# until Phase 3 passes (fleet-topology.md Phase 2 step 7) — removing this early
+# makes as-dev/fdx-dev unreachable by their old name.
 Host fdx-dev as-dev
 	User ubuntu
 
+{{ if eq .kind "mac" -}}
+# Dev boxes launched by provision/new-box, reached over plain SSH via mDNS
+# (D7/D16 — no Tailscale on Multipass dev boxes). Only a Mac resolves
+# <name>.local this way; a VM has no mDNS client configured for it.
+Host *.local
+	User ubuntu
+{{ end -}}
 # The Macs hosting them. These tailnet names are authoritative (they match the
 # admin console); MagicDNS resolves them. User matters from inside a VM, where
 # the local user is ubuntu. Tailscale SSH is the primary path between fleet

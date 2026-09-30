@@ -21,8 +21,10 @@ and is installed by the VM's cloud-init):
 
 > **Step 0 — age key.** Every class decrypts at least one file
 > (`~/.config/op/env`), so `init --apply` aborts on a box without the identity.
-> Provision it first, from any existing machine (the new box has no tailscale
-> yet, so push from an old one, or use a USB stick / password manager):
+> `provision/new-box` does this step automatically for a dev VM. For anything
+> else (a workstation reinstall, a prod box), provision it first, from any
+> existing machine (the new box has no Tailscale yet, so push from an old one,
+> or use a USB stick / password manager):
 >
 > ```sh
 > # on an existing machine, to the new box's reachable address
@@ -44,18 +46,18 @@ sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply shahwan42/shdots
 #    run_onchange_after_20-mise-install.sh (mise install).
 ```
 
-**Creating the box first, if it's a VM.** Dev VMs come from one cloud-init file plus a
-launcher, run on the Mac that will own the VM:
+**Creating the box first, if it's a VM.** `provision/new-box` does the whole thing —
+launch, age key, SSH key + GitHub registration, `chezmoi init --apply`, mise priming, and
+the verification checks — with no manual step except AI-CLI sign-in:
 
 ```sh
 cd ~/.local/share/chezmoi/provision
-./launch-dev-vm.sh as-dev                              # personal VM — 6 cpu / 12G / 220G
-./launch-dev-vm.sh fdx-dev                             # work VM — same spec
+./new-box as-dev --role personal                       # personal VM — 6 cpu / 12G / 220G
+./new-box fdx-dev --role work                           # work VM — same spec
 ```
 
-That handles everything unattended — Docker, Tailscale, Eternal Terminal, zsh, mise, staged
-ufw rules — and prints the interactive remainder (tailscale auth, age key, SSH key,
-`GITHUB_TOKEN`, then the two commands above). See `provision/README.md`.
+Dev boxes reach the Mac (and vice versa) over plain SSH via mDNS (`<name>.local`), not
+Tailscale — that stays prod-only. See `provision/README.md`.
 
 After apply, open a fresh login shell. On a Mac, install Homebrew first if the
 machine is truly fresh (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`),

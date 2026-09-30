@@ -138,7 +138,8 @@ there is no rendered copy):
 Two kinds of request:
 
 1. **Launch or relaunch one VM at a different size** — pass `--cpus` / `--memory` /
-   `--disk` as one-off flags to `launch-dev-vm.sh`. Change nothing in the repo.
+   `--disk` as one-off flags to `provision/new-box` (which passes them through to
+   `launch-dev-vm.sh`). Change nothing in the repo.
 2. **Make a new size the default** — change the constant, then grep the repo for
    each old value you changed and fix every comment and doc that quotes it (this
    section, both `README.md` files, the `provision/*` file headers).
@@ -146,6 +147,16 @@ Two kinds of request:
 Never `multipass set` a running VM unless asked. Disk can only grow, and only while
 the VM is stopped; swap and timezone are baked in at launch, so changing them later
 is a manual in-guest step, not a relaunch.
+
+**Getting a new box:** `provision/new-box <name> --role personal|work` is the
+supported entry point — launch, age key, an SSH key generated on the box and
+registered with GitHub (auth + signing; github.foodics.com too for `--role work`),
+non-interactive `chezmoi init --apply`, mise priming, and the verification checks,
+end to end. `provision/new-box destroy <name>` deletes the box's GitHub
+authentication keys (never signing keys) and runs `multipass delete --purge <name>`
+(instance-scoped only — never a bare `multipass purge`). Dev boxes are reached from
+a Mac over plain SSH via mDNS (`<name>.local`), not Tailscale — Tailscale stays
+prod-only (fleet-topology.md D7). See `provision/README.md`.
 
 Toolchain: the VM OS is a shell — editor, git, host CLIs, coding agents, Docker.
 App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) run
