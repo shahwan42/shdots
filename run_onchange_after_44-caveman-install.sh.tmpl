@@ -60,14 +60,18 @@ else
 fi
 
 # The upstream unified installer asks Codex's skills CLI for every skill in
-# the repository. Install only Caveman's seven Codex skills so unrelated
-# shared skills under ~/.agents/skills remain outside this integration.
+# the repository. Install only the selected skills so unrelated shared skills
+# under ~/.agents/skills remain outside this integration: Caveman's seven, plus
+# four portable engineering workflows (investigate-first, safe-refactor,
+# verify-and-stop, migration). ~/.agents/skills is read by Codex and OpenCode;
+# Claude already gets the same four from the caveman plugin (caveman:*).
 if command -v codex >/dev/null 2>&1; then
   echo "caveman: installing selected Codex skills…"
   if "$NPX" -y skills add "JuliusBrussee/caveman#${CAVEMAN_REF}" \
       --skill cavecrew caveman caveman-commit caveman-compress \
-      caveman-help caveman-review caveman-stats -a codex --yes; then
-    hn codex-skills ok "release ${CAVEMAN_REF} Caveman skills installed"
+      caveman-help caveman-review caveman-stats \
+      investigate-first safe-refactor verify-and-stop migration -a codex --yes; then
+    hn codex-skills ok "release ${CAVEMAN_REF} selected skills installed"
   else
     echo "caveman: Codex skill install failed; retry after checking npx." >&2
     hn codex-skills fail "selected skill install failed for ${CAVEMAN_REF}"
