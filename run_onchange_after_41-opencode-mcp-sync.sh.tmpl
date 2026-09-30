@@ -151,6 +151,20 @@ if not isinstance(lsp_cfg, dict):
 lsp_cfg.update(lsp)
 data["lsp"] = lsp_cfg
 
+# Shared AI baseline (.chezmoitemplates/ai-baseline.md), rendered by chezmoi to
+# instructions/baseline.md. Referenced here rather than written into the global
+# AGENTS.md, which the Caveman installer owns. Other entries are preserved.
+baseline = {{ joinPath .chezmoi.homeDir ".config/opencode/instructions/baseline.md" | quote }}
+instructions = data.get("instructions", [])
+if instructions is None:
+    instructions = []
+if not isinstance(instructions, list):
+    print("opencode.jsonc: instructions is not a list; leaving file untouched", file=sys.stderr)
+    sys.exit(1)
+if baseline not in instructions:
+    instructions.append(baseline)
+data["instructions"] = instructions
+
 fd, tmp = tempfile.mkstemp(prefix="opencode.jsonc.", dir=str(path.parent))
 try:
     with os.fdopen(fd, "w") as fh:

@@ -4,3 +4,6 @@
 # mise.lock is no longer managed (versions are pinned in config.toml and
 # `lockfile = false`). Purge the orphan left on machines that had it.
 .config/mise/mise.lock
+# The mermaid rule moved into the shared AI baseline (.chezmoitemplates/ai-baseline.md);
+# Claude auto-loads ~/.claude/rules/*.md, so a leftover copy would load it twice.
+.claude/rules/mermaid-validation.md

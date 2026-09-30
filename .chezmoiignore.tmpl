@@ -1,4 +1,8 @@
-# Repository-only assets (never applied to $HOME).
+# Repository-only assets (never applied to $HOME). AGENTS.md / CLAUDE.md are
+# this repo's own agent instructions; the global AI baseline renders into each
+# tool's native global file instead (see AGENTS.md "AI tooling layout").
+AGENTS.md
+CLAUDE.md
 docs
 provision
 README.md
@@ -85,4 +89,21 @@ Library
 # The eod skill needs work tools (every Mac, work VMs) and is opt-in (the `eod`
 # prompt in .chezmoi.toml.tmpl). Not yet re-init'ed machines default to installed.
 .claude/skills/eod
+{{ end -}}
+
+{{ if not (stat (joinPath .chezmoi.homeDir ".agents/skills/browser-harness/SKILL.md")) -}}
+# The Claude browser-harness adapter links to the skill the browser-harness
+# install writes to ~/.agents/skills. Where that install has not written it
+# (VMs, older browser-harness releases), the link would dangle.
+.claude/skills/browser-harness
+{{ end -}}
+
+{{ if includeTemplate "has-personal" . -}}
+# Where Caveman is installed (script 44), Claude already has these four as
+# caveman:* plugin skills; an adapter would list each twice. Elsewhere (work
+# VMs) the adapter is Claude's only copy.
+.claude/skills/investigate-first
+.claude/skills/safe-refactor
+.claude/skills/verify-and-stop
+.claude/skills/migration
 {{ end -}}

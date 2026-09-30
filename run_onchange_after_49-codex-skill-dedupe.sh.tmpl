@@ -1,0 +1,20 @@
+{{- if stat (joinPath .chezmoi.homeDir ".agents/skills/browser-harness/SKILL.md") -}}
+#!/bin/sh
+# Codex reads both ~/.agents/skills and ~/.codex/skills, so a skill present in
+# both is listed twice. ~/.agents/skills is canonical. This script renders
+# empty (and so never runs) until the canonical copy exists; its content then
+# changes, so run_onchange_ runs it once on the next apply. A run_after_
+# script would re-run every apply, but keeps `chezmoi status` permanently
+# non-empty, which autoupdate reads as "not converged". Only removes a
+# Codex-only copy that is a lone SKILL.md for the same skill.
+set -u
+
+name=browser-harness
+dup="$HOME/.codex/skills/$name"
+if [ -d "$dup" ] && [ ! -L "$dup" ] && [ "$(ls -A "$dup")" = "SKILL.md" ] \
+    && grep -q "^name: $name\$" "$dup/SKILL.md"; then
+  rm -rf "$dup" && echo "codex-skill-dedupe: removed duplicate ~/.codex/skills/$name"
+fi
+
+exit 0
+{{ end -}}

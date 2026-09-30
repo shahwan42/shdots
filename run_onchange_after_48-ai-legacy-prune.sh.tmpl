@@ -1,0 +1,47 @@
+#!/bin/sh
+# One-shot cleanup of instruction files that the chezmoi-owned layout
+# replaces. Runs after every managed file has been written, so the replacements
+# exist first, and checks that before deleting anything; unrecognised content
+# is left alone (logged as `skip` to chezmoi-health). run_onchange_: it runs
+# once per version of this script. If its guard skips, the old files simply
+# stay (nothing is lost); edit this script to make it run again.
+set -u
+
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 48-ai-legacy-prune "$@" >/dev/null 2>&1 || :; }
+
+# ~/AGENTS.md and ~/CLAUDE.md used to be rendered from this repo's own
+# AGENTS.md / CLAUDE.md, so Claude (which loads every ancestor CLAUDE.md)
+# pulled the dotfiles-maintenance instructions into every project under ~.
+# Both are repository-only now (.chezmoiignore.tmpl), and .chezmoiremove
+# skips ignored targets, so delete the stale copies here. Their only
+# universal content (the codebase-memory section) now lives in the shared
+# baseline; require the adapters to carry it before deleting.
+BASELINE_MARK="## Codebase Knowledge Graph"
+adapters_ok=1
+for a in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
+  grep -qF "$BASELINE_MARK" "$a" 2>/dev/null || adapters_ok=0
+done
+
+if [ "$adapters_ok" -ne 1 ]; then
+  hn instructions skip "baseline adapters missing; kept ~/AGENTS.md and ~/CLAUDE.md"
+else
+  f="$HOME/CLAUDE.md"
+  if [ -f "$f" ] && [ ! -L "$f" ]; then
+    if [ "$(cat "$f")" = "@AGENTS.md" ]; then
+      rm -f "$f" && echo "ai-legacy: removed stale ~/CLAUDE.md"
+    else
+      hn CLAUDE.md skip "~/CLAUDE.md is not the old rendered file; left in place"
+    fi
+  fi
+  f="$HOME/AGENTS.md"
+  if [ -f "$f" ] && [ ! -L "$f" ]; then
+    if [ "$(head -n 1 "$f")" = "# Dotfiles maintenance instructions" ]; then
+      rm -f "$f" && echo "ai-legacy: removed stale ~/AGENTS.md"
+    else
+      hn AGENTS.md skip "~/AGENTS.md is not the old rendered file; left in place"
+    fi
+  fi
+fi
+
+exit 0

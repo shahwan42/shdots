@@ -76,7 +76,11 @@ if [ ! -x "$CBM_BIN" ]; then
     # env.zsh already handles and which is chezmoi-managed — snapshot & restore
     # so it doesn't register as drift.
     _zbak=$(mktemp 2>/dev/null) && cp "$HOME/.zshrc" "$_zbak" 2>/dev/null
-    curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash \
+    # --skip-config: this script and 41/43 register the MCP server with each
+    # client. Without it the installer also writes instruction blocks into
+    # ~/.codex/AGENTS.md and ~/.config/opencode/AGENTS.md plus Claude hooks
+    # and skills, and the global instruction layer belongs to chezmoi.
+    curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config \
       || { echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
            hn codebase-memory-mcp fail "install.sh exited non-zero"; }
     [ -n "${_zbak:-}" ] && [ -f "$_zbak" ] && cp "$_zbak" "$HOME/.zshrc" && rm -f "$_zbak"
