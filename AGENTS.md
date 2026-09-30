@@ -244,17 +244,21 @@ their own `AGENTS.md`, `.agents/skills`, and MCP config.
   each tool's native global file: `dot_codex/AGENTS.md.tmpl`,
   `dot_claude/CLAUDE.md.tmpl` (plus Claude-only lines), and
   `dot_config/opencode/instructions/baseline.md.tmpl` (referenced from
-  `opencode.jsonc` `instructions` by script 41; the global OpenCode
-  `AGENTS.md` belongs to the Caveman installer). Edit the baseline once.
+  `opencode.jsonc` `instructions` by script 41). Edit the baseline once.
+  `~/.config/opencode/AGENTS.md` is create-only (`create_AGENTS.md`): it must
+  exist, or OpenCode falls back to `~/.claude/CLAUDE.md` and loads the
+  baseline twice; Caveman appends its fenced block to it.
+- **Codebase Memory** is installed with `--skip-config` (script 40), so it
+  never writes instruction files; scripts 40/41/43 register its MCP server.
 - **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, read
   natively by Codex and OpenCode. Provenance and the upgrade flow are in
   `docs/ai/skills.md`. Never make `dot_agents/skills` `exact_`: installers
   (Caveman, `npx skills`, herdr, browser-harness) also write there.
 - **Claude adapter:** `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
   Claude-only skills (`eod`, `qa-manual`) stay under `dot_claude/skills`.
-  Claude runs a personal skill over a same-named project skill, so never add
-  an adapter whose name a project under `~/Code` already uses (see
-  `docs/ai/skills.md`).
+- **Project skills win.** Claude and OpenCode both let a global skill beat a
+  same-named project skill, so never deploy a global skill (or adapter) whose
+  name a project under `~/Code` already uses. See `docs/ai/skills.md`.
 - **Ownership (Mac):** Codex = Homebrew cask, Claude = native installer,
   OpenCode = mise. VMs: all three via mise.
 - **Deferred parity work:** `docs/plans/ai-tooling-followups.md`.
