@@ -50,11 +50,15 @@ Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
   `skill` command and no skill file. Claude gets no adapter on either. Upgrade
   browser-harness there, or install its skill into `~/.agents/skills`; script
   49 then removes the Codex-only copy on the next apply.
-- **as-dev still has `npx skills`-owned Matt Pocock copies** (including `tdd`)
-  in `~/.agents/skills`, outside chezmoi. They are migration input; prune them
-  when the VM-only skills are triaged.
-- **Codex doctor `state.rollout_db_parity` warning on as-host.** Codex's own
-  thread state; not configuration. Leave to Codex unless it causes problems.
+- **as-dev skill-lock bookkeeping (known, retiring VM).** as-dev has
+  `npx skills`-owned Matt Pocock copies (including `tdd`) in
+  `~/.agents/skills`, outside chezmoi. The first apply overwrites its
+  `code-review` with the chezmoi copy, which leaves a stale `code-review`
+  record in `~/.agents/.skill-lock.json`. Not a blocker; do not edit as-dev
+  just for this. Prune when the VM-only skills are triaged or the VM retires.
+- **Codex doctor `state.rollout_db_parity` warning (non-blocking runtime
+  state).** It compares Codex's rollout files with its thread database, which
+  is conversation state, not configuration. Not fixable or owned by chezmoi.
 - **Caveman skill selection differs by machine.** Both machines pin Caveman
   `v2.6.0`. as-dev has the release's full skill set (`caveman-discover`,
   `caveman-explore`, `lean-build`, `surgical-patch`, and others) in
