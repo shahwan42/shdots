@@ -1,4 +1,4 @@
-# Mermaid diagram validation
+## Mermaid diagram validation
 
 Every mermaid diagram you generate — any type (flowchart, sequence, state, ER, class,
 gantt, pie, …) in any output (chat replies, markdown files, SDDs, Confluence/Jira pages,

@@ -1,8 +1,10 @@
 # Dotfiles maintenance instructions
 
-This home directory is managed by chezmoi. The Git repository at
-`~/.local/share/chezmoi` is the source of truth; files such as `~/.zshrc` are
-rendered outputs.
+This repository (`~/.local/share/chezmoi`) is the chezmoi source for the home
+directory and the source of truth; files such as `~/.zshrc` are rendered
+outputs. This file and `CLAUDE.md` are repository-only (`.chezmoiignore.tmpl`):
+they apply to agents working in this repository, never to other projects. Run
+dotfiles work from here, not from a bare `~`.
 
 > **A push auto-deploys fleet-wide within 6 hours.** Every machine runs a
 > chezmoi auto-update timer (launchd on Macs, systemd on VMs) that pulls and
@@ -232,18 +234,23 @@ GitHub skip for script 40 or 43 and the user wants it resolved. Point them at
 `mcp-github-register`. OpenCode does not need the helper because it reads
 its tokens from `~/.config/zsh/secrets.zsh`.
 
-<!-- codebase-memory-mcp:start -->
-# Codebase Knowledge Graph (codebase-memory-mcp)
+## AI tooling layout
 
-When working in a codebase that is indexed by codebase-memory-mcp, prefer its
-graph tools over grep, globbing, or file search for code discovery:
+Global agent instructions and portable skills are owned here; project repos own
+their own `AGENTS.md`, `.agents/skills`, and MCP config.
 
-1. `search_graph` — find functions, classes, routes, and variables
-2. `trace_path` — inspect callers and callees
-3. `get_code_snippet` — read specific function or class source
-4. `query_graph` — run complex graph queries
-5. `get_architecture` — obtain a high-level project summary
-
-Fall back to text search for string literals, error messages, configuration,
-non-code files, or when the graph is insufficient.
-<!-- codebase-memory-mcp:end -->
+- **Shared instruction baseline:** `.chezmoitemplates/ai-baseline.md` (output
+  preferences, mermaid rule, codebase-memory graph guidance). Rendered into
+  each tool's native global file: `dot_codex/AGENTS.md.tmpl`,
+  `dot_claude/CLAUDE.md.tmpl` (plus Claude-only lines), and `dot_config/opencode/instructions/baseline.md.tmpl` (referenced
+  from `opencode.jsonc` `instructions` by script 41; the global OpenCode
+  `AGENTS.md` belongs to the Caveman installer). Edit the baseline once.
+- **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, read
+  natively by Codex and OpenCode. Provenance and the upgrade flow are in
+  `docs/ai/skills.md`. Never make `dot_agents/skills` `exact_`: installers
+  (Caveman, `npx skills`, herdr, browser-harness) also write there.
+- **Claude adapter:** `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
+  Claude-only skills (`eod`, `qa-manual`) stay under `dot_claude/skills`.
+- **Ownership (Mac):** Codex = Homebrew cask, Claude = native installer,
+  OpenCode = mise. VMs: all three via mise.
+- **Deferred parity work:** `docs/plans/ai-tooling-followups.md`.
