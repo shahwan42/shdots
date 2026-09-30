@@ -17,6 +17,8 @@ init event.
 
 ## Vendored skills
 
+### From mattpocock/skills
+
 Source: [`mattpocock/skills`](https://github.com/mattpocock/skills) at commit
 `c55ee46073ed923f86ce59a5eb3b6d895095d1b7`. The skills were installed on as-dev
 with `npx skills` on 2026-09-19 and imported from there on 2026-09-30. Every
@@ -34,7 +36,6 @@ difference is the adaptation listed below.
 | implement-spec | `skills/in-progress/implement-spec` | `1ec4cd3fbcc62d57cd32cf1d907c4c4761355e2b` | yes |
 | research | `skills/engineering/research` | `0a6796c5667e95ed2301ba7381c123b4acb2ae1a` | yes |
 | resolving-merge-conflicts | `skills/engineering/resolving-merge-conflicts` | `77f0d7de3143abbf03e55a63522d30bff31ae908` | yes |
-| tdd | `skills/engineering/tdd` | `79288be15c67b849f22b6572056601090fd20913` | no: shadows project `tdd` skills in Claude (see below) |
 | writing-for-agents | `skills/productivity/writing-for-agents` | `ad2925850efb8973a72d2e666f7a975f9a2d4a9b` | yes |
 
 Adaptation: `code-review/SKILL.md` no longer tells the user to run
@@ -44,32 +45,58 @@ tracker CLI (such as `gh issue view`), and otherwise skips issue references.
 
 `agents/openai.yaml` in each skill is upstream Codex metadata, not generated.
 
-## Installer-owned skills in this tranche
+### From Caveman
 
-`investigate-first`, `safe-refactor`, `verify-and-stop`, and `migration` come
-from [`JuliusBrussee/caveman`](https://github.com/JuliusBrussee/caveman)
-`v2.6.0`. Script 44 installs them into `~/.agents/skills` with `npx skills add`,
-so they are not vendored here. Their `SKILL.md` files match `v2.6.0` and the
-as-dev copies. Claude has no adapter for them, because the `caveman` plugin
-already provides them as `caveman:*`. Script 44 runs only where personal tools
-live (Macs and personal VMs).
+Source: [`JuliusBrussee/caveman`](https://github.com/JuliusBrussee/caveman)
+`v2.6.0` (`b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3`), `skills/<name>/`.
+Byte-identical, no adaptations. The same release that script 44 pins.
 
-`browser-harness` has a Claude adapter only (Macs). Its target,
-`~/.agents/skills/browser-harness`, is written by the browser-harness install.
+| Skill | Claude adapter |
+|---|---|
+| investigate-first | only where Caveman is not installed (work VMs); elsewhere the `caveman` plugin provides `caveman:investigate-first` |
+| safe-refactor | same |
+| verify-and-stop | same |
+| migration | same |
+
+They are vendored rather than installed by script 44, because they are plain
+engineering workflows (no Caveman Cloud, no credentials, no paths), and script
+44 runs only where personal tools live. Vendoring gives every machine,
+including work VMs, the same copy. When script 44's Caveman pin moves, re-copy
+them from the new tag.
+
+`browser-harness` is not vendored: the browser-harness install writes the
+canonical copy to `~/.agents/skills/browser-harness` (newer releases print it
+with `browser-harness skill`). Claude gets a symlink adapter only where that
+file exists (`.chezmoiignore.tmpl` uses `stat`). Script 48 removes the older
+duplicate in `~/.codex/skills/browser-harness` wherever the canonical copy
+exists.
 
 ## Name clashes with project skills
 
-In Claude Code, a personal skill (`~/.claude/skills`) runs instead of a project
-skill (`.claude/skills`) with the same name. A Claude adapter must therefore not
-reuse a name that a project defines, or it shadows the project's skill. On
-2026-09-30, `foodics/repos/cashflow/cashflow-api` had a project `tdd`, so `tdd`
-has no Claude adapter. Before adding an adapter, check for clashes:
-`find ~/Code -maxdepth 6 -path '*/.claude/skills/<name>'`.
+Project skills must win. Neither Claude nor OpenCode guarantees that:
+
+- Claude runs a personal skill (`~/.claude/skills`) over a project skill
+  (`.claude/skills`) with the same name.
+- OpenCode resolved `tdd` to `~/.agents/skills/tdd` inside
+  `foodics/repos/cashflow/cashflow-api`, over that project's `.claude/skills/tdd`.
+
+So a global skill must not use a name that any project defines. `tdd`
+(mattpocock `skills/engineering/tdd`, skillFolderHash
+`79288be15c67b849f22b6572056601090fd20913`) was removed from the global set on
+2026-09-30 for this reason; `implement` still mentions `/tdd`, which resolves
+to the project's skill where one exists. Before adding a global skill, check:
+
+```sh
+find ~/Code -maxdepth 7 -not -path '*/node_modules/*' \( -path '*/.claude/skills/<name>' \
+  -o -path '*/.agents/skills/<name>' -o -path '*/.opencode/skills/<name>' \
+  -o -path '*/.claude/commands/<name>.md' \)
+```
 
 ## Deferred
 
 `to-spec` and `to-tickets` need the tracker setup from
-`/setup-matt-pocock-skills`. See `docs/plans/ai-tooling-followups.md`.
+`/setup-matt-pocock-skills`. `tdd` needs a non-clashing name (for example
+`test-driven-development`) before it can return. See `docs/plans/ai-tooling-followups.md`.
 
 ## Upgrading a vendored skill
 
