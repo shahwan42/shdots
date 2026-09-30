@@ -44,13 +44,29 @@ Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
 - **`find-skills` divergence.** It is owned by `npx skills`, and the Mac and VM
   copies differ. Either pin it with `npx skills add` in a run-script or drop
   it.
-- **Caveman version skew.** as-dev runs a newer Caveman than the pinned
-  `v2.6.0` (`v2.7.0` exists). Bump the pin in script 44 as a separate
-  reviewed change.
+- **Caveman skill selection differs by machine.** Both machines pin Caveman
+  `v2.6.0`. as-dev has the release's full skill set (`caveman-discover`,
+  `caveman-explore`, `lean-build`, `surgical-patch`, and others) in
+  `~/.agents/skills`. The Mac installs only script 44's `--skill` subset.
+  Decide which of the extra skills belong in that list. `v2.7.0` exists, and
+  bumping to it is a separate reviewed change.
 - **Work VM coverage.** Script 44 runs only where personal tools live, so
   `fdx-dev` does not get `investigate-first`, `safe-refactor`,
   `verify-and-stop`, or `migration`. Vendor them, or split the skill install
   out of the Caveman gate.
+- **OpenCode on the work VM may load the baseline twice.** Script 44 is
+  personal-only, so `fdx-dev` has no Caveman `~/.config/opencode/AGENTS.md`.
+  OpenCode then falls back to `~/.claude/CLAUDE.md` (which holds the baseline)
+  as well as the `instructions` baseline file. Check this on `fdx-dev`. If it
+  is confirmed, render a minimal global OpenCode `AGENTS.md` there, or set
+  `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT`.
+- **Global `tdd` shadows `cashflow-api`'s project `tdd` in OpenCode.** OpenCode
+  reads project `.claude/skills`, but in `cashflow-api` `tdd` resolved to
+  `~/.agents/skills/tdd`. Claude is unaffected, because it has no `tdd`
+  adapter; Codex is unaffected, because it does not read `.claude/skills`. The
+  fix belongs to the project (for example, mirroring the skill to
+  `.agents/skills` if OpenCode prefers that location), or renaming the global
+  skill.
 - **Linear and Pencil MCP are not declared in chezmoi.** Linear comes from a
   claude.ai connector. Pencil writes `~/.config/opencode/opencode.json` itself
   (the Pen.app binary path). Both are Mac-native and work today. Only declare

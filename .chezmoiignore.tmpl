@@ -48,6 +48,9 @@ README.md
 {{ if ne .kind "mac" -}}
 # macOS-only configuration.
 Brewfile
+# browser-harness (Chrome over CDP) is installed only on Macs; the Claude
+# adapter symlink would dangle elsewhere.
+.claude/skills/browser-harness
 .config/ghostty
 .config/kitty
 .config/flameshot
