@@ -132,6 +132,9 @@ alias lsa='ls -lah'
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
 # (mise was activated at the top of this file.)
+if (( $+commands[wt] )); then
+  eval "$(command wt config shell init zsh)"
+fi
 (( $+commands[zoxide] )) && { eval "$(zoxide init zsh)"; alias j='z'; }
 if (( $+commands[fzf] )) && [[ -t 0 && -t 1 ]]; then
   source <(fzf --zsh)

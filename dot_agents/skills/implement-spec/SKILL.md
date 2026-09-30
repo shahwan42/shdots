@@ -22,7 +22,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 3. Create a branch, and a draft PR. The PR should be marked as 'closing' the spec issue and tickets.
 
-4. Use **implementer subagents** to implement each ticket. Each implementer subagent should work in its own worktree, on its own branch.
+4. Use **implementer subagents** to implement each ticket. Each implementer subagent should work in its own worktree, on its own branch. Normally create it through Worktrunk with `wt switch --create <branch> --base=<ref>`, using the intended implementation base (`--base=@` for current HEAD). Let Worktrunk choose the worktree path.
 
 5. Once an **implementer subagent** completes, merge its work to the PR branch with a **merger subagent**.
 
@@ -32,4 +32,4 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 8. Mark the PR as ready for review.
 
-9. Clean up all **implementer subagent** worktrees.
+9. Clean up all **implementer subagent** worktrees, normally through Worktrunk with `wt remove <branch>` after their work has been merged.
