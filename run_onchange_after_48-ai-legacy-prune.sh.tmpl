@@ -1,20 +1,22 @@
 #!/bin/sh
-# One-shot cleanup of AI config that the chezmoi-owned layout replaces. Runs
-# after every managed file has been written, so the replacements exist first;
-# each step also checks that before deleting anything, and leaves unrecognised
-# content alone (logged as `skip` to chezmoi-health).
+# One-shot cleanup of instruction files that the chezmoi-owned layout
+# replaces. Runs after every managed file has been written, so the replacements
+# exist first, and checks that before deleting anything; unrecognised content
+# is left alone (logged as `skip` to chezmoi-health). run_onchange_: it runs
+# once per version of this script. If its guard skips, the old files simply
+# stay (nothing is lost); edit this script to make it run again.
 set -u
 
 HN="$HOME/.local/bin/chezmoi-health"
 hn() { [ -x "$HN" ] && "$HN" note 48-ai-legacy-prune "$@" >/dev/null 2>&1 || :; }
 
-# 1. ~/AGENTS.md and ~/CLAUDE.md used to be rendered from this repo's own
-#    AGENTS.md / CLAUDE.md, so Claude (which loads every ancestor CLAUDE.md)
-#    pulled the dotfiles-maintenance instructions into every project under ~.
-#    Both are repository-only now (.chezmoiignore.tmpl), and .chezmoiremove
-#    skips ignored targets, so delete the stale copies here. Their only
-#    universal content (the codebase-memory section) now lives in the shared
-#    baseline; require the adapters to carry it before deleting.
+# ~/AGENTS.md and ~/CLAUDE.md used to be rendered from this repo's own
+# AGENTS.md / CLAUDE.md, so Claude (which loads every ancestor CLAUDE.md)
+# pulled the dotfiles-maintenance instructions into every project under ~.
+# Both are repository-only now (.chezmoiignore.tmpl), and .chezmoiremove
+# skips ignored targets, so delete the stale copies here. Their only
+# universal content (the codebase-memory section) now lives in the shared
+# baseline; require the adapters to carry it before deleting.
 BASELINE_MARK="## Codebase Knowledge Graph"
 adapters_ok=1
 for a in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
@@ -39,21 +41,6 @@ else
     else
       hn AGENTS.md skip "~/AGENTS.md is not the old rendered file; left in place"
     fi
-  fi
-fi
-
-# 2. Codex reads both ~/.agents/skills and ~/.codex/skills, so a copy of
-#    browser-harness in each lists the skill twice. ~/.agents/skills is the
-#    canonical location (the browser-harness install writes it). Remove the
-#    Codex-only copy only where the canonical one exists and the Codex copy is
-#    a lone SKILL.md for the same skill.
-canon="$HOME/.agents/skills/browser-harness/SKILL.md"
-dup="$HOME/.codex/skills/browser-harness"
-if [ -f "$canon" ] && [ -d "$dup" ] && [ ! -L "$dup" ]; then
-  if [ "$(ls -A "$dup")" = "SKILL.md" ] && grep -q '^name: browser-harness$' "$dup/SKILL.md"; then
-    rm -rf "$dup" && echo "ai-legacy: removed duplicate ~/.codex/skills/browser-harness"
-  else
-    hn codex-browser-harness skip "~/.codex/skills/browser-harness has extra files; left in place"
   fi
 fi
 

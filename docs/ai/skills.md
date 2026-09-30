@@ -67,9 +67,10 @@ them from the new tag.
 `browser-harness` is not vendored: the browser-harness install writes the
 canonical copy to `~/.agents/skills/browser-harness` (newer releases print it
 with `browser-harness skill`). Claude gets a symlink adapter only where that
-file exists (`.chezmoiignore.tmpl` uses `stat`). Script 48 removes the older
-duplicate in `~/.codex/skills/browser-harness` wherever the canonical copy
-exists.
+file exists (`.chezmoiignore.tmpl` uses `stat`). Script 49
+(`run_onchange_after_49-codex-skill-dedupe.sh.tmpl`) renders only once the
+canonical copy exists, then removes the older `~/.codex/skills/browser-harness`
+on that apply, so Codex lists it once.
 
 ## Name clashes with project skills
 

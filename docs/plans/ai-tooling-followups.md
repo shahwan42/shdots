@@ -49,7 +49,7 @@ Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
   `~/.agents/skills` copy; fdx-host runs browser-harness 0.1.0, which has no
   `skill` command and no skill file. Claude gets no adapter on either. Upgrade
   browser-harness there, or install its skill into `~/.agents/skills`; script
-  48 then removes the Codex-only copy.
+  49 then removes the Codex-only copy on the next apply.
 - **as-dev still has `npx skills`-owned Matt Pocock copies** (including `tdd`)
   in `~/.agents/skills`, outside chezmoi. They are migration input; prune them
   when the VM-only skills are triaged.
