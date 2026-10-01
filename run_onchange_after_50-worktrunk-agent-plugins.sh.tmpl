@@ -1,0 +1,85 @@
+#!/bin/sh
+# Installs Worktrunk's integration into each coding agent present on this
+# machine. Worktrunk's own installers own the generated plugin state (Claude
+# and Codex marketplaces, ~/.config/opencode/plugins/worktrunk.ts); chezmoi
+# owns only this declaration and reruns it when the rendered text changes.
+#
+# What each integration does (verified against wt 0.80.0, 2026-10-01):
+#   claude    activity markers in `wt list` + WorktreeCreate/WorktreeRemove
+#             hooks, so Claude's native worktree isolation (Agent isolation,
+#             EnterWorktree/ExitWorktree) goes through `wt switch --create` /
+#             `wt remove` and the global worktree-path.
+#   codex     activity markers only. Codex must still run `wt switch --create`
+#             and `wt remove` itself (see .chezmoitemplates/worktrees.md).
+#             Codex skips plugin hooks until they are trusted once in the TUI
+#             (`/hooks`); there is no CLI to trust them, so that step stays
+#             manual per machine.
+#   opencode  activity markers only; worktree lifecycle stays explicit `wt`.
+#
+# Never runs `wt config plugins claude install-statusline`: chezmoi owns the
+# Claude statusline (dot_claude/executable_statusline.sh).
+#
+# Rerun triggers, rendered so a change here reruns the script:
+#   worktrunk pin: {{ include "dot_config/mise/config.toml.tmpl" | regexFind "worktrunk = \"[^\"]*\"" }}
+{{- /* Presence is checked in fixed directories, the same ones PATH gets
+       below, never via lookPath: autoupdate runs chezmoi under launchd's
+       minimal PATH, and a PATH-dependent fingerprint would change between
+       that and an interactive apply, rerunning the script every time. */}}
+{{- $dirs := list (joinPath .chezmoi.homeDir ".local/share/mise/shims") (joinPath .chezmoi.homeDir ".local/bin") "/opt/homebrew/bin" }}
+{{- $present := list }}
+{{- range $agent := list "claude" "codex" "opencode" }}
+{{-   $found := false }}
+{{-   range $dir := $dirs }}
+{{-     if stat (joinPath $dir $agent) }}{{ $found = true }}{{ end }}
+{{-   end }}
+{{-   if $found }}{{ $present = append $present $agent }}{{ end }}
+{{- end }}
+#   agents present at render: {{ if $present }}{{ join " " $present }}{{ else }}none{{ end }}
+#
+# An absent agent is skipped. A present agent whose install fails makes this
+# script exit non-zero, unlike the fleet's other non-fatal sync scripts: a
+# zero exit would record the hash and never retry, leaving the integration
+# silently missing.
+set -u
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 50-worktrunk-agent-plugins "$@" >/dev/null 2>&1 || :; }
+
+# chezmoi apply can run from a bare shell (autoupdate). Agents come from mise,
+# ~/.local/bin, and Homebrew depending on the machine class.
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
+
+if ! command -v wt >/dev/null 2>&1; then
+  echo "worktrunk-agent-plugins: wt not found (mise install may have failed)." >&2
+  hn wt fail "wt binary not found on PATH or in mise shims"
+  exit 1
+fi
+
+failed=0
+
+# install <agent>: run Worktrunk's installer for one agent if its CLI exists.
+# Claude and OpenCode installers skip when already current; Codex re-adds its
+# marketplace and plugin, which leaves config.toml unchanged.
+install() {
+  agent="$1"
+  if ! command -v "$agent" >/dev/null 2>&1; then
+    echo "worktrunk-agent-plugins: $agent not installed — skipping."
+    hn "$agent" skip "$agent CLI not found"
+    return 0
+  fi
+  if wt config plugins "$agent" install --yes; then
+    hn "$agent" ok "wt config plugins $agent install succeeded"
+  else
+    echo "worktrunk-agent-plugins: $agent install failed; rerun 'wt config plugins $agent install --yes'." >&2
+    hn "$agent" fail "wt config plugins $agent install exited non-zero"
+    failed=1
+  fi
+}
+
+install claude
+install codex
+install opencode
+
+exit "$failed"
