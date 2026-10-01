@@ -22,7 +22,7 @@ and is installed by the VM's cloud-init):
 > **Step 0 — age key.** Every class decrypts at least one file
 > (`~/.config/op/env`), so `init --apply` aborts on a box without the identity.
 > `provision/new-box` does this step automatically for a dev VM. For anything
-> else (a workstation reinstall, a prod box), provision it first, from any
+> else (a workstation reinstall), provision it first, from any
 > existing machine (the new box has no Tailscale yet, so push from an old one,
 > or use a USB stick / password manager):
 >
@@ -56,8 +56,8 @@ cd ~/.local/share/chezmoi/provision
 ./new-box fdx-dev --role work                           # work VM — same spec
 ```
 
-Dev boxes reach the Mac (and vice versa) over plain SSH via mDNS (`<name>.local`), not
-Tailscale — that stays prod-only. See `provision/README.md`.
+Dev boxes reach the Mac (and vice versa) over plain SSH via mDNS (`<name>.local`);
+dev boxes don't use Tailscale. See `provision/README.md`.
 
 After apply, open a fresh login shell. On a Mac, install Homebrew first if the
 machine is truly fresh (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`),

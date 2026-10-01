@@ -88,7 +88,7 @@ validate_name() {
     -*|*-) die "box name must not start or end with a dash: '$name'" ;;
   esac
   case "$name" in
-    *-prod-*) die "'$name' contains '-prod-', reserved for prod boxes (not chezmoi-managed, see fleet-topology.md D4)" ;;
+    *-prod-*) die "'$name' contains '-prod-', reserved for prod boxes, which are managed in the infra repo, not here" ;;
   esac
   case "$name" in
     as-host|fdx-host|primary) die "'$name' is a reserved workstation name, not a dev box" ;;

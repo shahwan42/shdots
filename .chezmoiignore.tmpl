@@ -72,12 +72,6 @@ Library
 .ssh/authorized_keys
 {{ end -}}
 
-{{ if not (includeTemplate "has-personal" .) -}}
-# Personal SSH hosts (Hetzner) are only relevant where personal tools live
-# (every Mac, personal VMs).
-.ssh/config.d/shahwan
-{{ end -}}
-
 {{ if not (includeTemplate "has-work" .) -}}
 # Work SSH hosts are only relevant where work tools live (every Mac, work VMs).
 # (chezmoiignore matches TARGET paths — the encrypted_/.age source decorations

@@ -5,7 +5,8 @@
 Host *
 	IgnoreUnknown UseKeychain
 
-# Work and personal SSH hosts land here, decrypted.
+# Work SSH hosts land here, decrypted. Hosts managed outside shdots (the infra
+# repo) can drop files here too.
 Include ~/.ssh/config.d/*
 
 # Multipass dev VMs, by tailnet name. Kept alongside the *.local block below

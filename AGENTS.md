@@ -155,8 +155,8 @@ non-interactive `chezmoi init --apply`, mise priming, and the verification check
 end to end. `provision/new-box destroy <name>` deletes the box's GitHub
 authentication keys (never signing keys) and runs `multipass delete --purge <name>`
 (instance-scoped only — never a bare `multipass purge`). Dev boxes are reached from
-a Mac over plain SSH via mDNS (`<name>.local`), not Tailscale — Tailscale stays
-prod-only (fleet-topology.md D7). See `provision/README.md`.
+a Mac over plain SSH via mDNS (`<name>.local`); dev boxes don't use Tailscale
+(fleet-topology.md D7). See `provision/README.md`.
 
 Toolchain: the VM OS is a shell — editor, git, host CLIs, coding agents, Docker.
 App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) run

@@ -1,7 +1,8 @@
 # Fleet topology plan: one workstation, disposable boxes
 
 Status: **Phase 1 done (2026-09-23). Phase 2 done 2026-09-25, committed locally,
-not pushed (Ahmed approves). Phases 3–5 not started.**
+not pushed (Ahmed approves). Phases 3 and 5 not started. Prod boxes (old
+Phase 4) moved to the infra repo on 2026-10-01.**
 Owner: Ahmed. Written for any agent (Claude, Codex, OpenCode) picking this up.
 
 Read this whole file before starting a phase. Then re-check the live state
@@ -14,13 +15,15 @@ the phase's "State" when you finish or stop.
 ## 1. Goal
 
 Ahmed uses **one physical machine day to day** (as-host). Everything he develops
-on or deploys to is an Ubuntu **box** that can be recreated from this repo:
+on is an Ubuntu **box** that can be recreated from this repo:
 
 ```
 New Mac      -> chezmoi init shdots          -> ready to work (control plane)
 New dev box  -> provision/new-box <name>     -> ready to develop on, reached from the Mac
-New prod box -> provision/new-box --prod ... -> ready to receive deploys
 ```
+
+Prod/VPS boxes live in the infra repo. They are not chezmoi-managed, and they
+never hold the age key or the 1Password service-account token (D4).
 
 ## 2. Vocabulary and target topology
 
@@ -28,20 +31,17 @@ New prod box -> provision/new-box --prod ... -> ready to receive deploys
 |---|---|---|---|
 | **workstation** | `as-host` (primary), `fdx-host` (fallback twin) | `kind=mac`, `role=""` | Identity-neutral: carries personal **and** work tools. |
 | **dev box** | `as-dev` (personal), `fdx-dev` (work) | `kind=vm`, `role=personal\|work` | Disposable. Multipass on as-host today; maybe a VPS later. |
-| **prod box** | `as-prod-01`, `as-prod-02`, … | none — **not chezmoi-managed** | Personal projects only. Rebuildable, not disposable. |
 
 ```
-                        shdots (GitHub)
-          ┌────────────────┼──────────────────────┐
-     chezmoi init    cloud-init + chezmoi     cloud-init only
-          │                ▼                      ▼
-   WORKSTATION        DEV BOX                PROD BOX (as-prod-##)
-   as-host / fdx-host as-dev, fdx-dev        many apps per box
-   both identities    one identity each      Docker Compose + Caddy
-          │                ▲                      ▲
-          ├── plain SSH to <name>.local ──┘       │
-          └── Tailscale SSH + docker context ─────┘
-                                   public: 80/443 only; SSH over tailnet only
+              shdots (GitHub)
+          ┌────────┴──────────┐
+     chezmoi init    cloud-init + chezmoi
+          │                   ▼
+   WORKSTATION           DEV BOX
+   as-host / fdx-host    as-dev, fdx-dev
+   both identities       one identity each
+          │                   ▲
+          └── plain SSH to <name>.local
 ```
 
 Company infrastructure is out of scope. `fdx-host` keeps everything, including its
@@ -54,16 +54,16 @@ chezmoi auto-update timer.
 | D1 | Identity lives in the box, not the Mac. Macs get both personal and work tools; only a VM is asked for `role`. | One workstation must do both jobs; browser profiles and per-host config separate them. |
 | D2 | Gate tools with `includeTemplate "has-personal" .` / `"has-work" .`; gate work-VM-only things with `and (eq .kind "vm") (eq .role "work")`; never test a Mac's `role`. | A Mac's role is empty, so role tests silently fall into `else` branches. |
 | D3 | Names: *workstation* / *dev box* / *prod box*. Chezmoi keeps `kind = mac\|vm` (no rename). | Renaming values touches ~15 templates for no behaviour change. |
-| D4 | Prod boxes are **not** managed by chezmoi. All provisioning is cloud-init. | Every push auto-deploys within 6h; the age key and 1Password service-account token are shared. A prod box must hold neither. |
-| D5 | Prod deploys: `docker compose` over an SSH `docker context`; **caddy-docker-proxy** routes by container labels. | Remote docker contexts can't copy files, so a Caddyfile-per-app needs an extra SSH step; labels keep a deploy to one command. Docker-socket mount accepted. |
-| D6 | Prod firewall: **ufw only** (no provider firewall). Docker bypasses ufw, so only the edge Caddy stack may publish ports (80/443); everything else publishes nothing or binds `127.0.0.1:`. Enforced by a **pre-deploy check**, not `ufw-docker`. | Keeps the box simple; the check is cheap. |
-| D7 | Tailscale on prod (and any future VPS box) only. Local Multipass dev boxes use plain SSH to `<name>.local`. | Removes the auth key and node churn from disposable boxes. Ahmed never needs a dev box away from the laptop. |
+| D4 | Prod/VPS boxes are **not** managed by chezmoi; they live in the infra repo. | Every push auto-deploys within 6h; the age key and 1Password service-account token are shared. A prod box must hold neither. |
+| D5 | Moved to the infra repo. | |
+| D6 | Moved to the infra repo. | |
+| D7 | No Tailscale on local Multipass dev boxes; plain SSH to `<name>.local`. | Removes the auth key and node churn from disposable boxes. Ahmed never needs a dev box away from the laptop. |
 | D8 | Dev-box secrets (age key, 1Password service-account token) are **copied over SSH after launch**, never put in cloud-init user-data. | User-data persists under `/var/lib/cloud`. |
-| D9 | Prod joins the tailnet by hand: public port 22 stays open until Ahmed runs `tailscale up`, then a step closes it. On rebuild, Ahmed removes the old node in the admin console first. | No Tailscale auth/API key stored anywhere. |
+| D9 | Moved to the infra repo. | |
 | D10 | Dev boxes: one SSH key per box (`id_ed25519`), generated on each rebuild and registered with `gh` on github.com (and github.foodics.com for work boxes) as auth + signing. Delete the old box's **auth** key by title; keep old **signing** keys. | Background agents must push after Ahmed disconnects, so no agent forwarding. Keeping signing keys keeps old commits Verified. |
 | D11 | Box→Mac SSH is not allowed (Macs don't trust box keys). | Box keys rotate on every rebuild. Add back only when truly needed. |
-| D12 | Prod provider: Hetzner; netcup possible. Launchers are thin and per-provider; the cloud-init is shared. | |
-| D13 | Keep Eternal Terminal. | Useful for VPS boxes. |
+| D12 | Moved to the infra repo. | |
+| D13 | Keep Eternal Terminal. | Survives sleep and network changes. |
 | D14 | Work servers are reached from either Mac through the 1Password SSH agent, serving only fdx-host's key (1Password item `gvljlmfqa2z23h3ip2rchz36uu`). Never add more keys to work servers. | Extra keys there would raise questions. |
 | D15 | Shell tokens come from the managed `~/.config/zsh/secrets.zsh`, by 1Password UUID, never by title. It never exports `GITHUB_TOKEN`/`GH_ENTERPRISE_TOKEN`. | `gh` gives those vars precedence over its stored login. |
 | D16 | Multipass only for dev boxes today, but keep the dev cloud-init provider-neutral. | A dev VPS is possible later. |
@@ -83,7 +83,7 @@ chezmoi auto-update timer.
 
 **SSH keys after Phase 1:** each machine has one `~/.ssh/id_ed25519`. fdx-dev
 still also has `id_ed25519_foodics` (its work identity) until its Phase 3 rebuild.
-The retired `id_rsa` and `id_ed25519_hetzner` live in
+The retired `id_rsa` and the old per-host key live in
 `~/.ssh/retired-ssh-keys-2026-09/`. Public keys of the workstations are in
 `.chezmoidata/fleet.yaml`; signers in `dot_config/git/allowed_signers`.
 
@@ -190,7 +190,7 @@ Done 2026-09-23 in commits `66be6cd`, `cd07431`, `cfecd94`. Delivered:
 block removed (1Password and Chrome now shared); git `includeIf` for
 `~/Code/foodics/`; both GitHub MCPs on Macs; 1Password SSH agent for work hosts;
 `secrets.zsh`; `opencode.jsonc` create-only; as-host moved to `id_ed25519`;
-Hetzner key retired. All four machines converged, `chezmoi status` clean.
+old per-host key retired. All four machines converged, `chezmoi status` clean.
 
 Leftovers for Ahmed (at fdx-host's keyboard): `brew bundle`,
 `mcp-github-register`; rotate the Sonar token; on as-host
@@ -312,43 +312,6 @@ GitHub auth keys deleted.
 **Done when:** both boxes are rebuilt from `new-box`, reached only over
 `<name>.local`, `chezmoi status` clean, `chezmoi-health check` ok.
 
-### Phase 4 — Prod box
-
-**Goal:** `provision/new-box as-prod-01 --prod --provider multipass|hetzner`
-gives a box ready for `docker compose` deploys.
-
-**State:** not started. Try on a local Multipass box first (free), then Hetzner.
-
-**Files (new):** `provision/prod-cloud-init.yaml`, `provision/edge/compose.yaml`
-(caddy-docker-proxy), `provision/deploy` (Mac-side deploy script with the port
-check), per-provider launchers.
-
-**Cloud-init contents:** timezone, swap, chrony (with the Phase 2 fix),
-unattended security upgrades without auto-reboot, Docker Engine + Compose,
-Tailscale package (not joined), Eternal Terminal, a `deploy` user in the
-`docker` group with both workstation pubkeys, ufw: allow 80/443 and 22,
-`allow in on tailscale0`, deny everything else, enabled.
-
-**Steps**
-1. Launch. Ahmed runs `sudo tailscale up --ssh --hostname=as-prod-01` (D9).
-2. A `close-public-ssh` step removes the public 22 rule, but **refuses** unless
-   `tailscale0` is up and an SSH over the tailnet succeeds.
-3. Start the edge stack: caddy-docker-proxy on the external network `edge`,
-   publishing 80/443, with its `/data` on a named volume (Let's Encrypt allows
-   5 duplicate certificates a week; a rebuild loop would hit it).
-4. Mac side: `docker context create as-prod-01 --docker host=ssh://deploy@as-prod-01`.
-5. `provision/deploy <app-dir> as-prod-01`: run `docker compose config --format json`,
-   **fail** if any service outside the edge stack publishes a port not bound to
-   `127.0.0.1`, then `docker --context as-prod-01 compose up -d`.
-6. Deploy a hello-world app with Caddy labels and check HTTPS works.
-
-**Stable across rebuilds:** tailnet name (remove the old node first), public IP
-(Hetzner Primary IP / reserved IP), Caddy `/data`, app data off the root disk.
-
-**Done when:** a rebuilt `as-prod-01` serves the hello-world app over HTTPS,
-public scan shows only 80/443, and the deploy check rejects a compose file that
-publishes `5432:5432`.
-
 ### Phase 5 — Docs and fallback drill
 
 **State:** not started.
@@ -356,15 +319,14 @@ publishes `5432:5432`.
 1. Rewrite the README "Machine topology" section to section 2 of this file
    (validate any mermaid with `mmdc` first).
 2. Fallback drill on **fdx-host**: create a throwaway dev box with `new-box`,
-   deploy to a prod box, reach the work servers. Fix whatever needs as-host.
+   reach the work servers. Fix whatever needs as-host.
 3. Mark this plan done.
 
 ---
 
 ## 7. Open questions (ask Ahmed; not decided)
 
-- **Q1** Prod app secrets (`.env` delivery) and per-app data persistence: deferred on purpose. Phase 4 must leave room for both.
-- **Q2** Does netcup accept cloud-init user-data at server creation? Unverified. Fallback: copy the file over SSH and run `cloud-init` against it.
+- **Q1, Q2** Moved to the infra repo.
 - **Q3 — answered 2026-09-25.** Only the existing signers are trusted for shdots
   commits: the workstations and the current as-dev + fdx-dev keys already in
   `dot_config/git/allowed_signers`. `new-box` does **not** add a new box's key to

@@ -49,8 +49,7 @@ unattended-upgrades, Docker Engine + a `docker-user-fw.service` unit that reconc
 `DOCKER-USER` chain (and, on Multipass, `et`'s ufw rule) on every boot, avahi (`<name>.local`
 resolution from a Mac), Eternal Terminal from a signed repo, zsh as the login shell, mise,
 and ufw **enabled** (rules are staged before `ufw enable` runs, so the multipass NAT
-NIC's port-22 allow is always in place first). Dev boxes do not run Tailscale — that
-stays prod-only (D7).
+NIC's port-22 allow is always in place first). Dev boxes don't use Tailscale (D7).
 
 Left to a human, or to `new-box`, because it is interactive or decision-gated:
 
