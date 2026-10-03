@@ -1,0 +1,18 @@
+{{- $username := .chezmoi.username -}}
+{{- if ne (dig "username" $username .) $username -}}
+{{-   fail "Configured username differs from the current account; re-run chezmoi init in that account" -}}
+{{- end -}}
+{{- $role := dig "role" "" . -}}
+{{- if eq .kind "mac" -}}
+{{-   if eq $username "as" -}}
+{{-     if and (ne $role "") (ne $role "personal") }}{{ fail "as must use the personal role" }}{{ end -}}
+{{-     $role = "personal" -}}
+{{-   else if eq $username "foodics" -}}
+{{-     if and (ne $role "") (ne $role "work") }}{{ fail "foodics must use the work role" }}{{ end -}}
+{{-     $role = "work" -}}
+{{-   end -}}
+{{- end -}}
+{{- if not (has $role (list "personal" "work")) -}}
+{{-   fail "An explicit personal or work account role is required; re-run chezmoi init" -}}
+{{- end -}}
+{{- $role -}}

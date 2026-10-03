@@ -2,7 +2,11 @@
 # Usage: herdr-devbox [vm-name] [herdr options]
 if (( $+commands[multipass] )) && (( $+commands[jq] )); then
   herdr-devbox() {
-    local vm_name=as-dev ip
+    local vm_name ip
+    if (( $# == 0 )) || [[ $1 == -* ]]; then
+      print -u2 "Usage: herdr-devbox <vm-name> [herdr options] (Linux compatibility only)"
+      return 2
+    fi
     if (( $# > 0 )) && [[ $1 != -* ]]; then
       vm_name=$1
       shift

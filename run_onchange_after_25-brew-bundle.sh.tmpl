@@ -3,7 +3,7 @@
 # Brewfile.tmpl hash: {{ include "Brewfile.tmpl" | sha256sum }}
 set -u
 
-{{ if eq .kind "mac" -}}
+{{ if and (eq .kind "mac") (eq .chezmoi.username "as") -}}
 if command -v brew >/dev/null 2>&1; then
   echo "Installing Homebrew packages from Brewfile…"
   BREWFILE_TMP="$(mktemp)"

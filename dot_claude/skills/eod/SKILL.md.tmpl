@@ -17,6 +17,9 @@ fill the gaps it couldn't reach. No draft is normal (the task is not on every ma
 
 `--dry-run`: do Phases 0–2 compose + preview only — no notes write, no Geekbot send.
 
+Use only connectors authenticated to the work account. Personal Gmail/Calendar
+integrations are not provisioned here; work connectors require separate onboarding.
+
 ## Fixed facts (do not rediscover)
 
 | Thing | Value |
@@ -26,7 +29,7 @@ fill the gaps it couldn't reach. No draft is normal (the task is not on every ma
 | Bullets | `-` / `- [ ]` open / `- [x]` done; 2-space nesting; `---` between days |
 | Repos | **Discovered, not listed** — every git repo under `{{ .chezmoi.homeDir }}/Code` whose `origin` is on `github.foodics.com`, plus its worktrees (layout differs per machine) |
 | GitHub orgs | Mostly `pay` (cashflow-*, capital-*, pay-*, bank, nexus, …), but search is instance-wide — never filter to one org |
-| Git identity | filter by **name** `"Ahmed Shahwan"` (he commits under two emails) |
+| Git identity | match both historical `Ahmed Shahwan` and new `A. S. Foodics` names in Foodics repositories |
 | GitHub | `export GH_HOST=github.foodics.com` — mandatory (gh is also on github.com, which silently returns nothing) |
 | Jira/Confluence | Atlassian MCP (`*Atlassian__searchJiraIssuesUsingJql`, `*__searchConfluenceUsingCql`), cloudId `foodics-products.atlassian.net`, `EE-XXXX`; `twg` CLI is a fallback |
 | Slack | Slack MCP (`*Slack__slack_search_public_and_private`, `*__slack_read_channel`); his user_id `U08QX477F8T` |
@@ -64,10 +67,10 @@ covered by the draft, query the whole window.
     p="${g%/.git}"
     git -C "$p" remote get-url origin 2>/dev/null | grep -q 'github.foodics.com' || continue
     echo "== ${p#{{ .chezmoi.homeDir }}/}"
-    git -C "$p" log --all --author="Ahmed Shahwan" --since="<from> 00:00" --until="<to> 23:59" \
+    git -C "$p" log --all --extended-regexp --author="Ahmed Shahwan|A[.] S[.] Foodics" --since="<from> 00:00" --until="<to> 23:59" \
         --pretty=format:'%ad %h %d %s' --date=short 2>/dev/null
     git -C "$p" status -sb 2>/dev/null | head -3
-    git -C "$p" log --branches --not --remotes --author="Ahmed Shahwan" \
+    git -C "$p" log --branches --not --remotes --extended-regexp --author="Ahmed Shahwan|A[.] S[.] Foodics" \
         --pretty=format:'unpushed: %ad %h %s' --date=short 2>/dev/null   # WIP
   done
   ```

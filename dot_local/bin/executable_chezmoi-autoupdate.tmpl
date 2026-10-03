@@ -10,6 +10,10 @@
 # when $HOME provably matches the source (chezmoi status empty), not merely
 # when the clone is up to date.
 set -u
+{{ if not (includeTemplate "has-autoupdate" .) -}}
+echo "chezmoi-autoupdate: disabled; review this account before enabling auto_update"
+exit 0
+{{ end -}}
 
 MARKER="$HOME/.cache/chezmoi-stale"
 LAST="$HOME/.cache/chezmoi-autoupdate.last"

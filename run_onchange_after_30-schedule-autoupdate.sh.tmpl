@@ -1,4 +1,5 @@
 #!/bin/sh
+{{ if includeTemplate "has-autoupdate" . -}}
 # (Re)wire the chezmoi auto-update schedule whenever its units change.
 # Non-fatal throughout: a scheduling hiccup must not fail `chezmoi apply`.
 #
@@ -31,3 +32,7 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 {{ end -}}
 exit 0
+{{ else -}}
+# Account onboarding remains manual.
+exit 0
+{{ end -}}

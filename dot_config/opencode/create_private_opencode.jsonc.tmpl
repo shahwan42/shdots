@@ -25,7 +25,8 @@
         {{ (joinPath .chezmoi.homeDir ".local/bin/codebase-memory-mcp") | quote }}
       ],
       "enabled": true
-    },
+    }
+{{ if includeTemplate "has-personal" . }},
     "postgres": {
       "type": "local",
       "command": [
@@ -37,6 +38,7 @@
         "DATABASE_URI": "{env:DATABASE_URI}"
       }
     }
+{{ end -}}
   },
   "lsp": {
     "intelephense": {

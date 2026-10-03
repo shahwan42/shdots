@@ -1,3 +1,12 @@
+# Historical fleet topology plan
+
+Superseded on 2026-10-03 by [native account profiles](account-aware-macos.md).
+The decisions below describe the previous VM-first architecture. D1/D2/D8/D14
+and VM recreation/retirement phases are not instructions for native onboarding.
+Current target: as-host/as personal, as-host/foodics work; as-host/fdx-dev is the
+only temporary canonical Linux compatibility VM. fdx-host/fdx-dev is stopped.
+Tailscale identity remains unchanged. Preserve both VMs and the checkpoint.
+
 # Fleet topology plan: one workstation, disposable boxes
 
 Status: **Phase 1 done (2026-09-23). Phase 2 done 2026-09-25, committed locally,

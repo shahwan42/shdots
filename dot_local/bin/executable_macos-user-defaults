@@ -1,0 +1,28 @@
+#!/bin/sh
+# Explicit user action only; chezmoi installs this helper but never runs it.
+set -eu
+if [ "${1:-}" != "--apply" ]; then
+    echo "Preview only: keyboard repeat 2/15, press-and-hold off, full keyboard navigation;"
+    echo "English + Arabic (Egypt), ABC + Arabic PC; trackpad tap/right click; Finder baseline."
+    echo "Run macos-user-defaults --apply in the intended account after review."
+    exit 0
+fi
+[ "$(uname -s)" = Darwin ] || { echo 'macOS required' >&2; exit 1; }
+defaults write NSGlobalDomain KeyRepeat -int 2
+defaults write NSGlobalDomain InitialKeyRepeat -int 15
+defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
+defaults write NSGlobalDomain AppleKeyboardUIMode -int 2
+defaults write NSGlobalDomain AppleLanguages -array en-EG ar-EG
+defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
+defaults write com.apple.AppleMultitouchTrackpad TrackpadRightClick -bool true
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadRightClick -bool true
+defaults write com.apple.finder AppleShowAllFiles -bool true
+defaults write com.apple.finder ShowPathbar -bool true
+defaults write com.apple.finder ShowStatusBar -bool true
+defaults write com.apple.finder FXPreferredViewStyle -string clmv
+defaults write com.apple.finder FXDefaultSearchScope -string SCcf
+echo 'Defaults written for this user; log out/in when convenient.'
+echo 'Add ABC + Arabic PC in System Settings > Keyboard > Text Input.'
+echo 'Enable the optional Karabiner candidate only after keyboard review.'

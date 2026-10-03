@@ -21,9 +21,14 @@ unset _hb
 [[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
 typeset -U path PATH
 
-# 1Password service account: `ssh host 'op read …'` must work headless — that
-# is this token's whole purpose, so it belongs in the every-shell file.
-[[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
+# Legacy compatibility VMs retain their service-account environment. Native
+# users authenticate separately and never source this broad shared token.
+{{ if eq .kind "vm" }}[[ -r "$HOME/.config/op/env" ]] && source "$HOME/.config/op/env"
+{{ end -}}
 {{ if and (eq .kind "vm") (eq .role "work") }}
 export AWS_PROFILE=foodics_pay_export
+{{ end -}}
+
+{{ if includeTemplate "has-work" . }}# Enterprise is the work CLI default; use GH_HOST=github.com for public GitHub.
+export GH_HOST=github.foodics.com
 {{ end -}}

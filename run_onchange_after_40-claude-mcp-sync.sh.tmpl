@@ -28,12 +28,21 @@ add() {
   fi
 }
 
+{{ if includeTemplate "has-work" . -}}
+"$CLAUDE" mcp remove github --scope user >/dev/null 2>&1 || :
+"$CLAUDE" mcp remove gmail --scope user >/dev/null 2>&1 || :
+"$CLAUDE" mcp remove google-calendar --scope user >/dev/null 2>&1 || :
+"$CLAUDE" mcp remove postgres --scope user >/dev/null 2>&1 || :
+{{ else -}}
+"$CLAUDE" mcp remove github-enterprise --scope user >/dev/null 2>&1 || :
+{{ end -}}
+
 # Remove MCP servers retired from the shared declaration.
 "$CLAUDE" mcp remove shadcn-ui --scope user >/dev/null 2>&1 || :
 "$CLAUDE" mcp remove playwright --scope user >/dev/null 2>&1 || :
 
 # `op read` blocks indefinitely when 1Password has no non-interactive auth
-# (no OP_SERVICE_ACCOUNT_TOKEN and no reachable desktop app) — that once hung
+# (no account-local CLI login and no reachable desktop app) — that once hung
 # `chezmoi apply` for good. Cap it; an empty result is already non-fatal below.
 # timeout(1) isn't on every box (absent from the stock macOS PATH), so fall
 # back to a background kill.
@@ -57,9 +66,11 @@ op_read() {
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add citra -- npx -y @sylphx/citra
+{{ if includeTemplate "has-personal" . -}}
 # Dev DB inspection. Inert until compose.yaml maps the DB port (plan 0003 §1).
 add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
+{{ end -}}
 
 # codebase-memory-mcp ships no package-manager release; its documented
 # one-liner installs the binary AND self-registers it. Only (re)install the
@@ -95,7 +106,7 @@ fi
 # PAT lives in 1Password; a missing item is non-fatal (same pattern as the
 # missing-MISE_GITHUB_TOKEN case in run_onchange_after_20-mise-install.sh.tmpl) —
 # it must not fail `chezmoi apply`, just skip registration with instructions.
-{{ if includeTemplate "has-personal" . -}}
+{{ if and (includeTemplate "has-personal" .) (includeTemplate "has-secret-integrations" .) -}}
 GH_PAT="$(op_read 'op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential')"
 if [ -n "$GH_PAT" ]; then
   add github -e GITHUB_PERSONAL_ACCESS_TOKEN="$GH_PAT" -- github-mcp-server stdio
@@ -104,7 +115,7 @@ else
   hn github skip "1Password PAT unavailable (op read empty/timed out)"
 fi
 {{ end -}}
-{{ if includeTemplate "has-work" . -}}
+{{ if and (includeTemplate "has-work" .) (includeTemplate "has-secret-integrations" .) -}}
 GHE_PAT="$(op_read 'op://dev-secrets/i4fkk5sxnoihinvcnv2evqg7be/credential')"
 if [ -n "$GHE_PAT" ]; then
   add github-enterprise -e GITHUB_PERSONAL_ACCESS_TOKEN="$GHE_PAT" -e GITHUB_HOST="https://github.foodics.com" -- github-mcp-server stdio

@@ -1,13 +1,7 @@
 #!/bin/sh
-# Register this machine's GitHub MCP servers for Claude Code and Codex. A Mac
-# carries both identities and gets both; a VM gets the one matching its role:
-#   personal -> `github`            github.com          PAT item: xwug424pq6bcit35v5abzpt5vm
-#   work     -> `github-enterprise` github.foodics.com  PAT item: i4fkk5sxnoihinvcnv2evqg7be
-#
-# The run_onchange MCP sync scripts skip these when unattended `chezmoi apply`
-# cannot unlock 1Password. Run this from an interactive shell once per machine
-# you want the server on. Both registrations are idempotent.
-# See AGENTS.md "GitHub MCP servers (per-machine, on purpose)".
+# Register only this account's role-specific GitHub MCP servers.
+# Run after account-local 1Password authentication and vault-access review.
+# No authentication or session state is copied between accounts.
 set -u
 
 CZ="$(command -v chezmoi || echo "$HOME/.local/bin/chezmoi")"
@@ -32,16 +26,20 @@ fi
 register() {
   identity=$1
   case "$identity" in
+{{ if includeTemplate "has-work" . -}}
     work)
       name=github-enterprise
       item='op://dev-secrets/i4fkk5sxnoihinvcnv2evqg7be/credential'
       claude_host_arg='-e GITHUB_HOST=https://github.foodics.com'
       codex_host_arg='--env GITHUB_HOST=https://github.foodics.com' ;;
+{{ end -}}
+{{ if includeTemplate "has-personal" . -}}
     personal)
       name=github
       item='op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential'
       claude_host_arg=''
       codex_host_arg='' ;;
+{{ end -}}
   esac
 
   pat="$(op read "$item" 2>/dev/null)"
