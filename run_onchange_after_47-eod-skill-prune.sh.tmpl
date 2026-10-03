@@ -1,8 +1,10 @@
-{{ if not (and (includeTemplate "has-work" .) (dig "eod" true .)) -}}
+{{ if eq .kind "vm" -}}
+{{ if not (and (includeTemplate "has-work" .) (dig "eod" false .)) -}}
 #!/bin/sh
 # The eod skill is ignored on this machine (personal VM, or `eod = false` from
 # `chezmoi init`). Ignored targets are left in place and .chezmoiremove skips
 # them, so delete any copy left from before the opt-out. Rendered empty (and so
 # skipped) wherever the skill is enabled.
 rm -rf "$HOME/.claude/skills/eod"
+{{ end -}}
 {{ end -}}

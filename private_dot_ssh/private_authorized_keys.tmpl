@@ -1,4 +1,4 @@
-{{ if eq .hostname "as-host" -}}
+{{ if and (eq .hostname "as-host") (includeTemplate "has-personal" .) -}}
 # Managed by chezmoi — edits here are overwritten. Source: .chezmoidata/fleet.yaml
 #
 # Tailscale SSH is the primary path between fleet machines; these keys are the

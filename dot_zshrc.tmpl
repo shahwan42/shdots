@@ -92,7 +92,8 @@ fi
 {{ if includeTemplate "has-work" . }}
 # Work aliases and environment.
 alias a='php artisan'
-alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
+{{ if eq .kind "vm" }}alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
+{{ end -}}
 {{ end }}
 # Fuzzy repo jumper.
 if (( $+commands[fzf] )) && (( $+commands[fd] )); then
@@ -165,7 +166,8 @@ typeset -U path PATH
 [[ -x "$HOME/.local/bin/chezmoi-health" ]] && "$HOME/.local/bin/chezmoi-health" check 2>&1 || true
 
 # 1Password-backed tokens (cached; see the file header).
-[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh"
+{{ if includeTemplate "has-secret-integrations" . }}[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/secrets.zsh"
+{{ end -}}
 
 # Machine-local, unmanaged extras (one-off installs, per-machine helpers).
 if [[ -r "$HOME/.zshrc.local" ]]; then

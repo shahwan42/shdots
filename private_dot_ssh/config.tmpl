@@ -1,63 +1,36 @@
 # vim: filetype=sshconfig
-
-# Skip options a platform doesn't know (UseKeychain is macOS-only) instead of
-# aborting the parse. Must stay above the Include.
 Host *
-	IgnoreUnknown UseKeychain
+    IgnoreUnknown UseKeychain
 
-# Work SSH hosts land here, decrypted. Hosts managed outside shdots (the infra
-# repo) can drop files here too.
-Include ~/.ssh/config.d/*
-
-# Multipass dev VMs, by tailnet name. Kept alongside the *.local block below
-# until Phase 3 passes (fleet-topology.md Phase 2 step 7) — removing this early
-# makes as-dev/fdx-dev unreachable by their old name.
-Host fdx-dev as-dev
-	User ubuntu
-
-{{ if eq .kind "mac" -}}
-# Dev boxes launched by provision/new-box, reached over plain SSH via mDNS
-# (D7/D16 — no Tailscale on Multipass dev boxes). Only a Mac resolves
-# <name>.local this way; a VM has no mDNS client configured for it.
-Host *.local
-	User ubuntu
-{{ end -}}
-# The Macs hosting them. These tailnet names are authoritative (they match the
-# admin console); MagicDNS resolves them. User matters from inside a VM, where
-# the local user is ubuntu. Tailscale SSH is the primary path between fleet
-# machines; the key below is the fallback when tailscaled is down or the hop is
-# LAN-local. Which key is this machine's identity: .chezmoitemplates/ssh-self-key.
-Host fdx-host as-host
-	User as
-	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
-
-# Keepalives for every host: ping every 60s, give up after 3. Separate block
-# because only the IgnoreUnknown one above needs to precede the Include.
-Host *
-	ServerAliveInterval 60
-	ServerAliveCountMax 3
-
-{{ if eq .kind "mac" -}}
-# On-disk key, not the 1Password agent: that one needs the desktop app's GUI
-# unlock, which breaks headless sessions. Keys are per-machine on purpose, so
-# the key identifies the machine connecting — see .chezmoitemplates/ssh-self-key.
-Host github.com github.foodics.com
-	IdentityAgent none
-	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
-	IdentitiesOnly yes
-{{ else if eq .role "work" -}}
-# Work VM: split identities — the work key never touches personal repos.
-Host github.foodics.com
-	IdentityAgent none
-	IdentityFile ~/.ssh/id_ed25519_foodics
-	IdentitiesOnly yes
-Host github.com
-	IdentityAgent none
-	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
-	IdentitiesOnly yes
+# Account-local host declarations; legacy mixed config.d files are not loaded.
+{{ if includeTemplate "has-work" . -}}
+Include ~/.ssh/config.d/work/*
 {{ else -}}
+Include ~/.ssh/config.d/personal/*
+{{ end }}
+# Optional compatibility VM on this machine; never opens a remote session.
+Host linux-compat
+    HostName fdx-dev.local
+    User ubuntu
+
+{{ if includeTemplate "has-personal" . -}}
+# Administrative access remains in the personal account.
+Host fdx-host as-host
+    User as
+    IdentityFile ~/.ssh/id_ed25519
+
 Host github.com
-	IdentityAgent none
-	IdentityFile ~/.ssh/{{ template "ssh-self-key" . }}
-	IdentitiesOnly yes
-{{ end -}}
+    IdentityAgent none
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+{{ else -}}
+# Provision a fresh account-local Git key later. Public GitHub is optional;
+# it uses this work account's key and login, never the personal account's.
+Host github.foodics.com github.com
+    IdentityAgent none
+    IdentityFile ~/.ssh/{{ template "git-signing-key" . }}
+    IdentitiesOnly yes
+{{ end }}
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3

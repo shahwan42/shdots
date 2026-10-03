@@ -13,11 +13,8 @@
 #
 # herdr desired-state hash: {{ include ".chezmoidata/herdr.yaml" | sha256sum }}
 #
-# Runs after 20-mise-install. On as-dev (kind=vm) the plugin build hooks find
-# prebuilt release binaries first and the vm-only Rust/Go toolchains only as a
-# fallback. A client host (as-host) carries no plugins, so it needs no build
-# toolchain; if a plugin is ever added to a client host, add only that plugin's
-# specific dependency to that host — do not make toolchains fleet-wide.
+# Native accounts run local sessions. Plugin installation is deferred until
+# account-local review; no remote connection is configured here.
 #
 # Non-fatal on purpose, like the MCP-sync scripts: a missing tool or a network
 # failure must not fail `chezmoi apply`.

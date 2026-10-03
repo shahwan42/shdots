@@ -52,6 +52,7 @@ servers = {
         "command": ["npx", "-y", "@sylphx/citra"],
         "enabled": True,
     },
+{{ if includeTemplate "has-personal" . -}}
     "postgres": {
         "type": "local",
         "command": ["postgres-mcp", "--access-mode=restricted"],
@@ -60,6 +61,7 @@ servers = {
             "DATABASE_URI": "{env:DATABASE_URI}",
         },
     },
+{{ end -}}
 }
 
 if cbm and os.access(cbm, os.X_OK):
@@ -93,7 +95,7 @@ servers["github"] = {
 servers["github-enterprise"] = {
     "type": "local",
     "command": ["github-mcp-server", "stdio"],
-    "enabled": True,
+    "enabled": {{ if includeTemplate "has-secret-integrations" . }}True{{ else }}False{{ end }},
     "environment": {
         # Tokens come from ~/.config/zsh/secrets.zsh (1Password, by UUID).
         "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GHE_MCP_TOKEN}",
@@ -124,6 +126,13 @@ if not isinstance(mcp, dict):
 mcp.pop("shadcn-ui", None)
 mcp.pop("playwright", None)
 mcp.pop("figma", None)
+# Remove only opposite-role entries owned by shdots; preserve other custom MCPs.
+{{ if includeTemplate "has-work" . -}}
+for name in ("gmail", "google-calendar", "github", "postgres"):
+    mcp.pop(name, None)
+{{ else -}}
+mcp.pop("github-enterprise", None)
+{{ end -}}
 mcp.update(servers)
 data["mcp"] = mcp
 

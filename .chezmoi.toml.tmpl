@@ -1,38 +1,44 @@
 {{- $kind := promptChoiceOnce . "kind" "Machine kind" (list "mac" "vm") -}}
-{{- /* Identity lives in the dev box, not the workstation: a Mac carries both
-       personal and work tools, so only a VM is asked for its role. Templates
-       gate tools on .chezmoitemplates/has-personal / has-work, never on a Mac's
-       role. */ -}}
+{{- $username := .chezmoi.username -}}
 {{- $role := "" -}}
-{{- if eq $kind "vm" -}}
-{{-   $role = promptChoiceOnce . "role" "Machine role" (list "personal" "work") -}}
+{{- if and (eq $kind "mac") (eq $username "as") -}}
+{{-   $role = "personal" -}}
+{{- else if and (eq $kind "mac") (eq $username "foodics") -}}
+{{-   $role = "work" -}}
+{{- else -}}
+{{-   $role = promptChoiceOnce . "role" "Account role" (list "personal" "work") -}}
 {{- end -}}
 {{- $hostname := promptStringOnce . "hostname" "Machine hostname" (output "hostname" "-s" | trim) -}}
-{{- /* Opt-in for the work-only eod skill. Prompted once wherever work tools live
-       (every Mac, work VMs); to answer without a prompt, pass the prompt text:
-       `chezmoi init --promptBool "Install eod skill=false"`. */ -}}
 {{- $eod := false -}}
-{{- if or (eq $kind "mac") (eq $role "work") -}}
-{{-   $eod = promptBoolOnce . "eod" "Install eod skill" true -}}
+{{- if eq $role "work" -}}
+{{-   $eod = promptBoolOnce . "eod" "Install eod skill" false -}}
 {{- end -}}
-# Encryption on every machine class: the 1Password service-account token is a
-# shared capability. Provision ~/.config/chezmoi/key.txt once per machine
-# (out-of-band); role guards decide WHAT decrypts where, not WHO can.
-encryption = "age"
-
-# Ubuntu sets a 002 login umask (pam_umask + USERGROUPS_ENAB with user-private
-# groups); macOS logins are 022. Without pinning this, chezmoi derives target
-# modes from the live umask, so every managed file/dir flips 0644<->0664 /
-# 0755<->0775 between machines and `chezmoi status` is never clean. Pin 022 so
-# dotfiles are non-group-writable everywhere. Must stay a top-level key, above
-# [age] — a TOML key after a table header joins that table.
+{{- $signingDefault := eq $kind "vm" -}}
+{{- if and (eq $role "personal") (stat (joinPath .chezmoi.homeDir ".ssh/id_ed25519.pub")) -}}
+{{-   $signingDefault = true -}}
+{{- end -}}
+# Native accounts never receive the fleet age key or shared service token.
+# Encryption is retained for legacy compatibility VMs; native encrypted targets
+# are excluded in .chezmoiignore.tmpl even if a key is already present.
 umask = 0o022
 
+{{ if eq $kind "vm" -}}
+encryption = "age"
 [age]
     identity = {{ (joinPath .chezmoi.homeDir ".config/chezmoi/key.txt") | quote }}
     recipient = "age1ax3esnk3kmyaqaemwd4kxlzm265yc00stqqmp64mvqtexuqxvsks7ac5xe"
+{{ end -}}
 [data]
-role = {{ $role | quote }}
 kind = {{ $kind | quote }}
+# hostname is the existing repository name for the physical machine identity.
 hostname = {{ $hostname | quote }}
+username = {{ $username | quote }}
+role = {{ $role | quote }}
 eod = {{ $eod }}
+# Native onboarding is manual. Enable updates only after account-local review.
+auto_update = {{ dig "auto_update" (eq $kind "vm") . }}
+# Existing personal consumers remain available; work auth is provisioned later.
+secret_integrations = {{ dig "secret_integrations" (eq $role "personal") . }}
+# Public key presence preserves existing personal signing; a new account can
+# commit before keys are created. Enabling signing later is an explicit step.
+git_signing = {{ dig "git_signing" $signingDefault . }}

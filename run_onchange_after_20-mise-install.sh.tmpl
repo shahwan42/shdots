@@ -8,10 +8,12 @@
 # fail `chezmoi apply`. The token is the read-only PAT that secrets.zsh caches;
 # reuse that cache so unattended applies are authenticated too.
 set -u
+{{ if includeTemplate "has-personal" . -}}
 _cache="${XDG_CACHE_HOME:-$HOME/.cache}/op-secrets/GITHUB_READONLY_TOKEN"
 if [ -z "${MISE_GITHUB_TOKEN:-}" ] && [ -s "$_cache" ]; then
   MISE_GITHUB_TOKEN="$(cat "$_cache")"; export MISE_GITHUB_TOKEN
 fi
+{{ end -}}
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.
 HN="$HOME/.local/bin/chezmoi-health"
@@ -21,7 +23,7 @@ MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
 if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
   "$MISE" install -y || {
-    echo "mise install: some tools did not install (open an interactive shell so secrets.zsh caches MISE_GITHUB_TOKEN, then re-run 'mise install')."
+    echo "mise install: some tools did not install (authenticate an account-local MISE_GITHUB_TOKEN if needed, then re-run 'mise install')."
     hn mise fail "mise install non-zero — MISE_GITHUB_TOKEN unset or a backend errored"
   }
 else

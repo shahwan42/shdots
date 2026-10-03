@@ -25,6 +25,15 @@ add() {
   fi
 }
 
+{{ if includeTemplate "has-work" . -}}
+"$CODEX" mcp remove github >/dev/null 2>&1 || :
+"$CODEX" mcp remove gmail >/dev/null 2>&1 || :
+"$CODEX" mcp remove google-calendar >/dev/null 2>&1 || :
+"$CODEX" mcp remove postgres >/dev/null 2>&1 || :
+{{ else -}}
+"$CODEX" mcp remove github-enterprise >/dev/null 2>&1 || :
+{{ end -}}
+
 # Remove MCP servers retired from the shared declaration.
 "$CODEX" mcp remove shadcn-ui >/dev/null 2>&1 || :
 "$CODEX" mcp remove playwright >/dev/null 2>&1 || :
@@ -52,15 +61,17 @@ op_read() {
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add citra -- npx -y @sylphx/citra
+{{ if includeTemplate "has-personal" . -}}
 # Inert until compose.yaml maps the DB port (plan 0003 §1).
 add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
+{{ end -}}
 
 CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 [ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
 
 # Codex's option is --env KEY=VALUE (Claude's equivalent is -e).
-{{ if includeTemplate "has-personal" . -}}
+{{ if and (includeTemplate "has-personal" .) (includeTemplate "has-secret-integrations" .) -}}
 GH_PAT="$(op_read 'op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential')"
 if [ -n "$GH_PAT" ]; then
   add github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GH_PAT" -- github-mcp-server stdio
@@ -69,7 +80,7 @@ else
   hn github skip "1Password PAT unavailable (op read empty/timed out)"
 fi
 {{ end -}}
-{{ if includeTemplate "has-work" . -}}
+{{ if and (includeTemplate "has-work" .) (includeTemplate "has-secret-integrations" .) -}}
 GHE_PAT="$(op_read 'op://dev-secrets/i4fkk5sxnoihinvcnv2evqg7be/credential')"
 if [ -n "$GHE_PAT" ]; then
   add github-enterprise --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GHE_PAT" --env GITHUB_HOST=https://github.foodics.com -- github-mcp-server stdio

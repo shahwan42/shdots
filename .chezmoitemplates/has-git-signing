@@ -1,0 +1,5 @@
+{{- $default := eq .kind "vm" -}}
+{{- if and (includeTemplate "has-personal" .) (stat (joinPath .chezmoi.homeDir ".ssh/id_ed25519.pub")) -}}
+{{-   $default = true -}}
+{{- end -}}
+{{- if dig "git_signing" $default . }}true{{ end -}}

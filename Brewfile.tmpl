@@ -1,6 +1,8 @@
+# Machine package inventory: maintained by as in the shared /opt/homebrew.
+# foodics consumes binaries; it must not run brew bundle or bootstrap Homebrew.
 # Homebrew now holds ONLY what mise/chezmoi shouldn't: behavior-sensitive native
 # libraries, system services, and GUI apps. The cross-platform CLI toolchain
-# lives in ~/.config/mise/config.toml (shared). chezmoi and mise are installed
+# lives in each user's ~/.config/mise/config.toml. chezmoi and mise are installed
 # via their curl bootstrappers (see README), not here.
 
 # --- behavior-sensitive natives (shared across Macs) ---

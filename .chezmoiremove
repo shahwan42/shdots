@@ -1,3 +1,4 @@
+{{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics
 {{ end -}}
@@ -7,3 +8,4 @@
 # The mermaid rule moved into the shared AI baseline (.chezmoitemplates/ai-baseline.md);
 # Claude auto-loads ~/.claude/rules/*.md, so a leftover copy would load it twice.
 .claude/rules/mermaid-validation.md
+{{ end -}}

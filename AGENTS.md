@@ -6,11 +6,12 @@ outputs. This file and `CLAUDE.md` are repository-only (`.chezmoiignore.tmpl`):
 they apply to agents working in this repository, never to other projects. Run
 dotfiles work from here, not from a bare `~`.
 
-> **A push auto-deploys fleet-wide within 6 hours.** Every machine runs a
-> chezmoi auto-update timer (launchd on Macs, systemd on VMs) that pulls and
-> applies `origin/main`. Treat every push as a deployment.
+> **A push to `main` can auto-deploy within 6 hours.** Legacy update timers
+> pull and apply `origin/main`; publishing a migration branch does not deploy it.
+> Native account onboarding defaults to manual updates. Review rollout before
+> changing `main`.
 
-> **Fleet plan in progress:** `docs/plans/fleet-topology.md` holds the target
+> **Fleet plan in progress:** `docs/plans/account-aware-macos.md` holds the target
 > topology, the decision log, the gotchas, and the remaining phases. Read it
 > before changing provisioning, SSH keys, secrets, or machine roles.
 
@@ -23,15 +24,11 @@ dotfiles work from here, not from a bare `~`.
 2. Prefer `chezmoi edit <target>` or edit the matching file under
    `~/.local/share/chezmoi`. Do not directly edit a rendered target as the
    primary workflow.
-3. Preserve chezmoi templates and their `kind` (`mac` or `vm`) and `role`
-   conditions. Do not replace a template with one machine's rendered output.
-   Machine model: a Mac is an identity-neutral **workstation** carrying both
-   personal and work tools; only a VM (dev box) has a `role` (`personal` or
-   `work`; a Mac's `role` is empty). Gate a *tool* on
-   `includeTemplate "has-personal" .` / `includeTemplate "has-work" .`
-   (true on every Mac, and on VMs of that role); gate something that must stay
-   on the work VM only (AWS profile, rtk hook) on
-   `and (eq .kind "vm") (eq .role "work")`. Never test a Mac's `role`.
+3. Keep machine and account identity separate: `kind=mac|vm`, `hostname`,
+   `username`, and `role=personal|work`. Use `has-personal` / `has-work` for
+   role gates. Native Macs are primary development environments; VM conditions
+   describe optional Linux compatibility only. Before changing account roles,
+   secrets, onboarding or scheduling, read `docs/plans/account-aware-macos.md`.
 4. If a rendered target was changed outside chezmoi, inspect it with
    `chezmoi diff` and reconcile it with `chezmoi merge <target>`. Use
    `chezmoi re-add` only for non-template files.
@@ -124,48 +121,12 @@ review, and apply as above; do not use `chezmoi re-add` on this template.
   global toolchain outside the managed template and show up as drift. If the
   experiment graduates, promote it with the workflow above.
 
-## Dev VM spec
+## Linux compatibility
 
-The two Multipass dev VMs — `as-dev` (personal) and `fdx-dev` (work) — share one
-hardware spec. Do not re-derive it; it lives in two files, both under
-`~/.local/share/chezmoi/provision` (which is chezmoi-ignored — edit them directly,
-there is no rendered copy):
-
-- **CPU / RAM / disk / image** — the `CPUS` / `MEMORY` / `DISK` / `IMAGE` constants
-  at the top of `provision/launch-dev-vm.sh` (currently 6 / 12G / 220G / 24.04).
-- **Swap and timezone** — `provision/dev-vm-cloud-init.yaml` (currently 6G, Africa/Cairo).
-
-Two kinds of request:
-
-1. **Launch or relaunch one VM at a different size** — pass `--cpus` / `--memory` /
-   `--disk` as one-off flags to `provision/new-box` (which passes them through to
-   `launch-dev-vm.sh`). Change nothing in the repo.
-2. **Make a new size the default** — change the constant, then grep the repo for
-   each old value you changed and fix every comment and doc that quotes it (this
-   section, both `README.md` files, the `provision/*` file headers).
-
-Never `multipass set` a running VM unless asked. Disk can only grow, and only while
-the VM is stopped; swap and timezone are baked in at launch, so changing them later
-is a manual in-guest step, not a relaunch.
-
-**Getting a new box:** `provision/new-box <name> --role personal|work` is the
-supported entry point — launch, age key, an SSH key generated on the box and
-registered with GitHub (auth + signing; github.foodics.com too for `--role work`),
-non-interactive `chezmoi init --apply`, mise priming, and the verification checks,
-end to end. `provision/new-box destroy <name>` deletes the box's GitHub
-authentication keys (never signing keys) and runs `multipass delete --purge <name>`
-(instance-scoped only — never a bare `multipass purge`). Dev boxes are reached from
-a Mac over plain SSH via mDNS (`<name>.local`); dev boxes don't use Tailscale
-(fleet-topology.md D7). See `provision/README.md`.
-
-Toolchain: the VM OS is a shell — editor, git, host CLIs, coding agents, Docker.
-App language runtimes (PHP/Laravel, Python/Django, Vue, Go, Node/TS app stacks) run
-in Docker Compose, not on the host — do not add them to mise or apt. A system
-language toolchain goes on the VM only when a *host* tool needs it. Install priority
-for anything new on a VM: mise → official one-liner → documented apt repo → distro
-package; add it the way "## mise toolchain" describes (source template, apply,
-and smoke test). Macs are shells *for* the VM — duplicating a tool on a Mac is an
-ergonomics choice, not something to strip.
+`as-host/fdx-dev` is the temporary canonical compatibility VM. The stopped
+`fdx-host/fdx-dev` is legacy preserved state. Leave VM lifecycle and Tailscale
+identity unchanged unless explicitly requested. `provision/` retains the old
+VM-first tooling; it is not used for native account onboarding.
 
 ## Fleet health
 
@@ -189,61 +150,23 @@ Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only whe
 a fast-forward was refused) and this log (every run's outcome). A green marker
 does not imply a green log.
 
-## GitHub MCP servers (per-machine, on purpose)
+## Account-local authentication
 
-`run_onchange_after_40-claude-mcp-sync` registers the shared MCP servers
-(context7, citra, codebase-memory) on every machine with Claude.
-`run_onchange_after_41-opencode-mcp-sync` upserts the same shared servers into
-`~/.config/opencode/opencode.jsonc` on every machine, plus Gmail / Google
-Calendar where personal tools live (Macs, personal VMs). Other OpenCode config keys are left alone.
-Restart OpenCode after apply; then `opencode mcp auth gmail` (and
-google-calendar) for the OAuth remotes.
-`run_onchange_after_43-codex-mcp-sync` registers the same shared servers with
-Codex, including the role-specific GitHub server via the same 1Password PAT
-path used by Claude. Its Postgres entry shares the DB-port caveat described
-below. Browser automation for AI agents is provided by the user-wide
-`browser-harness` skill/CLI; Playwright remains a project/test dependency.
+Role gates choose consumers, not vault permissions. Native accounts ignore the
+legacy age-encrypted service-token and SSH-host files. Keep their source intact;
+provision new authentication in the intended account, with access to only that
+role's vaults. Never copy an age key, broad service-account environment, token
+cache, AI login/session, scheduled task, SSH key or approval database across users.
 
-The `github` (github.com) and `github-enterprise` (github.foodics.com) servers
-differ by client:
+Personal consumers use personal GitHub and Gmail/Calendar. Work consumers use
+GitHub Enterprise and company services; `secret_integrations=false` prevents
+automatic PAT acquisition at first bootstrap. Enable it only after account-local
+work-vault authentication and reference review. `mcp-github-register` registers
+only the active role's server. Public GitHub for work is separately authenticated.
 
-- **OpenCode:** no PAT in the file. Script 41 always upserts a local
-  `github-mcp-server` entry whose token is `{env:GITHUB_READONLY_TOKEN}`;
-  `github-enterprise` reads `{env:GHE_MCP_TOKEN}` (and sets `GITHUB_HOST`).
-  Both are exported by the managed `~/.config/zsh/secrets.zsh`.
-- **Claude:** PAT is written into `~/.claude.json` via `claude mcp add`.
-  Unattended apply skips when 1Password isn't reachable — each needs a personal
-  access token, and the sync script logs `skip` to `chezmoi-health` and moves on
-  (the unattended `chezmoi apply` can't unlock 1Password).
-- **Codex:** PAT is written into its user config via `codex mcp add` using the
-  same 1Password item as Claude; unattended apply has the same non-fatal skip
-  behavior when 1Password is unavailable. `codex mcp add` preserves Codex's
-  model and per-project trust settings.
-
-**The user's one-time part** — per identity, not per machine — is to
-store the PAT in 1Password:
-
-| server | 1Password item (field `credential`) | token for |
-|---|---|---|
-| `github` | `dev-secrets` / `xwug424pq6bcit35v5abzpt5vm` (`GitHub PAT (github.com, MCP write)`) | github.com |
-| `github-enterprise` | `dev-secrets` / `i4fkk5sxnoihinvcnv2evqg7be` (`GitHub Enterprise GHE MCP PAT`) | github.foodics.com |
-
-**To register Claude and Codex GitHub MCPs on the current machine** (a Mac gets
-both `github` and `github-enterprise`; a VM gets the one for its role):
-
-```
-mcp-github-register
-```
-
-That script checks `op` is unlocked, reads the right PAT once, and performs an
-idempotent remove-then-add for both clients. If it reports that `op` is locked,
-run `eval "$(op signin)"` or open the 1Password desktop app, then retry.
-
-**When an AI should offer this:** the user wants a GitHub MCP tool on a machine
-where either client's MCP list doesn't show it, or `chezmoi-health` shows a
-GitHub skip for script 40 or 43 and the user wants it resolved. Point them at
-`mcp-github-register`. OpenCode does not need the helper because it reads
-its tokens from `~/.config/zsh/secrets.zsh`.
+Generic context7/citra/codebase-memory registrations are portable. Personal
+project database declarations and ClearMoney QA skills stay personal. Generated
+client configuration and trust records remain local; the source never copies them.
 
 ## AI tooling layout
 

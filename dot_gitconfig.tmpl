@@ -1,10 +1,9 @@
 [user]
-{{ if and (eq .kind "vm") (eq .role "work") }}	email = a.shahwan@foodics.com
+{{ if includeTemplate "has-work" . }}	email = a.shahwan@foodics.com
 {{ else }}	email = a.shahwan42@gmail.com
-{{ end }}	name = Ahmed Shahwan
-	# SSH signing (GPG retired: gpg-agent/pinentry breaks headless sessions).
-	# Per-machine keys identify which machine made the commit.
-	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ template "git-signing-key" . }}.pub
+{{ end }}	name = {{ if includeTemplate "has-work" . }}A. S. Foodics{{ else }}Ahmed Shahwan{{ end }}
+{{ if includeTemplate "has-git-signing" . }}	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ template "git-signing-key" . }}.pub
+{{ end -}}
 [core]
 	editor = nvim
 	excludesfile = {{ .chezmoi.homeDir }}/.gitignore_global
@@ -39,13 +38,8 @@
 	trustExitCode = true
 {{ end -}}
 [commit]
-	gpgsign = true
+	gpgsign = {{ if includeTemplate "has-git-signing" . }}true{{ else }}false{{ end }}
 [gpg]
 	format = ssh
 [gpg "ssh"]
 	allowedSignersFile = {{ .chezmoi.homeDir }}/.config/git/allowed_signers
-{{ if eq .kind "mac" -}}
-# Macs carry both identities: personal by default, work email inside work repos.
-[includeIf "gitdir:~/Code/foodics/"]
-	path = {{ .chezmoi.homeDir }}/.config/git/work.gitconfig
-{{ end -}}

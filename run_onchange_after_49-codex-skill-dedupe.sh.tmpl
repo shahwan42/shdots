@@ -1,3 +1,4 @@
+{{ if eq .kind "vm" -}}
 {{- if stat (joinPath .chezmoi.homeDir ".agents/skills/browser-harness/SKILL.md") -}}
 #!/bin/sh
 # Codex reads both ~/.agents/skills and ~/.codex/skills, so a skill present in
@@ -17,4 +18,5 @@ if [ -d "$dup" ] && [ ! -L "$dup" ] && [ "$(ls -A "$dup")" = "SKILL.md" ] \
 fi
 
 exit 0
+{{ end -}}
 {{ end -}}
