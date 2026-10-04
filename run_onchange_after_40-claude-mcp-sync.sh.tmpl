@@ -72,35 +72,15 @@ add postgres -- npx -y @modelcontextprotocol/server-postgres \
   postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
 {{ end -}}
 
-# codebase-memory-mcp ships no package-manager release; its documented
-# one-liner installs the binary AND self-registers it. Only (re)install the
-# binary if missing — `add` below then makes registration idempotent
-# regardless of what the installer already wrote.
-# https://github.com/DeusData/codebase-memory-mcp
+# Pin the validated binary release; installation never runs upstream main.
+{{ includeTemplate "codebase-memory-install.sh" . }}
 CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
-if [ ! -x "$CBM_BIN" ]; then
-  echo "codebase-memory-mcp: installing…"
-  # Upstream install.sh uses `set -o pipefail` (a bashism); Ubuntu's /bin/sh is
-  # dash and aborts on it. Pipe to bash, not sh.
-  if command -v bash >/dev/null 2>&1; then
-    # It also appends a redundant `export PATH=…/.local/bin` to ~/.zshrc, which
-    # env.zsh already handles and which is chezmoi-managed — snapshot & restore
-    # so it doesn't register as drift.
-    _zbak=$(mktemp 2>/dev/null) && cp "$HOME/.zshrc" "$_zbak" 2>/dev/null
-    # --skip-config: this script and 41/43 register the MCP server with each
-    # client. Without it the installer also writes instruction blocks into
-    # ~/.codex/AGENTS.md and ~/.config/opencode/AGENTS.md plus Claude hooks
-    # and skills, and the global instruction layer belongs to chezmoi.
-    curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config \
-      || { echo "codebase-memory-mcp: install failed; see https://github.com/DeusData/codebase-memory-mcp" >&2
-           hn codebase-memory-mcp fail "install.sh exited non-zero"; }
-    [ -n "${_zbak:-}" ] && [ -f "$_zbak" ] && cp "$_zbak" "$HOME/.zshrc" && rm -f "$_zbak"
-  else
-    echo "codebase-memory-mcp: bash not found — cannot run installer; skipping" >&2
-    hn codebase-memory-mcp skip "bash not available"
-  fi
+if install_codebase_memory; then
+  add codebase-memory-mcp -- "$CBM_BIN"
+else
+  echo "codebase-memory-mcp: pinned installation failed; re-run this script after fixing the reported error" >&2
+  hn codebase-memory-mcp fail "pinned binary installation failed"
 fi
-[ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
 
 # github-mcp-server: binary comes from mise (dot_config/mise/config.toml.tmpl).
 # PAT lives in 1Password; a missing item is non-fatal (same pattern as the

@@ -11,16 +11,19 @@ if [[ -z ${HOMEBREW_PREFIX:-} ]]; then
   unset _brew
 fi
 
+# path_helper runs after .zshenv in login shells. Restore Homebrew precedence
+# even when that earlier pass already discovered its prefix (no brew subprocess).
+if [[ -n ${HOMEBREW_PREFIX:-} && -x "$HOMEBREW_PREFIX/bin/brew" ]]; then
+  path=("$HOMEBREW_PREFIX/bin" "$HOMEBREW_PREFIX/sbin" $path)
+fi
+
 export EDITOR=nvim
 export VISUAL=nvim
 
-# Composer before ~/.local/bin so ~/.local/bin ends up in front in every mode
-# (zsh arrays: last prepend wins; typeset -U keeps the front occurrence).
+# User executables precede Homebrew; mise shims precede user executables.
+# Last prepend wins; typeset -U below keeps only the first occurrence.
 if [[ -d "$HOME/.composer/vendor/bin" ]]; then
   path=("$HOME/.composer/vendor/bin" $path)
-fi
-if [[ -d "$HOME/.local/bin" ]]; then
-  path=("$HOME/.local/bin" $path)
 fi
 
 # kitty.app ships its `kitten` / `kitty` CLIs inside the bundle and never puts
@@ -37,6 +40,8 @@ fi
 # `pnpm add -g`, and typeset -U below drops the dup on the second (login) pass.
 export PNPM_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/pnpm"
 path=("$PNPM_HOME/bin" $path)
+[[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
+[[ -d "$HOME/.local/share/mise/shims" ]] && path=("$HOME/.local/share/mise/shims" $path)
 
 typeset -U path PATH
 

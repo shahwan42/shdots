@@ -78,6 +78,26 @@ users consume its binaries. Only `as` can run the managed Brewfile installer.
 is a physical-machine inventory; receiving it is not permission to maintain it.
 No Homebrew ownership/permission changes are part of this migration.
 
+Native shell precedence is project/mise tools, user executables, Homebrew,
+then system tools. The login and interactive environment restores Homebrew
+after macOS `path_helper`, without duplicate entries. Completion initialization
+accepts audited root-owned paths and paths inside the resolved Homebrew prefix
+owned by that installation's owner. Any unexpected owner, unresolved path or
+Homebrew-owner path outside the prefix retains normal `compinit` checking.
+
+Karabiner's managed configuration and asset directories use `0700`, matching
+its account-local operation. The optional keyboard asset remains inactive.
+
+Codebase Memory bootstrap pins the immutable
+[v0.11.0 release](https://github.com/DeusData/codebase-memory-mcp/releases/tag/v0.11.0)
+and verifies its archive against reviewed SHA-256 values. Only the binary is
+extracted into a private temporary directory; its native `install --skip-config`
+command handles activation. Bootstrap preserves `.zshrc`, removes temporary
+files and skips installation when the pinned version is already present.
+It never copies the upstream `install.sh` into `~/.local/bin`. A pre-existing
+unmanaged installer needs separate inspection during account reconciliation;
+it is not deleted automatically.
+
 chezmoi and mise executables are installed per user in `~/.local/bin`.
 mise config, data, state, caches and runtime installs remain user-local;
 `foodics` never depends on `as`'s mise store. Project
@@ -135,6 +155,9 @@ review existing simple modifications to avoid stacking duplicate mappings.
 ## Validation and rollback
 
 Run `python3 tests/account_profiles.py` with chezmoi, Git and Zsh available.
+On native macOS this includes scratch login/interactive shell resolution,
+completion ownership decisions, Karabiner permission convergence and mocked
+bootstrap success, retry and failure checks. No real installer is executed.
 Set `SHDOTS_AUDIT_DIR` to retain full dumps, diffs, dry-run output, command logs
 and syntax-check results. Tests use isolated config/cache/state and empty scratch
 destinations, override account username/home/source paths, exclude encrypted

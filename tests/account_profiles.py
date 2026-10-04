@@ -7,6 +7,7 @@ from pathlib import Path
 import plistlib
 import subprocess
 import tempfile
+from platform_stabilization import verify_profile, verify_bootstrap
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = Path(os.environ.get('SHDOTS_AUDIT_DIR', tempfile.mkdtemp(prefix='shdots-account-audit-')))
@@ -150,6 +151,7 @@ def profile(label, username, role, kind='mac', extra=None):
         check(len(mappings) == 2 and all(m['type'] == 'basic' for m in mappings), f'{label}: invalid keyboard candidate structure')
         check([(m['from']['key_code'], m['to'][0]['key_code']) for m in mappings] == [('caps_lock', 'escape'), ('escape', 'caps_lock')], f'{label}: incorrect keyboard candidate')
         check('.config/karabiner/karabiner.json' not in entries, f'{label}: keyboard candidate activated')
+        verify_profile(label, entries, rendered, audit, cz)
         run(['/usr/bin/ssh', '-G', '-F', str(rendered/'.ssh/config'), 'github.foodics.com' if role == 'work' else 'github.com'])
         # Full non-mutating diff and apply against empty scratch destination.
         before = sorted(str(f.relative_to(dest)) for f in dest.rglob('*'))
@@ -218,6 +220,7 @@ check('A. S. Foodics' in result.stdout and 'A[.] S[.] Foodics' in result.stdout 
 # Compatibility renders retain their explicit Linux role, without accessing ciphertext.
 profile('linux-personal','ubuntu','personal','vm')
 profile('linux-work','ubuntu','work','vm')
+verify_bootstrap(ROOT, ARTIFACTS)
 run(['git','-C',str(ROOT),'diff','HEAD','--check'])
 print('PASS: personal/work native and Linux renders, init, syntax, secret boundaries, linked-worktree identities, non-mutating diff/apply, invalid identity rejection.')
 print('Audit artifacts:', ARTIFACTS)

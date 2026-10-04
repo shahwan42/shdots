@@ -50,8 +50,7 @@ if [[ -n ${HOMEBREW_PREFIX:-} && -d "$HOMEBREW_PREFIX/share/zsh/site-functions" 
   fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
 fi
 
-autoload -Uz compinit
-compinit
+_shdots_compinit
 
 # Emacs keymap — Oh My Zsh did this in lib/key-bindings.zsh and the port
 # dropped it. Without it zsh picks the keymap from $EDITOR/$VISUAL, and "nvim"

@@ -17,8 +17,8 @@ for _hb in /opt/homebrew /usr/local; do
 done
 unset _hb
 
-[[ -d "$HOME/.local/share/mise/shims" ]] && path=("$HOME/.local/share/mise/shims" $path)
 [[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
+[[ -d "$HOME/.local/share/mise/shims" ]] && path=("$HOME/.local/share/mise/shims" $path)
 typeset -U path PATH
 
 # Legacy compatibility VMs retain their service-account environment. Native
