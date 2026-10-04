@@ -39,12 +39,13 @@ def verify_compinit(rendered, audit):
     # homes. Exercise the actual rendered policy and capture compinit's arguments.
     script = r'''
 source "$1"
-HOMEBREW_PREFIX=/opt/homebrew
+unit_home=$2
+HOMEBREW_PREFIX=$2/unit-brew
 compaudit() { [[ -n $finding ]] && print -r -- "$finding"; return 1; }
 compinit() { print -r -- "compinit:$*"; }
 zstat() {
-  [[ $4 == /opt/homebrew ]] && { _stat=(uid 501); return 0; }
-  [[ $4 == /unexpected ]] && { _stat=(uid 777); return 0; }
+  [[ ${@[-1]} == $HOMEBREW_PREFIX ]] && { _stat=(uid 501); return 0; }
+  [[ ${@[-1]} == "$unit_home/unexpected" ]] && { _stat=(uid 777); return 0; }
   [[ $owner == missing ]] && return 1
   _stat=(uid $owner)
 }
@@ -57,18 +58,22 @@ case_check() {
   }
   print -r -- "PASS: finding=$finding owner=$owner args=$expected"
 }
-case_check /root-owned 0 -u || exit 1
-case_check /opt/homebrew/share/zsh 501 -u || exit 1
-case_check /opt/homebrew/share/zsh 502 '' || exit 1
-case_check /outside-homebrew 501 '' || exit 1
-case_check /opt/homebrew/share/zsh missing '' || exit 1
-case_check $'/opt/homebrew/share/zsh\n/unexpected' 501 '' || exit 1
+case_check "$2/root-owned" 0 -u || exit 1
+case_check "$HOMEBREW_PREFIX/share/zsh" 501 -u || exit 1
+case_check "$HOMEBREW_PREFIX/share/zsh" 502 '' || exit 1
+case_check "$2/outside-homebrew" 501 '' || exit 1
+case_check "$HOMEBREW_PREFIX/share/zsh" missing '' || exit 1
+case_check "$HOMEBREW_PREFIX/share/zsh"$'\n'"$2/unexpected" 501 '' || exit 1
 case_check '' 501 '' || exit 1
 # Resolved paths must stay inside the prefix, even through a symlink.
 case_check "$2/escape" 501 '' || exit 1
 unset HOMEBREW_PREFIX
-case_check /opt/homebrew/share/zsh 501 '' || exit 1
+case_check "$2/unit-brew/share/zsh" 501 '' || exit 1
 '''
+    (audit/'unit-brew/share/zsh').mkdir(parents=True)
+    executable(audit/'unit-brew/bin/brew', '#!/bin/sh\nexit 0\n')
+    for name in ['root-owned', 'outside-homebrew', 'unexpected']:
+        (audit/name).touch()
     (audit/'escape').unlink(missing_ok=True)
     (audit/'escape').symlink_to('/usr/share')
     scriptfile = audit/'compinit-tests.zsh'
@@ -137,6 +142,31 @@ print -r -- "GH_HOST=${GH_HOST:-}"
     output = command(['/bin/zsh', '-lic', query], env, home, audit/'path-user-local.txt')
     check('git='+str(localbin/'git') in output, f'{label}: local binary lost precedence')
     (audit/'path-resolutions.json').write_text(json.dumps(resolutions, indent=2)+'\n')
+    # Fresh real compinit startup, with shared-install audit ownership replayed
+    # before the rendered zshrc runs. No completion/stat/resolution mocks.
+    from compinit_paths import audit_for_other_account
+    other_audit = audit_for_other_account(audit)
+    with (home/'.zshenv').open('a') as file:
+        file.write('\n_test_audit_uid=10000\nsource "'+str(other_audit)+'"\n')
+    completion_query = r'''
+(( $+_comps )) || exit 21
+for entry in "$fpath[@]"; do
+  [[ -e $entry || -L $entry ]] || exit 22
+done
+if [[ -f /opt/homebrew/share/zsh/site-functions/_ghostty ]]; then
+  [[ -n ${_comps[ghostty]:-} ]] || exit 23
+fi
+print -r -- 'PASS: fresh rendered startup registered completions without a prompt'
+'''
+    for mode in ['-lic', '-ic']:
+        for dump in home.glob('.zcompdump*'):
+            dump.unlink()
+        output = command(['/bin/zsh', mode, completion_query], env, home,
+                         audit/('completion-startup-'+mode.lstrip('-')+'.txt'))
+        check('PASS:' in output, f'{label} {mode}: incomplete startup')
+        log = (audit/('completion-startup-'+mode.lstrip('-')+'.txt')).read_text()
+        check('insecure' not in log and 'compinit: initialization aborted' not in log,
+              f'{label} {mode}: completion security prompt: {log}')
 
 
 def verify_karabiner(entries, cz, audit):
@@ -159,7 +189,9 @@ def verify_karabiner(entries, cz, audit):
 
 
 def verify_profile(label, entries, rendered, audit, cz):
+    from compinit_paths import verify_compinit_paths
     verify_compinit(rendered, audit)
+    verify_compinit_paths(rendered, audit)
     verify_path(label, entries, audit)
     verify_karabiner(entries, cz, audit)
     check('.local/bin/install.sh' not in entries, 'stray installer is managed')

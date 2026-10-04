@@ -82,8 +82,16 @@ Native shell precedence is project/mise tools, user executables, Homebrew,
 then system tools. The login and interactive environment restores Homebrew
 after macOS `path_helper`, without duplicate entries. Completion initialization
 accepts audited root-owned paths and paths inside the resolved Homebrew prefix
-owned by that installation's owner. Any unexpected owner, unresolved path or
-Homebrew-owner path outside the prefix retains normal `compinit` checking.
+owned by that installation's owner. Nonexistent `fpath` entries are removed in
+order before auditing; existing entries remain subject to checking. On macOS,
+a completion-file symlink inside Homebrew may resolve into a direct
+`/Applications/*.app` bundle only when the link, Homebrew directory chain,
+target and bundle chain are owned by root or the Homebrew owner. These chains
+must not be group/world-writable; the shared `/Applications` directory permits
+its normal admin-group writes, but never world writes or an unexpected owner.
+Other escaping Homebrew links, unexpected owners and broken links retain normal
+`compinit` checking. Ordinary Homebrew-owner paths outside the prefix gain no
+exception. No cask lookup or other Homebrew operation runs during this check.
 
 Karabiner's managed configuration and asset directories use `0700`, matching
 its account-local operation. The optional keyboard asset remains inactive.
@@ -158,6 +166,11 @@ Run `python3 tests/account_profiles.py` with chezmoi, Git and Zsh available.
 On native macOS this includes scratch login/interactive shell resolution,
 completion ownership decisions, Karabiner permission convergence and mocked
 bootstrap success, retry and failure checks. No real installer is executed.
+Completion regressions use real scratch files, symlinks, stat and the installed
+`compaudit` algorithm, replaying a different accepted account UID without sudo.
+Only the fixed Applications root is relocated in the fixture helper copy;
+unexpected ownership tests override individual stat UIDs. A best-effort host
+Ghostty check uses the unchanged production predicate and skips when absent.
 Set `SHDOTS_AUDIT_DIR` to retain full dumps, diffs, dry-run output, command logs
 and syntax-check results. Tests use isolated config/cache/state and empty scratch
 destinations, override account username/home/source paths, exclude encrypted
