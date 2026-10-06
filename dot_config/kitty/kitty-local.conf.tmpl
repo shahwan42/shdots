@@ -6,8 +6,10 @@
 # dot_config/ghostty/config.tmpl.
 
 # --- shared ---
-font_size 13.0
+font_size 15.0
 modify_font cell_height 160% # -2px
+# kitty rounds the cell width up (Menlo 15pt = 18.06px -> 19px); 95% matches Ghostty's 18px.
+modify_font cell_width 95%
 remember_window_size  yes
 draw_minimal_borders yes
 window_margin_width 1
@@ -20,9 +22,20 @@ enabled_layouts splits,tall,stack
 map kitty_mod+enter new_window_with_cwd
 map cmd+enter       new_window_with_cwd
 
+# Zoom like Ghostty: 1pt steps, current OS window only (kitty default is 2pt, all windows).
+map cmd+equal       change_font_size current +1.0
+map cmd+plus        change_font_size current +1.0
+map shift+cmd+equal change_font_size current +1.0
+map cmd+minus       change_font_size current -1.0
+map shift+cmd+minus change_font_size current -1.0
+map cmd+0           change_font_size current 0
+
 # ported from ghostty (dot_config/ghostty/config.tmpl).
 # kitty has no inline comments -- keep notes on their own lines.
 
+# ghostty: no font-thicken. kitty's default `platform` strategy on macOS
+# (gamma 1.7, contrast 30%) renders heavier; linear with no boost stays light.
+text_composition_strategy 1.0 0
 # ghostty: background-opacity = 0.85
 background_opacity 0.85
 # ghostty: background-blur = true (kitty wants a radius; ~20 approximates it)
