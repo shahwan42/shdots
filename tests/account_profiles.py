@@ -168,6 +168,7 @@ def profile(label, username, role, kind='mac', extra=None):
         check('.local/bin/mcp-github-register' not in entries, f'{label}: unprovisioned MCP token helper')
         check('.claude/skills/qa-manual/SKILL.md' not in entries, f'{label}: personal project skill')
         check('.ssh/authorized_keys' not in entries, f'{label}: legacy host access grant')
+        check('.ssh/config.d/personal/shahwan' not in entries, f'{label}: personal Hetzner host')
         check('export GH_HOST=github.foodics.com' in entries['.zshenv']['contents'], f'{label}: Enterprise CLI default missing')
         check('brew bundle' not in entries['25-brew-bundle.sh']['contents'], f'{label}: Homebrew mutation')
         check('op_read \'op://' not in entries['40-claude-mcp-sync.sh']['contents'] + entries['43-codex-mcp-sync.sh']['contents'], f'{label}: automatic PAT acquisition')
@@ -177,6 +178,7 @@ def profile(label, username, role, kind='mac', extra=None):
             check(needle not in all_text, f'{label}: work token consumer')
         check('servers["gmail"]' in entries['41-opencode-mcp-sync.sh']['contents'], f'{label}: personal Gmail missing')
         check('.claude/skills/qa-manual/SKILL.md' in entries, f'{label}: personal QA missing')
+        check('.ssh/config.d/personal/shahwan' in entries, f'{label}: Hetzner host missing')
     (audit/'commands.json').write_text(json.dumps(command_log, indent=2) + '\n')
     (audit/'summary.json').write_text(json.dumps(dict(label=label, username=username, role=role, kind=kind, counts=counts, git_name=full_name, git_email=email, externals='excluded (no downloads)', encrypted='excluded (no decryption)', actual_user=run(['id','-un']).stdout.strip()), indent=2)+'\n')
     return cz, entries

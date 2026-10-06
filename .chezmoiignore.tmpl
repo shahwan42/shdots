@@ -73,6 +73,11 @@ Library
 .ssh/authorized_keys
 {{ end -}}
 
+{{ if not (and (eq .kind "mac") (includeTemplate "has-personal" .)) -}}
+# Hetzner keeper SSH host: personal Macs only (the keeper trusts workstation keys).
+.ssh/config.d/personal/shahwan
+{{ end -}}
+
 {{ if not (includeTemplate "has-work" .) -}}
 # Legacy encrypted Work SSH hosts are relevant only to work compatibility VMs.
 # (chezmoiignore matches TARGET paths — the encrypted_/.age source decorations

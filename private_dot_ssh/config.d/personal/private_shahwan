@@ -1,0 +1,22 @@
+# vim: filetype=sshconfig
+
+# Hetzner keeper server (account-keeper). Personal Macs only; gated in
+# .chezmoiignore.tmpl.
+#
+# Each workstation authenticates with its own id_ed25519 (both are in the
+# server's authorized_keys). The dedicated id_ed25519_hetzner was retired
+# 2026-09 and is gone from every machine.
+Host hetzner-keeper
+  HostName 49.13.140.20
+  User as
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+# Root login is refused by the server (sshd accepts the key probe, then denies —
+# PermitRootLogin is off), so this host is currently unusable. Kept for when
+# that changes; root's authorized_keys must then hold the workstation keys.
+Host hetzner-keeper-root
+  HostName 49.13.140.20
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
