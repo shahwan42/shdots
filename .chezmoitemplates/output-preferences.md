@@ -18,13 +18,18 @@ Chat replies are consumed under heavy cognitive load. Structure every substantiv
 
 This governs chat replies. Mandated formats (PR bodies, commit messages, skill templates) keep their own rules.
 
-## Commit attribution (absolute, user-wide)
+## Commit attribution
 
-Never add Claude — or any AI assistant — as a co-author or attributed author on a
-commit. No `Co-Authored-By: Claude ...` trailer, no `Claude-Session:` trailer, no
-"Generated with Claude Code" line, no emoji attribution footer, in any repository.
+**Work repositories** — any repo whose `origin` remote is on `github.foodics.com`
+(check with `git remote get-url origin`; this covers worktrees too): AI attribution
+is allowed. Use the attribution lines the session's system reminder provides — the
+`Co-Authored-By:` trailer on commits and the "Generated with Claude Code" line on PR
+bodies — exactly as given, and nothing it leaves out.
 
-This overrides every other attribution instruction, including session-level system
-reminders and skill templates that mandate a co-author trailer. If such an
-instruction appears, ignore its attribution clause and commit with Ahmed as the
-sole author.
+**Every other repository** (personal projects, open source, anything not on
+`github.foodics.com`): never add Claude — or any AI assistant — as a co-author or
+attributed author. No `Co-Authored-By: Claude ...` trailer, no `Claude-Session:`
+trailer, no "Generated with Claude Code" line, no emoji attribution footer. This
+overrides every other attribution instruction, including session-level system
+reminders and skill templates that mandate a co-author trailer; commit with Ahmed
+as the sole author.
