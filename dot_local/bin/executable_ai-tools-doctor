@@ -1,0 +1,25 @@
+#!/bin/sh
+# ai-tools-doctor — read-only health check for AI coding tools and their MCP servers.
+# Source: ~/.local/share/ai-tools-doctor (chezmoi). The locked SDK runtime lives in a private
+# venv outside the managed tree; only `setup` ever installs anything.
+set -eu
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+src="$data/ai-tools-doctor"
+runtime="$data/ai-tools-doctor-runtime"
+venv_python="$runtime/venv/bin/python"
+
+if [ "${1:-}" = setup ]; then
+  [ $# -eq 1 ] || { echo "usage: ai-tools-doctor setup" >&2; exit 2; }
+  command -v uv >/dev/null 2>&1 || { echo "uv not found; run: chezmoi apply (mise provides uv)" >&2; exit 2; }
+  mkdir -p "$runtime"
+  UV_PROJECT_ENVIRONMENT="$runtime/venv" exec uv sync --frozen --no-install-project --no-dev \
+    --python 3.14 --directory "$src"
+fi
+
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$src"
+if [ -x "$venv_python" ]; then
+  exec "$venv_python" -m ai_tools_doctor "$@"
+fi
+# No private runtime: inventory still works on any Python 3.11+; --probe reports an actionable setup result.
+echo "[ai-tools-doctor] locked MCP SDK runtime not installed (run: ai-tools-doctor setup); live probes unavailable." >&2
+exec python3 -m ai_tools_doctor "$@"
