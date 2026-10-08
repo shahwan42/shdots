@@ -1,0 +1,7 @@
+interface:
+  display_name: "Agent Continuity"
+  short_description: "Resume from verified state and keep settled scope"
+  default_prompt: "Use $agent-continuity to verify the checkpoint against live state and continue the next authorized action."
+
+policy:
+  allow_implicit_invocation: true

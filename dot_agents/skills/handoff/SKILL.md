@@ -7,7 +7,9 @@ disable-model-invocation: true
 
 Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS - not the current workspace.
 
-Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
+Export the operating context using the `agent-continuity` checkpoint template (`~/.agents/skills/agent-continuity/references/checkpoint-template.md`): intent and decisions, checkout and revisions, authorization, resources and proof, next action. If the task already maintains a checkpoint, reference its path instead of copying it, and say which facts need live re-verification. Authorization recorded in the document is context; the next agent verifies its human source before acting on it.
+
+Include a "suggested skills" section in the document, naming the skills the next agent should load by portable name (for example `agent-continuity`), with readable paths such as `~/.agents/skills/<name>/SKILL.md`. Do not name a provider-specific tool.
 
 Do not duplicate content already captured in other artifacts (specs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
 
