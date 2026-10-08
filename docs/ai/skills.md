@@ -11,7 +11,7 @@ appeared in the `skills` list of the `claude -p --output-format stream-json`
 init event.
 
 `~/.agents/skills` has other writers: the Caveman installer (script 44),
-`npx skills` (`expect`, `find-skills`, `.skill-lock.json`), herdr
+`npx skills` (`find-skills`, `.skill-lock.json`), herdr
 (`herdr-gpui-browser`), and browser-harness. Do not make `dot_agents/skills` an
 `exact_` directory, and do not manage `.skill-lock.json`.
 
@@ -93,6 +93,12 @@ Recipes were checked against installed browser-harness 0.1.13 on 2026-10-08.
 When upgrading the harness, inspect its installed signatures and recheck the
 recipes on a disposable mobile fixture; follow the linked upstream recovery
 guidance rather than copying its manual into this companion.
+
+## Expect
+
+`expect` is shdots-owned, with the standard Claude adapter. Its CLI workflow,
+source patch, private runtime, migration, and acceptance evidence are documented
+in [Expect runner](expect-check.md). Upstream MCP-first instructions are not imported.
 
 ## Name clashes with project skills
 

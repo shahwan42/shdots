@@ -1,0 +1,470 @@
+diff --git a/apps/cli/package.json b/apps/cli/package.json
+index 7e3f7ef6..dca561fa 100644
+--- a/apps/cli/package.json
++++ b/apps/cli/package.json
+@@ -62,7 +62,7 @@
+     "@hono/node-server": "^1.19.11",
+     "@iarna/toml": "^2.2.5",
+     "@tanstack/react-query": "^5.80.7",
+-    "@zed-industries/codex-acp": "^0.10.0",
++    "@agentclientprotocol/codex-acp": "2.1.1",
+     "accessibility-checker-engine": "^4.0.16",
+     "cli-truncate": "^5.2.0",
+     "commander": "^13.1.0",
+@@ -89,6 +89,7 @@
+   },
+   "devDependencies": {
+     "@babel/core": "^7.29.0",
++    "@babel/plugin-syntax-typescript": "7.28.6",
+     "@expect/agent": "workspace:*",
+     "@expect/shared": "workspace:*",
+     "@expect/supervisor": "workspace:*",
+diff --git a/apps/cli/src/utils/browser-client.ts b/apps/cli/src/utils/browser-client.ts
+index 2bc5b1b9..4681b0a5 100644
+--- a/apps/cli/src/utils/browser-client.ts
++++ b/apps/cli/src/utils/browser-client.ts
+@@ -78,7 +78,7 @@ export const ensureDaemon = async (): Promise<SessionInfo> => {
+   const daemonBin = path.join(path.dirname(new URL(import.meta.url).pathname), "browser-daemon.js");
+   const child = childProcess.spawn(process.execPath, [daemonBin], {
+     stdio: "ignore",
+-    detached: true,
++    detached: !process.env.EXPECT_SESSION_FILE,
+   });
+   child.unref();
+ 
+diff --git a/apps/cli/src/utils/extract-close-artifacts.ts b/apps/cli/src/utils/extract-close-artifacts.ts
+index f9fb3f1d..595d96b9 100644
+--- a/apps/cli/src/utils/extract-close-artifacts.ts
++++ b/apps/cli/src/utils/extract-close-artifacts.ts
+@@ -14,7 +14,9 @@ export const extractCloseArtifacts = (events: readonly ExecutionEvent[]): CloseA
+   const closeResult = events.findLast(
+     (event) =>
+       event._tag === "ToolResult" &&
+-      event.toolName === "close" &&
++      ["close", "mcp__browser__close", "browser/close", "mcp.browser.close"].includes(
++        event.toolName,
++      ) &&
+       !event.isError &&
+       event.result.length > 0,
+   );
+@@ -26,7 +28,16 @@ export const extractCloseArtifacts = (events: readonly ExecutionEvent[]): CloseA
+     };
+   }
+ 
+-  const lines = closeResult.result
++  let text = closeResult.result;
++  try {
++    const parsed = JSON.parse(text);
++    const content = parsed.content ?? parsed.result?.content;
++    if (Array.isArray(content))
++      text = content.flatMap((item) => (item.type === "text" ? [item.text] : [])).join("\n");
++  } catch {
++    /* Plain text close results from older adapters remain supported. */
++  }
++  const lines = text
+     .split("\n")
+     .map((line) => line.trim())
+     .filter((line) => line.length > 0);
+diff --git a/apps/cli/src/utils/run-test.ts b/apps/cli/src/utils/run-test.ts
+index 0f12c547..5bceebfd 100644
+--- a/apps/cli/src/utils/run-test.ts
++++ b/apps/cli/src/utils/run-test.ts
+@@ -1,3 +1,5 @@
++import * as fs from "node:fs";
++import * as path from "node:path";
+ import { Config, Effect, Option, Schema, Stream } from "effect";
+ import { type ChangesFor, type PlanId, CiResultOutput, CiStepResult } from "@expect/shared/models";
+ import { Executor, ExecutedTestPlan, Reporter, Github } from "@expect/supervisor";
+@@ -197,6 +199,12 @@ export const runHeadless = (options: HeadlessRunOptions) =>
+             }),
+           );
+ 
++          if (process.env.EXPECT_ARTIFACT_DIR) {
++            fs.writeFileSync(
++              path.join(process.env.EXPECT_ARTIFACT_DIR, "execution-events.json"),
++              JSON.stringify(finalExecuted.events, null, 2),
++            );
++          }
+           printNewEvents(finalExecuted);
+ 
+           if (!isJsonOutput) {
+diff --git a/apps/cli/tests/extract-close-artifacts.test.ts b/apps/cli/tests/extract-close-artifacts.test.ts
+index 16c755b0..627ca535 100644
+--- a/apps/cli/tests/extract-close-artifacts.test.ts
++++ b/apps/cli/tests/extract-close-artifacts.test.ts
+@@ -14,6 +14,25 @@ const makeOtherToolResult = (result: string): ExecutionEvent =>
+   new ToolResult({ toolName: "snapshot", result, isError: false });
+ 
+ describe("extractCloseArtifacts", () => {
++  it.each(["mcp__browser__close", "mcp.browser.close"])(
++    "extracts maintained Codex %s results",
++    (toolName) => {
++      const event = new ToolResult({
++        toolName,
++        isError: false,
++        result: JSON.stringify({
++          content: [
++            {
++              type: "text",
++              text: "Browser closed.\nScreenshot: /tmp/final.png\nPlaywright video: /tmp/final.webm",
++            },
++          ],
++        }),
++      });
++      expect(extractCloseArtifacts([event]).screenshotPaths).toEqual(["/tmp/final.png"]);
++      expect(extractCloseArtifacts([event]).videoPath).toBe("/tmp/final.webm");
++    },
++  );
+   describe("when no close event exists", () => {
+     it("returns all undefined for empty events array", () => {
+       const artifacts = extractCloseArtifacts([]);
+diff --git a/apps/cli/vite.config.ts b/apps/cli/vite.config.ts
+index 7533e06a..06ba27e7 100644
+--- a/apps/cli/vite.config.ts
++++ b/apps/cli/vite.config.ts
+@@ -101,7 +101,7 @@ export default defineConfig({
+       neverBundle: [
+         "playwright",
+         "@agentclientprotocol/claude-agent-acp",
+-        "@zed-industries/codex-acp",
++        "@agentclientprotocol/codex-acp",
+         "oxc-resolver",
+       ],
+     },
+diff --git a/packages/agent/package.json b/packages/agent/package.json
+index 5d576767..3f978669 100644
+--- a/packages/agent/package.json
++++ b/packages/agent/package.json
+@@ -24,7 +24,7 @@
+     "@expect/shared": "workspace:*",
+     "@github/copilot": "^1.0.12",
+     "@google/gemini-cli": "^0.35.3",
+-    "@zed-industries/codex-acp": "^0.10.0",
++    "@agentclientprotocol/codex-acp": "2.1.1",
+     "effect": "4.0.0-beta.35",
+     "which": "^6.0.1"
+   },
+diff --git a/packages/agent/src/acp-client.ts b/packages/agent/src/acp-client.ts
+index 86abbc7d..fde9296c 100644
+--- a/packages/agent/src/acp-client.ts
++++ b/packages/agent/src/acp-client.ts
+@@ -1,4 +1,5 @@
+ import * as fs from "node:fs";
++import { AcpOperationGuard } from "./acp-operation-guard";
+ import { createRequire } from "node:module";
+ import * as path from "node:path";
+ import { fileURLToPath } from "node:url";
+@@ -232,8 +233,7 @@ export class AcpAdapter extends ServiceMap.Service<
+   static layerCodex = Layer.effect(AcpAdapter)(
+     Effect.try({
+       try: () => {
+-        const require = makeRequire();
+-        const binPath = require.resolve("@zed-industries/codex-acp/bin/codex-acp.js");
++        const binPath = resolvePackageBin("@agentclientprotocol/codex-acp");
+         return AcpAdapter.of({
+           provider: "codex",
+           bin: process.execPath,
+@@ -243,7 +243,7 @@ export class AcpAdapter extends ServiceMap.Service<
+       },
+       catch: (cause) =>
+         new AcpAdapterNotFoundError({
+-          packageName: "@zed-industries/codex-acp",
++          packageName: "@agentclientprotocol/codex-acp",
+           cause,
+         }),
+     }),
+@@ -593,6 +593,7 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       return Option.none();
+     };
+ 
++    const toolTitles = new Map<string, string>();
+     const client: acp.Client = {
+       requestPermission: (params) =>
+         Promise.resolve({
+@@ -606,6 +607,24 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+         }),
+       sessionUpdate: async ({ sessionId, update }) => {
+         try {
++          if (update.sessionUpdate === "tool_call") {
++            toolTitles.set(`${sessionId}:${update.toolCallId}`, update.title);
++          } else if (update.sessionUpdate === "tool_call_update") {
++            const key = `${sessionId}:${update.toolCallId}`;
++            update = {
++              ...update,
++              title: update.title ?? toolTitles.get(key),
++              rawOutput:
++                update.rawOutput ??
++                update.content
++                  ?.flatMap((item) =>
++                    item.type === "content" && item.content.type === "text"
++                      ? [item.content.text]
++                      : [],
++                  )
++                  .join("\n"),
++            };
++          }
+           const decoded = Schema.decodeUnknownSync(AcpSessionUpdate)(update);
+           const updatesQueue = sessionUpdatesMap.get(SessionId.makeUnsafe(sessionId));
+           if (updatesQueue === undefined) {
+@@ -621,6 +640,7 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       },
+     };
+ 
++    const operationGuard = new AcpOperationGuard();
+     const childProcess = yield* ChildProcess.make(adapter.bin, adapter.args, {
+       env: adapter.env,
+       extendEnv: true,
+@@ -638,9 +658,9 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+     yield* childProcess.stderr.pipe(
+       Stream.decodeText(),
+       Stream.splitLines,
+-      Stream.tap((line) => Effect.logDebug("ACP adapter stderr", { line })),
++      Stream.tap((line) => Effect.sync(() => operationGuard.stderr(line))),
++      Stream.tap((line) => Effect.logWarning("ACP adapter stderr", { line })),
+       Stream.filterMap(Filter.fromPredicateOption(getAdapterSessionError)),
+-      Stream.take(1),
+       Stream.tap((adapterSessionError) =>
+         Effect.andThen(
+           Effect.logWarning("ACP adapter reported fatal error", {
+@@ -657,6 +677,21 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       Effect.forkScoped,
+     );
+ 
++    yield* childProcess.exitCode.pipe(
++      Effect.flatMap((code) =>
++        Effect.gen(function* () {
++          const cause = operationGuard.exited(Number(code));
++          yield* Effect.logError("ACP adapter exited", { code, cause: cause.message });
++          yield* Effect.forEach(
++            Array.from(sessionUpdatesMap.values()),
++            (queue) => Queue.fail(queue, new AcpStreamError({ cause })),
++            { concurrency: "unbounded" },
++          );
++        }),
++      ),
++      Effect.forkScoped,
++    );
++    yield* Effect.addFinalizer(() => Effect.sync(() => operationGuard.exited(-1)));
+     const readable = Stream.toReadableStream(childProcess.stdout);
+     const writable = new WritableStream<Uint8Array>({
+       write: (chunk) => void Queue.offerUnsafe(writableQueue, chunk),
+@@ -677,16 +712,26 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       {
+         command: process.execPath,
+         args: [browserMcpBinPath],
+-        env: [...env],
++        env: [
++          ...env,
++          ...[
++            "EXPECT_SESSION_FILE",
++            "EXPECT_ARTIFACT_DIR",
++            "EXPECT_PROCESS_LEDGER",
++            "NODE_OPTIONS",
++          ].flatMap((name) => (process.env[name] ? [{ name, value: process.env[name]! }] : [])),
++        ],
+         name: "browser",
+       },
+     ];
+ 
+     const initResponse = yield* Effect.tryPromise({
+       try: () =>
+-        connection.initialize({
+-          protocolVersion: acp.PROTOCOL_VERSION,
+-        }),
++        operationGuard.run("ACP initialization", () =>
++          connection.initialize({
++            protocolVersion: acp.PROTOCOL_VERSION,
++          }),
++        ),
+       catch: (cause) => new AcpConnectionInitError({ cause }),
+     });
+     yield* Effect.logInfo("ACP connection initialized", {
+@@ -716,11 +761,13 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       });
+       return yield* Effect.tryPromise({
+         try: () =>
+-          connection.newSession({
+-            cwd,
+-            mcpServers,
+-            ...(sessionMeta ? { _meta: sessionMeta } : {}),
+-          }),
++          operationGuard.run("ACP session creation", () =>
++            connection.newSession({
++              cwd,
++              mcpServers,
++              ...(sessionMeta ? { _meta: sessionMeta } : {}),
++            }),
++          ),
+         catch: (cause) => {
+           const message = hasStringMessage(cause) ? cause.message : String(cause);
+           const details = extractErrorDetails(cause);
+@@ -847,10 +894,15 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+ 
+       yield* Effect.tryPromise({
+         try: () =>
+-          connection.prompt({
+-            sessionId,
+-            prompt: [{ type: "text", text: effectivePrompt }],
+-          }),
++          operationGuard.run(
++            "ACP prompt",
++            () =>
++              connection.prompt({
++                sessionId,
++                prompt: [{ type: "text", text: effectivePrompt }],
++              }),
++            0,
++          ),
+         catch: (cause) => new AcpStreamError({ cause }),
+       }).pipe(
+         Effect.tap(() => Effect.logDebug("ACP prompt completed")),
+@@ -902,11 +954,13 @@ export class AcpClient extends ServiceMap.Service<AcpClient>()("@expect/AcpClien
+       yield* Effect.annotateCurrentSpan({ sessionId, configId });
+       const response = yield* Effect.tryPromise({
+         try: () =>
+-          connection.setSessionConfigOption({
+-            sessionId,
+-            configId,
+-            ...(typeof value === "boolean" ? { type: "boolean" as const, value } : { value }),
+-          }),
++          operationGuard.run("ACP configuration", () =>
++            connection.setSessionConfigOption({
++              sessionId,
++              configId,
++              ...(typeof value === "boolean" ? { type: "boolean" as const, value } : { value }),
++            }),
++          ),
+         catch: (cause) => new AcpStreamError({ cause }),
+       });
+       yield* Effect.logInfo("ACP config option set", { configId, value });
+diff --git a/packages/agent/src/acp-operation-guard.ts b/packages/agent/src/acp-operation-guard.ts
+new file mode 100644
+index 00000000..d6adfaf5
+--- /dev/null
++++ b/packages/agent/src/acp-operation-guard.ts
+@@ -0,0 +1,60 @@
++/** Bounds the handshake and rejects every pending operation when its adapter exits. */
++export class AcpOperationGuard {
++  private pending = new Set<(error: Error) => void>();
++  private exitError: Error | undefined;
++  private diagnostics = "";
++
++  stderr(line: string): void {
++    this.diagnostics = `${this.diagnostics}${line}\n`.slice(-16384);
++  }
++
++  exited(code: number): Error {
++    const error =
++      this.exitError ??
++      new Error(
++        `ACP adapter exited with status ${code}${this.diagnostics ? `\n${this.diagnostics.trimEnd()}` : ""}`,
++      );
++    this.exitError = error;
++    for (const reject of this.pending) reject(error);
++    return error;
++  }
++
++  run<T>(name: string, operation: () => Promise<T>, timeoutMs = 30000): Promise<T> {
++    if (this.exitError) return Promise.reject(this.exitError);
++    return new Promise<T>((resolve, reject) => {
++      const fail = (error: Error) => {
++        cleanup();
++        reject(error);
++      };
++      const timer =
++        timeoutMs > 0
++          ? setTimeout(
++              () =>
++                fail(
++                  new Error(
++                    `${name} timed out after ${timeoutMs} milliseconds${this.diagnostics ? `\n${this.diagnostics.trimEnd()}` : ""}`,
++                  ),
++                ),
++              timeoutMs,
++            )
++          : undefined;
++      const cleanup = () => {
++        clearTimeout(timer);
++        this.pending.delete(fail);
++      };
++      this.pending.add(fail);
++      Promise.resolve()
++        .then(operation)
++        .then(
++          (value) => {
++            cleanup();
++            resolve(value);
++          },
++          (error) => {
++            cleanup();
++            reject(error);
++          },
++        );
++    });
++  }
++}
+diff --git a/packages/agent/tests/acp-operation-guard.test.ts b/packages/agent/tests/acp-operation-guard.test.ts
+new file mode 100644
+index 00000000..758abab0
+--- /dev/null
++++ b/packages/agent/tests/acp-operation-guard.test.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it } from "vite-plus/test";
++import { AcpOperationGuard } from "../src/acp-operation-guard";
++
++describe("ACP pending operations", () => {
++  it("preserves protocol handshake failures", async () => {
++    const guard = new AcpOperationGuard();
++    await expect(
++      guard.run("ACP initialization", () => Promise.reject(new Error("invalid protocol"))),
++    ).rejects.toThrow("invalid protocol");
++  });
++  it("rejects all pending operations and future calls on early exit with stderr", async () => {
++    const guard = new AcpOperationGuard();
++    const cause = "config.toml:6:16: unknown variant `default`, expected `fast` or `flex`";
++    guard.stderr(cause);
++    const first = guard.run("ACP initialization", () => new Promise(() => {}));
++    const second = guard.run("ACP session creation", () => new Promise(() => {}));
++    guard.exited(7);
++    await expect(first).rejects.toThrow(cause);
++    await expect(second).rejects.toThrow("status 7");
++    await expect(guard.run("late", async () => 1)).rejects.toThrow(cause);
++  });
++  it("bounds a silent handshake and retains diagnostic context", async () => {
++    const guard = new AcpOperationGuard();
++    guard.stderr("adapter starting");
++    await expect(guard.run("ACP initialization", () => new Promise(() => {}), 20)).rejects.toThrow(
++      "ACP initialization timed out after 20 milliseconds\nadapter starting",
++    );
++    expect(await guard.run("healthy", async () => 42, 20)).toBe(42);
++  });
++});
+diff --git a/packages/browser/src/mcp/constants.ts b/packages/browser/src/mcp/constants.ts
+index d3a56642..5aeaebb8 100644
+--- a/packages/browser/src/mcp/constants.ts
++++ b/packages/browser/src/mcp/constants.ts
+@@ -6,8 +6,9 @@ export const EXPECT_BASE_URL_ENV_NAME = "EXPECT_BASE_URL";
+ export const EXPECT_HEADED_ENV_NAME = "EXPECT_HEADED";
+ export const EXPECT_PROFILE_ENV_NAME = "EXPECT_PROFILE";
+ export const DUPLICATE_REQUEST_WINDOW_MS = 500;
+-export const TMP_ARTIFACT_OUTPUT_DIRECTORY = "/tmp/expect-artifacts";
+-export const CLI_SESSION_FILE = "/tmp/expect-cli-session.json";
++export const TMP_ARTIFACT_OUTPUT_DIRECTORY =
++  process.env.EXPECT_ARTIFACT_DIR ?? "/tmp/expect-artifacts";
++export const CLI_SESSION_FILE = process.env.EXPECT_SESSION_FILE ?? "/tmp/expect-cli-session.json";
+ export const MAX_DAEMON_REQUEST_BODY_BYTES = 1024 * 1024;
+ export const MAX_STRINGIFY_LENGTH = 10_000;
+ export const PLAYWRIGHT_RESULTS_DIR = path.join(
+diff --git a/packages/typescript-sdk/package.json b/packages/typescript-sdk/package.json
+index e4ce676b..43790d18 100644
+--- a/packages/typescript-sdk/package.json
++++ b/packages/typescript-sdk/package.json
+@@ -42,7 +42,7 @@
+     "@google/gemini-cli": "^0.35.3",
+     "@modelcontextprotocol/sdk": "^1.27.1",
+     "@standard-schema/spec": "^1.1.0",
+-    "@zed-industries/codex-acp": "^0.10.0",
++    "@agentclientprotocol/codex-acp": "2.1.1",
+     "effect": "4.0.0-beta.35"
+   },
+   "devDependencies": {

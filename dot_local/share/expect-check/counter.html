@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Disposable counter</title>
+<style>body{font:24px system-ui;padding:48px}button{font:inherit;padding:12px}</style>
+<h1>Counter verification</h1><p id="counter">Count: 0</p><button id="increment">Increment</button>
+<script>let count=0;document.querySelector('#increment').onclick=()=>{document.querySelector('#counter').textContent=`Count: ${++count}`}</script>
+</html>
