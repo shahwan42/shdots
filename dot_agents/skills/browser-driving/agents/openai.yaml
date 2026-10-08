@@ -1,0 +1,7 @@
+interface:
+  display_name: "Browser Driving"
+  short_description: "Reliable browser recipes, ownership, and resumption"
+  default_prompt: "Use $browser-driving alongside browser-harness to resume and verify this browser task."
+
+policy:
+  allow_implicit_invocation: true

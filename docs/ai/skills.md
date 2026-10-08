@@ -81,6 +81,19 @@ file exists (`.chezmoiignore.tmpl` uses `stat`). Script 49
 canonical copy exists, then removes the older `~/.codex/skills/browser-harness`
 on that apply, so Codex lists it once.
 
+## Locally authored companions
+
+`browser-driving` is maintained here in `dot_agents/skills/browser-driving`,
+with a standard Claude symlink adapter. It supplies verified call recipes and
+task ownership/resumption rules alongside the installed `browser-harness` skill;
+it does not vendor or replace that skill. Its ChatGPT reference loads only for
+webpage interaction. Automatic discovery remains enabled.
+
+Recipes were checked against installed browser-harness 0.1.13 on 2026-10-08.
+When upgrading the harness, inspect its installed signatures and recheck the
+recipes on a disposable mobile fixture; follow the linked upstream recovery
+guidance rather than copying its manual into this companion.
+
 ## Name clashes with project skills
 
 Project skills must win. Neither Claude nor OpenCode guarantees that:
