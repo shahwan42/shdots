@@ -15,6 +15,15 @@ init event.
 (`herdr-gpui-browser`), and browser-harness. Do not make `dot_agents/skills` an
 `exact_` directory, and do not manage `.skill-lock.json`.
 
+## Locally authored skills
+
+| Skill | Source | Claude adapter |
+|---|---|---|
+| `pencil-workflow` | `dot_agents/skills/pencil-workflow` | yes |
+
+`pencil-workflow` is model-invoked so Pencil and `.pen` work can discover it
+automatically.
+
 ## Vendored skills
 
 ### From mattpocock/skills
