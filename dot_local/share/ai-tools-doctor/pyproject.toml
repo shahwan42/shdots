@@ -1,0 +1,6 @@
+[project]
+name = "ai-tools-doctor"
+version = "0.1.0"
+description = "Read-only health doctor for AI coding-tool installations and MCP servers"
+requires-python = ">=3.14,<3.15"
+dependencies = ["mcp==2.3.0"]

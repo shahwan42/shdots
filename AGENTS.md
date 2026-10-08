@@ -150,6 +150,14 @@ Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only whe
 a fast-forward was refused) and this log (every run's outcome). A green marker
 does not imply a green log.
 
+Registration health is not runtime health. `chezmoi-health` records that a
+tool or MCP server was installed or registered; `ai-tools-doctor` (read-only)
+checks the installed owner, configuration, skills and, with `--probe --server
+<name>`, whether a server connects and passes a reviewed smoke call. Run
+`ai-tools-doctor setup` once for the locked SDK runtime; reports land in
+`${XDG_STATE_HOME:-~/.local/state}/ai-tools-doctor/`. Findings live in
+`docs/plans/ai-tooling-followups.md`.
+
 ## Account-local authentication
 
 Role gates choose consumers, not vault permissions. Native accounts ignore the
