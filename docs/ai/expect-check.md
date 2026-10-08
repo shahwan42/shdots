@@ -106,6 +106,8 @@ and global Expect/browser-harness fingerprints before/after without printing sec
 
 ## Verification
 
+See the [recorded validation](expect-validation.md) for executed acceptance and rollout evidence.
+
 Run `node --test tests/expect_check.test.mjs`, patched-source checks, a clean setup
 from the recorded source/patch/lock, skill frontmatter/link validation, scoped
 render/dry-run/apply, and the repository gitleaks pre-commit scan.
