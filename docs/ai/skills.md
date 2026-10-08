@@ -20,9 +20,16 @@ init event.
 | Skill | Source | Claude adapter |
 |---|---|---|
 | `pencil-workflow` | `dot_agents/skills/pencil-workflow` | yes |
+| `agent-continuity` | `dot_agents/skills/agent-continuity` | yes |
 
 `pencil-workflow` is model-invoked so Pencil and `.pen` work can discover it
 automatically.
+
+`agent-continuity` is also model-invoked, with a narrow description: resumption
+after interruption or handoff, and reconciliation of user scope corrections. It
+is a guide plus one checkpoint template; it has no checker, hooks, or memory
+system. The agent verifies live state itself. Projects choose the checkpoint
+location.
 
 ## Vendored skills
 
@@ -32,7 +39,7 @@ Source: [`mattpocock/skills`](https://github.com/mattpocock/skills) at commit
 `c55ee46073ed923f86ce59a5eb3b6d895095d1b7`. The skills were installed on as-dev
 with `npx skills` on 2026-09-19 and imported from there on 2026-09-30. Every
 file was checked byte-for-byte against that upstream commit. The only
-difference is the adaptation listed below.
+differences are the adaptations listed below.
 
 | Skill | Upstream path | skillFolderHash (as-dev lock) | Claude adapter |
 |---|---|---|---|
@@ -47,12 +54,21 @@ difference is the adaptation listed below.
 | resolving-merge-conflicts | `skills/engineering/resolving-merge-conflicts` | `77f0d7de3143abbf03e55a63522d30bff31ae908` | yes |
 | writing-for-agents | `skills/productivity/writing-for-agents` | `ad2925850efb8973a72d2e666f7a975f9a2d4a9b` | yes |
 
-Adaptation: `code-review/SKILL.md` no longer tells the user to run
+Adaptation of `code-review`: `code-review/SKILL.md` no longer tells the user to run
 `/setup-matt-pocock-skills` when `docs/agents/issue-tracker.md` is missing. It
 uses a documented tracker workflow if the repo has one, then falls back to the
 tracker CLI (such as `gh issue view`), and otherwise skips issue references.
 
 `agents/openai.yaml` in each skill is upstream Codex metadata, not generated.
+
+Local adaptation of `handoff` (2026-10-08): it now exports the
+`agent-continuity` checkpoint sections, references a maintained checkpoint
+instead of copying it, and recommends skills by portable name and readable path
+instead of a provider-specific "Skill tool". Its manual-only policy
+(`disable-model-invocation`, `allow_implicit_invocation: false`), metadata, and
+OS temporary-directory export are unchanged. The generic skill validator rejects
+`argument-hint` and `disable-model-invocation`; keep them and validate through
+the supported hosts. Re-apply this adaptation on upgrade.
 
 ### From Caveman
 
