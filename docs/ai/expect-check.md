@@ -49,14 +49,22 @@ runs and 120000 for smoke. Internally the runner calls `expect-cli tui` with
 the entire child lifetime, including initialization and reporting. Shutdown allows
 one second for termination before killing owned processes and groups, then checks
 for survivors. A run-only Node preload records child PID/start identity and detached
-group ownership, including Playwright browser groups. Group ownership survives
+group ownership, including Playwright browser groups. For the selected native Codex app-server,
+it forwards stderr, handles stdin EPIPE, and exits the ACP host when the native
+engine exits unexpectedly so pending operations reject promptly with the original cause.
+Deliberately ending native stdin preserves provider replacement and normal shutdown. Group ownership survives
 leader exit while members remain; unrelated groups are preserved. Native version
 preflight is limited to five seconds and the remaining run budget; fixture Git
 commands share that budget and disable signing and hooks. A per-account lock serializes private runs; its owner record must
 be checked before removing a stale lock. Existing global sessions are not reused.
 
 Output must be empty and Git-ignored when inside a repository. Preserve `stdout.log`,
-`stderr.log`, `report.json`, `result.json`, and `artifacts/`. Result metadata includes
+`stderr.log`, `report.json`, `result.json`, `adapter/`, and `artifacts/`.
+The maintained adapter logs native app-server stderr and exit codes only when
+`APP_SERVER_LOGS` is set; the runner enables it privately, streams error/exit lines,
+and records native exit statuses separately from the Expect child status. Terminal native
+error notifications and adapter system errors stop the run promptly with infrastructure
+exit 2, preserving the native message instead of waiting for the deadline. Result metadata includes
 origin, instruction, versions, source revision, runtime, elapsed time, original
 child exit/signal, runner exit, cleanup checks, and artifact paths/hashes.
 A completed report must contain executed steps, consistent exit/status, and valid

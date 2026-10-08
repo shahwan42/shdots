@@ -61,10 +61,11 @@ export async function ownedProcess(bin, args, { cwd, env, timeoutMs, stdoutFile,
   fs.writeFileSync(ledger, '');
   const ownedEnv = { ...env, EXPECT_PROCESS_LEDGER: ledger, NODE_OPTIONS: `${env?.NODE_OPTIONS ?? ''} --import ${JSON.stringify(path.join(assets, 'process-owner.mjs'))}`.trim() };
   const child = spawn(bin, args, { cwd, env: ownedEnv, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const registered = () => {
+  const ledgerRecords = () => {
     if (!fs.existsSync(ledger)) return [];
     return fs.readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
   };
+  const registered = () => ledgerRecords().filter(record => record.identity && Number.isInteger(record.pid));
   const processTable = () => command('ps', ['-axo', 'pid=,pgid=,stat=,lstart=']).split('\n').flatMap(line => {
     const fields = line.trim().split(/\s+/);
     return fields.length >= 8 && !fields[2].startsWith('Z') ? [{ pid: Number(fields[0]), group: Number(fields[1]), identity: fields.slice(3).join(' ') }] : [];
@@ -99,6 +100,37 @@ export async function ownedProcess(bin, args, { cwd, env, timeoutMs, stdoutFile,
   if (signal?.aborted) cancel();
   child.stdout.on('data', data => { out.write(data); process.stdout.write(data); });
   child.stderr.on('data', data => { err.write(data); process.stderr.write(data); });
+  let nativeOffset = 0, nativePending = '';
+  const nativeLog = ownedEnv.APP_SERVER_LOGS ? path.join(ownedEnv.APP_SERVER_LOGS, 'app-server.log') : undefined;
+  const nativeExitStatuses = [];
+  let nativeFailure;
+  const streamNativeDiagnostics = () => {
+    if (!nativeLog || !fs.existsSync(nativeLog)) return;
+    const size = fs.statSync(nativeLog).size;
+    if (size <= nativeOffset) return;
+    const fd = fs.openSync(nativeLog, 'r');
+    const data = Buffer.alloc(size - nativeOffset);
+    fs.readSync(fd, data, 0, data.length, nativeOffset); fs.closeSync(fd); nativeOffset = size;
+    const lines = (nativePending + data.toString()).split('\n'); nativePending = lines.pop();
+    for (const line of lines) {
+      if (/^(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} )?\[(ERR|EXIT|SYSTEM_ERROR)\]/.test(line)) { err.write(line + '\n'); process.stderr.write(line + '\n'); }
+      const exit = line.match(/\[EXIT\] code: (\d+)/); if (exit) nativeExitStatuses.push(Number(exit[1]));
+      try {
+        const notification = JSON.parse(line.slice(line.indexOf('{')));
+        if (notification.method === 'error' && notification.params?.willRetry === false) {
+          const message = notification.params.error?.message;
+          if (typeof message === 'string') {
+            nativeFailure ??= message;
+            err.write(`Native Codex error: ${message}\n`); process.stderr.write(`Native Codex error: ${message}\n`);
+            stop(2);
+          }
+        }
+      } catch {}
+      if (/^(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} )?\[SYSTEM_ERROR\]/.test(line)) { nativeFailure ??= line; stop(2); }
+
+    }
+  };
+  const nativeTimer = setInterval(streamNativeDiagnostics, 200);
   const result = await new Promise(resolve => {
     child.once('error', e => { childError = e.message; resolve({ code: null, signal: null }); });
     child.once('exit', (code, sig) => resolve({ code, signal: sig }));
@@ -111,6 +143,7 @@ export async function ownedProcess(bin, args, { cwd, env, timeoutMs, stdoutFile,
     killOwned('SIGKILL');
     await sleep(100);
   }
+  clearInterval(nativeTimer); streamNativeDiagnostics();
   process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
   signal?.removeEventListener('abort', cancel);
   await Promise.all([new Promise(r => out.end(r)), new Promise(r => err.end(r))]);
@@ -118,14 +151,27 @@ export async function ownedProcess(bin, args, { cwd, env, timeoutMs, stdoutFile,
   const survivors = child.pid ? groups.split('\n').filter(line => {
     const fields = line.trim().split(/\s+/); return Number(fields[1]) === child.pid && !fields[2].startsWith('Z');
   }) : [];
-  return { ...result, outcome, childError, processGroup: child.pid, ownedProcesses: registered(), survivors: [...survivors, ...liveOwned().map(r => `registered PID ${r.pid}`)] };
+  return { ...result, nativeFailure, nativeExits: ledgerRecords().filter(r => r.kind === 'nativeExit'), nativeExitStatuses: [...nativeExitStatuses, ...ledgerRecords().filter(r => r.kind === 'nativeExit' && Number.isInteger(r.code)).map(r => r.code)], outcome, childError, processGroup: child.pid, ownedProcesses: registered(), survivors: [...survivors, ...liveOwned().map(r => `registered PID ${r.pid}`)] };
 }
 export function readReport(raw) {
-  // Verbose Effect logs precede the one final JSON document.
-  for (let i = raw.indexOf('{'); i >= 0; i = raw.indexOf('{', i + 1)) {
-    try { const value = JSON.parse(raw.slice(i)); if (value && typeof value.status === 'string') return value; } catch {}
+  // Native shutdown diagnostics can follow the completed report on verbose stdout.
+  const reports = [];
+  for (const match of raw.matchAll(/(?:^|\n)(\{)/g)) {
+    const start = match.index + match[0].length - 1;
+    let depth = 0, quoted = false, escaped = false;
+    for (let i = start; i < raw.length; i++) {
+      const char = raw[i];
+      if (quoted) { if (escaped) escaped = false; else if (char === '\\') escaped = true; else if (char === '"') quoted = false; continue; }
+      if (char === '"') quoted = true;
+      else if (char === '{') depth++;
+      else if (char === '}' && --depth === 0) {
+        try { const value = JSON.parse(raw.slice(start, i + 1)); if (value && typeof value.status === 'string' && Array.isArray(value.steps) && value.artifacts) reports.push(value); } catch {}
+        break;
+      }
+    }
   }
-  throw new Error('Missing or malformed completed JSON report');
+  if (reports.length === 1) return reports[0];
+  throw new Error('Missing, malformed, or ambiguous completed JSON report');
 }
 export function validatePng(data) {
   if (data.length < 57 || data.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('Invalid PNG signature');
@@ -150,7 +196,7 @@ export function validatePng(data) {
   for (let row = 0; row < height; row++) if (pixels[row * stride] > 4) throw new Error('Invalid PNG filter');
 }
 export function classify(report, child, artifactRoot) {
-  if (child.outcome) return { exit: child.outcome, reason: child.outcome === 124 ? 'Whole-run deadline exceeded' : 'Cancelled' };
+  if (child.outcome) return { exit: child.outcome, reason: child.outcome === 124 ? 'Whole-run deadline exceeded' : child.outcome === 130 ? 'Cancelled' : child.nativeFailure ?? 'Native Codex infrastructure failure' };
   if (child.childError || child.survivors?.length) return { exit: 2, reason: child.childError ?? 'Owned processes survived cleanup' };
   if (!report || !['passed', 'failed'].includes(report.status) || !Array.isArray(report.steps) || !report.steps.length ||
       typeof report.title !== 'string' || typeof report.summary !== 'string' || !Number.isFinite(report.duration_ms))
@@ -285,7 +331,7 @@ async function run(opts, smoke) {
       meta.origin = opts.url;
       meta.instruction = smoke ? smokeInstruction : opts.instruction;
       const artifacts = path.join(dir, 'artifacts'); fs.mkdirSync(artifacts);
-      const env = { ...process.env, CODEX_PATH: ready.codex.path, EXPECT_SESSION_FILE: path.join(dir, 'browser-session.json'), EXPECT_ARTIFACT_DIR: artifacts, EXPECT_HEADED: 'false', EXPECT_COOKIE_BROWSERS: '' };
+      const env = { ...process.env, APP_SERVER_LOGS: path.join(dir, 'adapter'), CODEX_PATH: ready.codex.path, EXPECT_SESSION_FILE: path.join(dir, 'browser-session.json'), EXPECT_ARTIFACT_DIR: artifacts, EXPECT_HEADED: 'false', EXPECT_COOKIE_BROWSERS: '' };
       delete env.EXPECT_CDP_URL; delete env.EXPECT_PROFILE;
       child = await ownedProcess(process.execPath, [ready.entry, 'tui', '--agent', agent, '--verbose', '--browser-mode', 'headless', '--no-cookies', '--output', 'json', '-u', opts.url, '-m', meta.instruction, '-y', '--timeout', String(timeoutMs), '--target', target], {
         cwd: fixture ?? process.cwd(), env, timeoutMs: Math.max(1, timeoutMs - (Date.now() - started)), stdoutFile: path.join(dir, 'stdout.log'), stderrFile: path.join(dir, 'stderr.log'),

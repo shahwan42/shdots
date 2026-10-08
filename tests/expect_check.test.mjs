@@ -30,6 +30,8 @@ test('failed browser steps map to test failure, infrastructure and timeout stay 
 test('verbose output is supported, incomplete JSON is rejected', () => {
   assert.deepEqual(readReport(`log { diagnostics }\n${JSON.stringify(report)}\n`), report);
   assert.throws(() => readReport('{"status":"passed"'), /malformed/);
+  assert.deepEqual(readReport(`log { diagnostics }\n${JSON.stringify({...report, summary: 'quoted \" } brace'})}\n[WARN] shutdown { diagnostic }`), {...report, summary: 'quoted \" } brace'});
+  assert.throws(() => readReport(`${JSON.stringify(report)}\n${JSON.stringify(report)}`), /ambiguous/);
 });
 test('deadline kills a SIGTERM-ignoring child and its descendant', async () => {
   const start = Date.now();
@@ -85,4 +87,60 @@ test('detached groups remain owned after their native leader exits', async () =>
   assert.ok(!status || status.startsWith('Z'), `Native grandchild ${pid} survived: ${status}`);
   assert.ok(result.ownedProcesses.some(p => p.detached));
   assert.deepEqual(result.survivors, []);
+});
+
+test('native adapter diagnostics retain the original cause and native status', async () => {
+  const logDir = path.join(dir, 'adapter'); fs.mkdirSync(logDir);
+  const result = await ownedProcess(process.execPath, ['-e', `require('fs').writeFileSync(require('path').join(process.env.APP_SERVER_LOGS,'app-server.log'),'[ERR] exact native configuration cause\\n[EXIT] code: 7\\n');process.exit(1)`], {
+    timeoutMs: 5000, stdoutFile: path.join(dir, 'native-out'), stderrFile: path.join(dir, 'native-err'), env: { ...process.env, APP_SERVER_LOGS: logDir },
+  });
+  assert.equal(result.code, 1); assert.deepEqual(result.nativeExitStatuses, [7]);
+  assert.match(fs.readFileSync(path.join(dir, 'native-err'), 'utf8'), /exact native configuration cause/);
+});
+
+test('an immediate native engine exit preserves stderr and rejects its ACP host promptly', async () => {
+  const native = path.join(dir, 'fake-codex');
+  fs.writeFileSync(native, '#!/bin/sh\nprintf "%s\\n" "native config: unknown tier" >&2\nexit 7\n', { mode: 0o700 });
+  const started = Date.now();
+  const result = await ownedProcess(process.execPath, ['-e', `const child=require('child_process').spawn(process.env.CODEX_PATH,['app-server']);child.stdin.write('initialize\\n');setInterval(()=>{},1000);`], {
+    timeoutMs: 5000, stdoutFile: path.join(dir, 'immediate-out'), stderrFile: path.join(dir, 'immediate-err'), env: { ...process.env, CODEX_PATH: native },
+  });
+  assert.equal(result.code, 7); assert.deepEqual(result.nativeExitStatuses, [7]);
+  assert.match(fs.readFileSync(path.join(dir, 'immediate-err'), 'utf8'), /native config: unknown tier/);
+  assert.deepEqual(result.survivors, []); assert.ok(Date.now()-started < 4000);
+});
+
+ test('intentional native shutdown permits a replacement engine', async () => {
+  const native = path.join(dir, 'replace-codex');
+  fs.writeFileSync(native, '#!/bin/sh\ncat >/dev/null\nexit 0\n', { mode: 0o700 });
+  const result = await ownedProcess(process.execPath, ['-e', `const cp=require('child_process');const first=cp.spawn(process.env.CODEX_PATH,['app-server']);first.once('close',()=>{const replacement=cp.spawn(process.env.CODEX_PATH,['app-server']);replacement.once('close',()=>{console.log('replacement completed');process.exit(0)});replacement.stdin.end()});first.stdin.end();`], {
+    timeoutMs: 5000, stdoutFile: path.join(dir, 'replacement-out'), stderrFile: path.join(dir, 'replacement-err'), env: { ...process.env, CODEX_PATH: native },
+  });
+  assert.equal(result.code, 0);
+  assert.match(fs.readFileSync(path.join(dir, 'replacement-out'), 'utf8'), /replacement completed/);
+  assert.equal(result.nativeExits.length, 2);
+  assert.deepEqual(result.survivors, []);
+});
+
+test('a terminal native provider error preserves its exact cause and fails promptly', async () => {
+  const logDir = path.join(dir, 'quota'); fs.mkdirSync(logDir);
+  const message = 'You’ve hit your usage limit. Try again at 5:17 PM.';
+  const notification = JSON.stringify({method:'error',params:{error:{message,codexErrorInfo:'usageLimitExceeded'},willRetry:false}});
+  const start = Date.now();
+  const result = await ownedProcess(process.execPath, ['-e', `require('fs').writeFileSync(require('path').join(process.env.APP_SERVER_LOGS,'app-server.log'), ${JSON.stringify(notification+'\n')});setInterval(()=>{},1000)`], {
+    timeoutMs: 10000, stdoutFile: path.join(dir, 'quota-out'), stderrFile: path.join(dir, 'quota-err'), env: {...process.env,APP_SERVER_LOGS:logDir},
+  });
+  assert.equal(result.outcome,2); assert.equal(classify(undefined,result,dir).exit,2);
+  assert.equal(result.nativeFailure,message); assert.match(fs.readFileSync(path.join(dir,'quota-err'),'utf8'),/usage limit/);
+  assert.deepEqual(result.survivors,[]); assert.ok(Date.now()-start<4000);
+});
+
+test('ordinary output with an error-tag literal and retryable errors remain nonterminal', async () => {
+  const logDir = path.join(dir, 'literal'); fs.mkdirSync(logDir);
+  const text = '2026-10-08 13:41:53,562 [OUT] '+JSON.stringify({method:'item/agentMessage/delta',params:{delta:'Page displays [SYSTEM_ERROR]'}})+'\n'+JSON.stringify({method:'error',params:{error:{message:'Transient transport error'},willRetry:true}})+'\n';
+  const result = await ownedProcess(process.execPath, ['-e', `require('fs').writeFileSync(require('path').join(process.env.APP_SERVER_LOGS,'app-server.log'),${JSON.stringify(text)});setTimeout(()=>process.exit(0),400)`], {
+    timeoutMs: 5000, stdoutFile:path.join(dir,'literal-out'),stderrFile:path.join(dir,'literal-err'),env:{...process.env,APP_SERVER_LOGS:logDir},
+  });
+  assert.equal(result.code,0); assert.equal(result.outcome,undefined); assert.equal(result.nativeFailure,undefined);
+  assert.deepEqual(result.survivors,[]);
 });
