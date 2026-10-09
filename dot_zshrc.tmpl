@@ -84,7 +84,8 @@ alias n='nvim'
 # matching what Ghostty's ssh-terminfo shell integration did. Plain ssh
 # everywhere else. Herdr can inherit Kitty's environment, but its terminal
 # cannot complete Kitty's SSH bootstrap.
-if [[ -n ${KITTY_WINDOW_ID:-} && ${HERDR_ENV:-} != 1 ]] && (( $+commands[kitten] )); then
+if [[ -z ${_SHDOTS_AGENT_SHELL:-} && -n ${KITTY_WINDOW_ID:-} &&
+      ${HERDR_ENV:-} != 1 ]] && (( $+commands[kitten] )); then
   alias ssh='kitten ssh'
 fi
 {{ if eq .kind "mac" }}alias mp='multipass'
@@ -108,7 +109,9 @@ if (( $+commands[fzf] )) && (( $+commands[fd] )); then
     cd "$repo"
   }
 fi
-(( $+commands[eza] )) && alias ls='eza --color=always --icons=always'
+if [[ -z ${_SHDOTS_AGENT_SHELL:-} ]]; then
+  (( $+commands[eza] )) && alias ls='eza --color=always --icons=always'
+fi
 
 # Directory navigation (Oh My Zsh directories plugin). auto_cd makes a bare
 # `..` / `../..` typed as a command cd there; auto_pushd keeps the dir stack
@@ -126,10 +129,12 @@ alias 4='cd -4'
 alias 5='cd -5'
 
 # ls shortcuts (Oh My Zsh style; ride on the eza alias when present).
-alias l='ls -lah'
-alias ll='ls -lh'
-alias la='ls -lAh'
-alias lsa='ls -lah'
+if [[ -z ${_SHDOTS_AGENT_SHELL:-} ]]; then
+  alias l='ls -lah'
+  alias ll='ls -lh'
+  alias la='ls -lAh'
+  alias lsa='ls -lah'
+fi
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
 # (mise was activated at the top of this file.)
