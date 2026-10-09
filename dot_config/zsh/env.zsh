@@ -2,6 +2,14 @@
 # of ~/.zshrc (so et/non-login interactive shells get the identical set).
 # Everything here must be idempotent: login shells run it twice.
 
+# Agent shells keep zsh's useful defaults except for the bash-style command
+# failures seen in shell tools: unmatched globs pass through and =word is text.
+if [[ -n ${CLAUDECODE:-} || ${AI_AGENT:-} == claude-code_*_agent ||
+      -n ${CODEX_THREAD_ID:-} ]]; then
+  setopt nonomatch noequals
+  typeset -g _SHDOTS_AGENT_SHELL=1
+fi
+
 # Homebrew (macOS or Linuxbrew) — probe known prefixes; no-op if absent or
 # already evaluated (HOMEBREW_PREFIX set by an earlier pass).
 if [[ -z ${HOMEBREW_PREFIX:-} ]]; then
