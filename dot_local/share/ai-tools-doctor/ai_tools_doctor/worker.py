@@ -1,11 +1,8 @@
-"""Probe worker: one SDK connection, run as an isolated subprocess.
-
-stdin: one JSON request. stdout: one JSON line per completed stage. The parent
-owns this process group and kills it (and its descendants) on timeout.
-"""
+"""Probe worker that emits bounded, structured events and discards server stderr."""
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 
@@ -16,14 +13,17 @@ from . import smoke
 CONNECT_SECONDS = 20
 SMOKE_SECONDS = 10
 MAX_PAGES = 50
-
-
 EMITTED: set[str] = set()
+HTTP_STATUSES: list[int] = []   # Response bodies and headers are never retained.
+STARTED = 0.0
 
 
-def emit(stage: str, outcome: str, detail: str, **extra) -> None:
+def emit(stage: str, outcome: str, reason_code: str, **facts) -> None:
     EMITTED.add(stage)
-    print(json.dumps({"stage": stage, "outcome": outcome, "detail": detail, **extra}), flush=True)
+    event = {"stage": stage, "outcome": outcome, "reason_code": reason_code,
+             "elapsed_ms": max(0, int((time.monotonic() - STARTED) * 1000))}
+    event.update(facts)
+    print(json.dumps(event), flush=True)
 
 
 def flatten(exc: BaseException):
@@ -36,55 +36,72 @@ def flatten(exc: BaseException):
             yield from flatten(exc.__cause__)
 
 
-HTTP_STATUSES: list[int] = []   # the SDK folds HTTP errors into a generic MCPError; keep the status here
+def _http_status(value) -> int | None:
+    return value if type(value) is int and 100 <= value <= 599 else None
 
 
-def classify_error(exc: BaseException) -> tuple[str, str]:
+def _protocol_code(leaf: BaseException) -> int | None:
+    error = getattr(leaf, "error", None)
+    values = (getattr(leaf, "code", None), getattr(error, "code", None),
+              error.get("code") if isinstance(error, dict) else None)
+    return next((value for value in values if type(value) is int and -32768 <= value <= 65535), None)
+
+
+def classify_error(exc: BaseException) -> tuple[str, dict]:
+    """Classify by exception type and numeric fields; never read exception text."""
     leaves = list(flatten(exc))
-    for status in HTTP_STATUSES:
-        if status in (401, 403):
-            return "auth_required", f"HTTP {status} from server; client-owned authentication needed"
-    for leaf in leaves:
-        response = getattr(leaf, "response", None)
-        status = getattr(response, "status_code", None)
-        if status in (401, 403):
-            return "auth_required", f"HTTP {status} from server; client-owned authentication needed"
-        text = str(leaf)
-        if "401" in text and "nauthor" in text:
-            return "auth_required", "HTTP 401 Unauthorized"
+    statuses = [_http_status(status) for status in HTTP_STATUSES]
+    statuses += [_http_status(getattr(getattr(leaf, "response", None), "status_code", None)) for leaf in leaves]
+    status = next((code for code in statuses if code is not None), None)
+    protocol = next((code for leaf in leaves if (code := _protocol_code(leaf)) is not None), None)
+    if status in (401, 403):
+        return "auth_required", {"reason_code": f"http_{status}", "http_status": status,
+                                 **({"protocol_code": protocol} if protocol is not None else {})}
+    if status is not None:
+        return "failed", {"reason_code": "http_error", "http_status": status,
+                          **({"protocol_code": protocol} if protocol is not None else {})}
     if any(isinstance(leaf, TimeoutError) for leaf in leaves):
-        return "timeout", "stage exceeded its time budget"
-    for leaf in leaves:
-        if isinstance(leaf, FileNotFoundError):
-            return "failed", "server command not found"
-        if isinstance(leaf, PermissionError):
-            return "failed", "server command not executable"
-    leaf = leaves[-1] if leaves else exc
-    return "failed", f"{type(leaf).__name__}: {str(leaf)}"
+        return "timeout", {"reason_code": "timeout"}
+    if any(isinstance(leaf, FileNotFoundError) for leaf in leaves):
+        return "failed", {"reason_code": "executable_not_found"}
+    if any(isinstance(leaf, PermissionError) for leaf in leaves):
+        return "failed", {"reason_code": "permission_denied"}
+    if protocol is not None:
+        return "failed", {"reason_code": "protocol_error", "protocol_code": protocol}
+    if any(isinstance(leaf, ConnectionError) for leaf in leaves):
+        return "failed", {"reason_code": "connection_error"}
+    return "failed", {"reason_code": "unexpected_failure"}
 
 
 async def run(req: dict) -> None:
-    from mcp import ClientSession, StdioServerParameters
-    from mcp_types import PaginatedRequestParams
-    from mcp.client.stdio import stdio_client
-
-    errlog = open(req["stderr_path"], "w") if req.get("stderr_path") else sys.stderr
-    started = time.monotonic()
+    global STARTED
+    EMITTED.clear()
+    HTTP_STATUSES.clear()
+    STARTED = time.monotonic()
+    errlog = open(os.devnull, "w")
     stack_tools = []
     state = {"stage": "connection"}
-    # One shared budget for spawn + initialize + every tools/list page (spec: 20s for connection/discovery).
-    connect_deadline = anyio.current_time() + CONNECT_SECONDS
-    remaining = lambda: max(0.05, connect_deadline - anyio.current_time())
+    # One shared budget for spawn + initialize + every tools/list page (20s for connection/discovery).
     try:
-        with anyio.fail_after(CONNECT_SECONDS + SMOKE_SECONDS + 2):   # outer backstop; stages have own budgets
+        from mcp import ClientSession, StdioServerParameters
+        from mcp_types import PaginatedRequestParams
+        from mcp.client.stdio import stdio_client
+
+        connect_deadline = anyio.current_time() + CONNECT_SECONDS
+        remaining = lambda: max(0.05, connect_deadline - anyio.current_time())
+        with anyio.fail_after(CONNECT_SECONDS + SMOKE_SECONDS + 2):   # outer worker backstop
             if req["transport"] == "stdio":
                 transport = stdio_client(StdioServerParameters(
                     command=req["command"], args=req["args"], env=req["env"] or None, cwd=req.get("cwd")), errlog=errlog)
             else:
                 import httpx2
                 from mcp.client.streamable_http import streamable_http_client
+
                 async def record(response):
-                    HTTP_STATUSES.append(response.status_code)
+                    status = _http_status(response.status_code)
+                    if status is not None:
+                        HTTP_STATUSES.append(status)
+
                 client = httpx2.AsyncClient(headers=req.get("headers") or {}, follow_redirects=False,
                                             event_hooks={"response": [record]})
                 transport = streamable_http_client(req["url"], http_client=client)
@@ -92,11 +109,9 @@ async def run(req: dict) -> None:
                 read, write = streams[0], streams[1]
                 async with ClientSession(read, write) as session:
                     with anyio.fail_after(remaining()):
-                        init = await session.initialize()
+                        await session.initialize()
+                    emit("connection", "passed", "initialize_succeeded")
                     state["stage"] = "discovery"
-                    emit("connection", "passed",
-                         f"initialize ok in {time.monotonic() - started:.1f}s; protocol {init.protocol_version}",
-                         server_info=f"{init.server_info.name} {init.server_info.version}")
                     cursor, pages = None, 0
                     while pages < MAX_PAGES:
                         with anyio.fail_after(remaining()):
@@ -108,59 +123,53 @@ async def run(req: dict) -> None:
                         if not cursor:
                             break
                     if cursor:
-                        emit("discovery", "failed", f"tools/list pagination exceeded {MAX_PAGES} pages")
+                        emit("discovery", "failed", "pagination_limit", pages_count=pages)
                         return
                     if not stack_tools:
-                        emit("discovery", "unverified", "server connected but advertises zero tools", tools=0, pages=pages)
+                        emit("discovery", "unverified", "zero_tools", tools_count=0, pages_count=pages)
                         return
-                    emit("discovery", "passed", f"{len(stack_tools)} tools over {pages} page(s)",
-                         tools=len(stack_tools), pages=pages)
+                    emit("discovery", "passed", "tools_discovered", tools_count=len(stack_tools), pages_count=pages)
                     state["stage"] = "smoke"
                     kind = smoke.kind_for(req["server"], req.get("command"), req["args"])
                     if not req.get("smoke") or kind is None:
-                        emit("smoke", "skipped", "no reviewed smoke probe for this server" if kind is None
-                             else "smoke not requested")
+                        emit("smoke", "skipped", "smoke_not_available")
                         return
-                    tool, arguments, reason = smoke.plan(kind, req["server"], stack_tools, req["args"],
-                                                         req.get("restrictions") or {})
+                    tool, arguments, _reason = smoke.plan(kind, req["server"], stack_tools, req["args"],
+                                                          req.get("restrictions") or {})
                     if tool is None:
-                        emit("smoke", "unverified", reason)
+                        emit("smoke", "unverified", "smoke_tool_unavailable")
                         return
                     try:
                         with anyio.fail_after(SMOKE_SECONDS):
                             res = await session.call_tool(tool, arguments)
                     except TimeoutError:
-                        emit("smoke", "timeout", f"{tool} exceeded {SMOKE_SECONDS}s")
+                        emit("smoke", "timeout", "timeout")
                         return
                     if res.is_error:
-                        emit("smoke", "failed", f"{tool} returned isError=true", tool=tool)
+                        emit("smoke", "failed", "smoke_tool_error")
                         return
                     text = "".join(getattr(c, "text", "") or "" for c in res.content)
-                    bad = smoke.judge(kind, text)
-                    if bad:
-                        emit("smoke", "failed", f"{tool}: {bad}", tool=tool)
+                    if smoke.judge(kind, text):
+                        emit("smoke", "failed", "smoke_response_invalid")
                         return
-                    emit("smoke", "passed", f"{tool} succeeded; response body not retained", tool=tool)
+                    emit("smoke", "passed", "smoke_passed")
     except TimeoutError:
         if state["stage"] not in EMITTED:
-            emit(state["stage"], "timeout",
-                 f"{state['stage']} did not complete within its time budget "
-                 f"({SMOKE_SECONDS if state['stage'] == 'smoke' else CONNECT_SECONDS}s)")
-    except BaseException as exc:  # noqa: BLE001 - classified and reported, never raised
+            emit(state["stage"], "timeout", "timeout")
+    except BaseException as exc:  # noqa: BLE001 - safe classification; never serialize exception text
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
-        outcome, detail = classify_error(exc)
-        if state["stage"] not in EMITTED:   # a late shutdown error must not overwrite a recorded result
-            emit(state["stage"], outcome, detail)
+        outcome, facts = classify_error(exc)
+        if state["stage"] not in EMITTED:
+            emit(state["stage"], outcome, facts.pop("reason_code"), **facts)
     finally:
-        if errlog is not sys.stderr:
-            errlog.close()
+        errlog.close()
 
 
 def main() -> int:
     req = json.loads(sys.stdin.read())
     anyio.run(run, req)
-    emit("done", "passed", "worker finished")
+    emit("done", "passed", "worker_finished")
     return 0
 
 

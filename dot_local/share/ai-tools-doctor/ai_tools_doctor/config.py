@@ -101,19 +101,44 @@ def codex_restrictions(ctx: Context) -> dict:
     return merged
 
 
+def _export_failure(client: str, out: proc.Outcome, provenance: str, malformed: bool = False) -> dict:
+    if malformed:
+        reason_code, detail = "malformed_client_export", f"{client} MCP inventory returned an invalid export."
+    elif out.timed_out:
+        reason_code, detail = "timeout", f"{client} MCP inventory exceeded its 15 s time limit."
+    elif out.spawn_error:
+        reason_code, detail = "client_export_start_failed", f"{client} MCP inventory could not be started."
+    else:
+        reason_code, detail = "client_export_failed", f"{client} MCP inventory failed (exit {out.returncode})."
+    numeric = {}
+    if type(out.returncode) is int:
+        numeric["exit_code"] = out.returncode
+    return result(client=client, check="config export", layer="configuration", outcome="unverified",
+                  reason_code=reason_code, detail=detail, next_action="Check the client version and supported status interface.",
+                  provenance=provenance, elapsed_ms=out.elapsed_ms, **numeric)
+
+
+AUTH_METADATA = {"supported", "unsupported", "bearer", "oauth", "o_auth", "unknown", "none"}
+
+
+def _safe_auth_metadata(value):
+    if isinstance(value, str) and value.lower() in AUTH_METADATA:
+        return value.lower()
+    return None
+
+
 def read_codex(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
     out = proc.run(["codex", "mcp", "list", "--json"], timeout=15, env=ctx.env, cwd=ctx.project)
     prov = f"codex mcp list --json (cwd={ctx.project}); project trust: {codex_trust(ctx)}"
     if out.returncode != 0 or out.spawn_error or out.timed_out:
-        reason = out.spawn_error or ("timed out" if out.timed_out else f"exit {out.returncode}")
-        return [], [result(client="codex", check="config export", layer="configuration", outcome="unverified",
-                           detail=f"codex mcp list --json unavailable: {ctx.scrub(reason)}",
-                           next_action="Repair the Codex installation first (installation row).", provenance=prov)]
+        return [], [_export_failure("codex", out, prov)]
     try:
         items = json.loads(out.stdout)
     except json.JSONDecodeError:
-        return [], [result(client="codex", check="config export", layer="configuration", outcome="unverified",
-                           detail="codex mcp list --json did not return JSON.", provenance=prov)]
+        return [], [_export_failure("codex", out, prov, malformed=True)]
+    if not isinstance(items, list) or any(not isinstance(item, dict) or not isinstance(item.get("name"), str)
+                                          or not isinstance(item.get("transport") or {}, dict) for item in items):
+        return [], [_export_failure("codex", out, prov, malformed=True)]
     restrictions = codex_restrictions(ctx)
     servers = []
     for item in items:
@@ -122,10 +147,10 @@ def read_codex(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
         cfg = ServerConfig(client="codex", name=item["name"], enabled=item.get("enabled", True) is not False,
                            transport="stdio" if kind == "stdio" else "http" if kind in ("streamable_http", "http")
                            else "sse" if kind == "sse" else "unknown",
-                           provenance=prov, auth=item.get("auth_status"),
+                           provenance=prov, auth=_safe_auth_metadata(item.get("auth_status")),
                            tool_restrictions=restrictions.get(item["name"], {}))
         if item.get("disabled_reason"):
-            cfg.notes.append(f"disabled: {item['disabled_reason']}")
+            cfg.notes.append("disabled by client configuration")
         if cfg.transport == "stdio":
             cfg.command, cfg.args = t.get("command"), list(t.get("args") or [])
             cfg.env = {k: str(v) for k, v in (t.get("env") or {}).items()}
@@ -164,10 +189,15 @@ def read_opencode(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
         except json.JSONDecodeError:
             data = None
     if data is None:
-        reason = out.spawn_error or ("timed out" if out.timed_out else f"exit {out.returncode}")
-        return [], [result(client="opencode", check="config export", layer="configuration", outcome="unverified",
-                           detail=f"opencode debug config unavailable: {ctx.scrub(str(reason))}",
-                           next_action="Repair the OpenCode installation first (installation row).", provenance=prov)]
+        return [], [_export_failure("opencode", out, prov, malformed=not out.spawn_error and not out.timed_out
+                                    and out.returncode == 0)]
+    if not isinstance(data, dict):
+        return [], [_export_failure("opencode", out, prov, malformed=True)]
+    mcp = data.get("mcp", {})
+    if not isinstance(mcp, dict):
+        return [], [_export_failure("opencode", out, prov, malformed=True)]
+    if any(not isinstance(name, str) or not isinstance(item, dict) for name, item in mcp.items()):
+        return [], [_export_failure("opencode", out, prov, malformed=True)]
     def lookup(match):
         return ctx.env.get(match.group(1))
     def expander(value, cfg):
@@ -176,9 +206,7 @@ def read_opencode(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
     denied = {k for k, v in tools_map.items() if v is False}
     enabled_overrides = [k for k, v in tools_map.items() if v is True]
     servers = []
-    for name, item in (data.get("mcp") or {}).items():
-        if not isinstance(item, dict):
-            continue
+    for name, item in mcp.items():
         kind = item.get("type")
         cfg = ServerConfig(client="opencode", name=name, enabled=item.get("enabled", True) is not False,
                            transport="stdio" if kind == "local" else "http" if kind == "remote" else "unknown",

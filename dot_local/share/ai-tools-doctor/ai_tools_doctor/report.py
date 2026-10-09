@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 from .model import PROOF_ORDER, now
@@ -10,11 +11,17 @@ from .model import PROOF_ORDER, now
 EXIT_OK, EXIT_FAILED, EXIT_INCOMPLETE, EXIT_DEADLINE, EXIT_CANCELLED = 0, 1, 2, 124, 130
 INCOMPLETE = {"unverified", "auth_required", "timeout"}
 SANITIZER_LIMITATIONS = (
-    "Redaction masks registered configuration secrets (env, headers, URL credentials, credential-bearing "
-    "arguments), known token shapes (GitHub, OpenAI-style, Slack, AWS, JWT, Bearer) and database URIs. "
-    "Secrets shorter than 6 characters, benign-looking values (true, info, http...) and unrecognised formats "
-    "that appear only in third-party output could survive; diagnostics are "
-    "scrubbed first and then capped at 4000 characters per stream and successful tool-response bodies are never stored.")
+    "Reports retain selected metadata and structured outcomes, stages, reason codes, numeric codes, counts and timings. "
+    "Provider messages, server descriptions, response bodies, tracebacks and process stderr are not retained. "
+    "Redaction is defense in depth for approved metadata; it is not used to make arbitrary output safe.")
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_MARKDOWN_SPECIAL = re.compile(r"([\\`*_{}\[\]()#+.!|<>~\-])")
+
+
+def _markdown_text(value) -> str:
+    """Keep configured names and paths on one line and escape Markdown syntax."""
+    text = _CONTROL_CHARS.sub(" ", str(value))
+    return _MARKDOWN_SPECIAL.sub(r"\\\1", text)
 
 
 def exit_code(rows: list[dict], state: str | None) -> int:
@@ -57,21 +64,26 @@ def proof_levels(servers: list[dict], rows: list[dict]) -> list[dict]:
 
 
 def markdown(doc: dict) -> str:
-    lines = [f"# AI tools doctor — {doc['started']}", "",
-             f"Mode: **{doc['mode']}** · account `{doc['account']['user']}` · kind `{doc['account']['kind']}` · "
-             f"role `{doc['account']['role']}` · project `{doc['project']}`", "",
-             f"Exit code: **{doc['exit_code']}**" + (f" ({doc['state']})" if doc.get("state") else ""), ""]
+    lines = [f"# AI tools doctor — {_markdown_text(doc['started'])}", "",
+             f"Mode: **{_markdown_text(doc['mode'])}** · account {_markdown_text(doc['account']['user'])} · "
+             f"kind {_markdown_text(doc['account']['kind'])} · role {_markdown_text(doc['account']['role'])} · "
+             f"project {_markdown_text(doc['project'])}", "",
+             f"Diagnostic policy: **{_markdown_text(doc.get('diagnostic_policy', 'structured'))}**", "",
+             f"Exit code: **{_markdown_text(doc['exit_code'])}**" +
+             (f" ({_markdown_text(doc['state'])})" if doc.get("state") else ""), ""]
     if doc["mode"] == "inventory":
         lines += ["> Inventory only: no MCP connection was made. Nothing here proves runtime health.", ""]
     counts = {}
     for r in (r for r in doc["results"] if not r.get("informational") or r["layer"] == "native"):
         counts[r["outcome"]] = counts.get(r["outcome"], 0) + 1
-    lines += ["Outcomes: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())), ""]
+    lines += ["Outcomes: " + ", ".join(f"{_markdown_text(k)} {_markdown_text(v)}"
+                                        for k, v in sorted(counts.items())), ""]
     if doc["proof"]:
         lines += ["## Strongest proof per server", "",
                   "Configured → Discoverable → Connected → Smoke passed (native-client proof separate)", "",
                   "| Client | Server | Proof | Native client |", "| --- | --- | --- | --- |"]
-        lines += [f"| {p['client']} | {p['server']} | {p['proof']} | {p['native_client']} |" for p in doc["proof"]]
+        lines += [f"| {_markdown_text(p['client'])} | {_markdown_text(p['server'])} | "
+                  f"{_markdown_text(p['proof'])} | {_markdown_text(p['native_client'])} |" for p in doc["proof"]]
         lines.append("")
     attention = [r for r in doc["results"] if r["outcome"] != "passed"
                  and (not r.get("informational") or (r["layer"] == "native" and r["outcome"] in ("failed", "auth_required")))]
@@ -80,13 +92,18 @@ def markdown(doc: dict) -> str:
         lines += ["None.", ""]
     for r in attention:
         who = f"{r['client']}/{r['server']}" if r.get("server") else r["client"]
-        lines.append(f"- **{r['outcome']}** · {who} · {r['layer']} · {r['check']}: {r['detail']}")
+        reason = f" · {_markdown_text(r['reason_code'])}" if r.get("reason_code") else ""
+        lines.append(f"- **{_markdown_text(r['outcome'])}**{reason} · {_markdown_text(who)} · "
+                     f"{_markdown_text(r['layer'])} · {_markdown_text(r['check'])}: {_markdown_text(r['detail'])}")
         if r.get("next_action"):
-            lines.append(f"  - Next: {r['next_action']}")
+            lines.append(f"  - Next: {_markdown_text(r['next_action'])}")
         if r.get("diagnostics"):
-            lines.append(f"  - Diagnostics: `{r['diagnostics']}`")
-    lines += ["", "## All results", "", "| Outcome | Client | Server | Layer | Check |", "| --- | --- | --- | --- | --- |"]
-    lines += [f"| {r['outcome']} | {r['client']} | {r.get('server') or ''} | {r['layer']} | {r['check']} |"
+            lines.append(f"  - Diagnostics: {_markdown_text(r['diagnostics'])}")
+    lines += ["", "## All results", "", "| Outcome | Reason | Client | Server | Layer | Check |",
+              "| --- | --- | --- | --- | --- | --- |"]
+    lines += [f"| {_markdown_text(r['outcome'])} | {_markdown_text(r.get('reason_code') or '')} | "
+              f"{_markdown_text(r['client'])} | {_markdown_text(r.get('server') or '')} | "
+              f"{_markdown_text(r['layer'])} | {_markdown_text(r['check'])} |"
               for r in doc["results"]]
     lines += ["", "## Limitations", "", f"- {SANITIZER_LIMITATIONS}",
               "- Plugin-provided and claude.ai connector servers are not resolved from files.",

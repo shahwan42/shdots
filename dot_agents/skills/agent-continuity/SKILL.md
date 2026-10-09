@@ -100,5 +100,11 @@ what remains unknown.
 - Batch only independent operations, and inspect every result.
 - Keep complete failure evidence in an artifact; show the decisive part.
 
+For authentication diagnostics, preserve the complete safe evidence: stage, reason code,
+outcome, numeric codes, counts, timings, and value-free reproduction steps. Withhold
+credentials, session material, environment dumps, resolved exports, raw logs, response
+bodies, vendor messages, and tracebacks. Use `ai-tools-doctor` for MCP inventory; remember
+that a live probe can start a server.
+
 Report passed, failed, blocked, and unverified work separately. Never present an
 unverified item as done.

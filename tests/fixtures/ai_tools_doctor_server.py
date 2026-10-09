@@ -45,6 +45,11 @@ for line in sys.stdin:
     if mode == "slow-both" and method in ("initialize", "tools/list"):
         time.sleep(12)
     if method == "initialize":
+        if mode == "initialize-error":
+            message = os.environ.get("FIXTURE_ERROR_TEXT", "synthetic-provider-message")
+            send({"jsonrpc": "2.0", "id": ident,
+                  "error": {"code": -32077, "message": message}})
+            continue
         send({"jsonrpc": "2.0", "id": ident, "result": {
             "protocolVersion": message["params"]["protocolVersion"], "capabilities": {"tools": {}},
             "serverInfo": {"name": "fixture", "version": "1"}}})

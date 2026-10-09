@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import re
 
 OUTCOMES = ("passed", "failed", "unverified", "auth_required", "timeout", "skipped")
 LAYERS = ("installation", "configuration", "skills", "discovery", "connection", "tools", "smoke", "native")
@@ -63,6 +64,10 @@ class ServerConfig:
             "env_keys": sorted(self.env) + sorted(self.forwarded_env),
             "header_keys": sorted(self.headers),
         }
+        credential_names = sorted({key for key, value in [*self.env.items(), *self.headers.items()]
+                                   if value and re.search(r"(?i)(token|secret|password|passwd|credential|api[-_]?key|auth|uri|url|dsn|pat)", key)})
+        if credential_names:
+            record["credential_values_present"] = credential_names
         if self.command:
             record["command"] = tilde_fn(self.command, home) if "/" in self.command else self.command
             record["arg_count"] = len(self.args)
@@ -88,4 +93,11 @@ def result(*, client: str, check: str, layer: str, outcome: str, detail: str, ne
            "detail": detail, "next_action": next_action, "provenance": provenance,
            "versions": versions or {}, "timestamp": now()}
     row.update(extra)
+    if outcome in ("failed", "timeout", "auth_required", "unverified"):
+        row.setdefault("reason_code", {
+            "failed": "unexpected_failure",
+            "timeout": "timeout",
+            "auth_required": "authentication_required",
+            "unverified": "proof_unavailable",
+        }[outcome])
     return row

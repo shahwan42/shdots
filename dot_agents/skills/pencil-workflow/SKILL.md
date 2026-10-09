@@ -15,8 +15,9 @@ tool's schema.
 
 1. Resolve the requested file and inspect the repository's current worktree changes.
    Check `pen version` and the relevant CLI or tool help. If the CLI is missing or
-   authentication fails, report the exact diagnostic and required user action. Do not
-   install tools, inspect credential files, or change authentication.
+   authentication fails, record the stage, reason code, outcome, and safe reproduction
+   steps; withhold secrets and arbitrary tool output. State the required user action.
+   Do not install tools, inspect credential/session files, or change authentication.
 2. Call Pencil `get_app_state()` once during preflight. If it reports the exact requested
    path as the active document, use Pencil MCP. A different or unopened canvas, or a
    connection error, routes to headless mode. Do not keep retrying desktop dialogs.

@@ -16,6 +16,18 @@ Runtime health is separate from registration health. Each finding below was
 confirmed by the doctor or by a direct observation during the audit. Re-check
 with the listed command; none is repaired by the doctor.
 
+## Credential exposure follow-ups
+
+- **Pencil login-token report (unverified).** The archived chat *Review remaining UI studio
+  steps* (`01a0f726-346f-7f81-8a7f-3d82233ce646`) quotes an earlier agent's report that Pencil
+  setup inspection exposed a login token. The exposure and any rotation have not been verified.
+  Do not reopen credential files or reproduce the report as part of diagnostics.
+- **GitHub token printed during the doctor audit.** The audit recorded that `codex mcp list
+  --json` output printed the inline GitHub token; the canonical registration scripts confirm
+  inline credential delivery. Rotation status is unknown. The structured-output prevention
+  work does not resolve this exposure. Credential storage migration and rotation remain
+  separate follow-ups.
+
 - **OpenCode `github` and `postgres` start with an empty credential.** OpenCode
   resolves `{env:GITHUB_READONLY_TOKEN}` and `{env:DATABASE_URI}` to empty
   strings because neither variable is exported to OpenCode's environment

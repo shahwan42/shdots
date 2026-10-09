@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import errno
 from pathlib import Path
 
 from . import proc
@@ -20,7 +21,27 @@ OWNER_FIX = {
     "native": "Install with the vendor native installer: curl -fsSL https://claude.ai/install.sh | bash",
     "mise": "Declare it in dot_config/mise/config.toml.tmpl and run: chezmoi apply",
 }
-VERSION = re.compile(r"\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.\-]+)?")
+VERSION_TOKEN = r"v?\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.+-]*)?"
+VERSION_PREFIXES = {"codex": ("codex", "codex cli"), "claude": ("claude", "claude code"),
+                    "opencode": ("opencode",)}
+
+
+def approved_version(text: str, tool: str) -> str | None:
+    """Accept only a known client label followed by a version token."""
+    prefixes = VERSION_PREFIXES.get(tool, ())
+    for line in text.splitlines()[:10]:
+        if len(line) > 256:
+            continue
+        for prefix in prefixes:
+            match = re.fullmatch(rf"\s*{re.escape(prefix)}\s+(?:version\s+)?({VERSION_TOKEN})\s*", line,
+                                 re.IGNORECASE)
+            if match:
+                return match.group(1).removeprefix("v")
+            # Claude Code currently also labels the product after the version.
+            match = re.fullmatch(rf"\s*({VERSION_TOKEN})\s+\({re.escape(prefix)}\)\s*", line, re.IGNORECASE)
+            if match:
+                return match.group(1).removeprefix("v")
+    return None
 
 
 def classify(tool: str, lexical: str, real: str, home: str) -> str:
@@ -71,17 +92,21 @@ def project_mise_config(project: str, home: str) -> str | None:
     return None
 
 
-def version_of(ctx: Context, path: str) -> tuple[str | None, str | None]:
+def version_of(ctx: Context, path: str) -> dict:
+    """Parse only an approved version token; never return command output or exception text."""
     out = proc.run([path, "--version"], timeout=15, env=ctx.env, cwd=ctx.project)
     if out.spawn_error:
-        return None, ctx.scrub(out.spawn_error)
+        reason = "executable_not_found" if out.spawn_errno == errno.ENOENT else \
+            "permission_denied" if out.spawn_errno in (errno.EACCES, errno.EPERM) else "version_command_start_failed"
+        return {"version": None, "reason_code": reason, "elapsed_ms": out.elapsed_ms}
     if out.timed_out:
-        return None, "timed out after 15s"
-    text = ctx.scrub((out.stdout or out.stderr).strip())
+        return {"version": None, "reason_code": "timeout", "elapsed_ms": out.elapsed_ms}
     if out.returncode != 0:
-        return None, f"exit {out.returncode}: {text.splitlines()[0][:200] if text else 'no output'}"
-    match = VERSION.search(text)
-    return (match.group(0) if match else None), (None if match else f"unparseable version output: {text[:120]}")
+        return {"version": None, "reason_code": "version_command_failed", "exit_code": out.returncode,
+                "elapsed_ms": out.elapsed_ms}
+    version = approved_version(out.stdout, Path(path).name.lower())
+    return {"version": version, "reason_code": None if version else "unparseable_version",
+            "elapsed_ms": out.elapsed_ms}
 
 
 def check_tool(ctx: Context, tool: str) -> tuple[list[dict], dict]:
@@ -116,31 +141,45 @@ def check_tool(ctx: Context, tool: str) -> tuple[list[dict], dict]:
             if candidates else ""
         rows.append(result(client=tool, check="installation", layer="installation", outcome="failed",
                            detail=f"{BINARY[tool]} not found on PATH.{where}",
-                           next_action=OWNER_FIX.get(expected, ""), provenance=prov))
+                           next_action=OWNER_FIX.get(expected, ""), provenance=prov,
+                           reason_code="not_on_path" if candidates else "executable_not_found"))
         return rows, record
     real = os.path.realpath(selected)
     owner = classify(tool, selected, real, ctx.home)
-    version, problem = version_of(ctx, selected)
+    check = version_of(ctx, selected)
+    version, problem = check["version"], check["reason_code"]
     record.update(selected=tilde(selected, ctx.home), resolved=tilde(real, ctx.home), owner=owner, version=version)
     versions = {tool: version} if version else {}
     if not os.path.exists(real) or problem:
+        explanations = {
+            "executable_not_found": "executable was not found",
+            "permission_denied": "permission was denied",
+            "version_command_start_failed": "version command could not start",
+            "timeout": "version check timed out after 15 seconds",
+            "version_command_failed": f"version command exited with code {check.get('exit_code')}",
+            "unparseable_version": "version output did not match an approved version format",
+        }
         rows.append(result(client=tool, check="installation", layer="installation", outcome="failed",
-                           detail=f"Selected {tilde(selected, ctx.home)} ({owner}) does not run: {problem}",
+                           reason_code=problem or "executable_not_found",
+                           detail=f"Selected {tilde(selected, ctx.home)} ({owner}) does not run: "
+                                  f"{explanations.get(problem, 'version check failed')}.",
                            next_action=f"Repair the {expected} installation: {OWNER_FIX.get(expected, '')}",
-                           provenance=prov, versions=versions))
+                           provenance=prov, versions=versions, elapsed_ms=check["elapsed_ms"],
+                           **({"exit_code": check["exit_code"]} if "exit_code" in check else {})))
     elif owner != expected and not mise_note:
         rows.append(result(client=tool, check="installation", layer="installation", outcome="failed",
+                           reason_code="unexpected_owner",
                            detail=f"Selected {tilde(selected, ctx.home)} is owned by {owner}; "
                                   f"expected {expected} on {ctx.kind}.",
                            next_action=f"Fix PATH order or reinstall via {expected}; do not delete other copies "
                                        f"without review. {OWNER_FIX.get(expected, '')}",
-                           provenance=prov, versions=versions))
+                           provenance=prov, versions=versions, elapsed_ms=check["elapsed_ms"]))
     else:
         extra = f" Inactive copies: {', '.join(sorted(set(others)))}." if others else ""
         rows.append(result(client=tool, check="installation", layer="installation", outcome="passed",
                            detail=f"{tilde(selected, ctx.home)} ({owner}) runs; version {version}.{extra} "
                                   "Proves the executable starts, not MCP or model health.",
-                           provenance=prov, versions=versions))
+                           provenance=prov, versions=versions, elapsed_ms=check["elapsed_ms"]))
     return rows, record
 
 

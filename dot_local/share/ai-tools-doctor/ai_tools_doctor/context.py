@@ -36,11 +36,13 @@ def detect_profile(env: dict, override_kind: str | None, override_role: str | No
     if out.returncode == 0:
         try:
             data = json.loads(out.stdout)
+            if not isinstance(data, dict):
+                raise ValueError("invalid profile shape")
             kind = data.get("kind")
             if kind in ("mac", "vm"):
                 role = data.get("role") or "unknown"
                 return kind, role, "chezmoi data"
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError):
             pass
     kind = "mac" if platform.system() == "Darwin" else "vm"
     return kind, "unknown", "platform fallback (chezmoi data unavailable)"
