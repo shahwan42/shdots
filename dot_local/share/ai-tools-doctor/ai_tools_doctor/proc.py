@@ -23,6 +23,8 @@ class Outcome:
     lines: list[str] = field(default_factory=list)
     timed_out: bool = False
     spawn_error: str | None = None
+    spawn_errno: int | None = None
+    elapsed_ms: int = 0
 
 
 def _snapshot() -> dict[int, tuple[int, int]]:
@@ -147,13 +149,15 @@ def kill_owned() -> None:
 
 def run(args: list[str], *, timeout: float, env: dict[str, str] | None = None, cwd: str | None = None,
         stdin: str | None = None, on_line=None) -> Outcome:
-    """Run args in a new session. Enforce the deadline; stream stdout lines to on_line."""
+    """Run a child in a new session; retain stdout only for the caller's parser."""
+    started = time.monotonic()
     try:
         proc = subprocess.Popen(
             args, env=env, cwd=cwd, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError as exc:
-        return Outcome(None, spawn_error=f"{type(exc).__name__}: {exc.strerror or exc}")
+        return Outcome(None, spawn_error=type(exc).__name__, spawn_errno=exc.errno,
+                       elapsed_ms=int((time.monotonic() - started) * 1000))
     _OWNED[proc.pid] = proc
     result = Outcome(None)
     try:
@@ -165,8 +169,7 @@ def run(args: list[str], *, timeout: float, env: dict[str, str] | None = None, c
                 pass
         selector = selectors.DefaultSelector()
         selector.register(proc.stdout, selectors.EVENT_READ, "out")
-        selector.register(proc.stderr, selectors.EVENT_READ, "err")
-        buffers = {"out": b"", "err": b"", "out_all": b""}
+        buffers = {"out": b"", "out_all": b""}
         deadline = time.monotonic() + timeout
         while selector.get_map():
             remaining = deadline - time.monotonic()
@@ -209,14 +212,14 @@ def run(args: list[str], *, timeout: float, env: dict[str, str] | None = None, c
                 terminate_tree(proc)
         result.returncode = proc.returncode
         result.stdout = buffers["out_all"].decode(errors="replace")
-        result.stderr = buffers["err"].decode(errors="replace")
+        result.elapsed_ms = int((time.monotonic() - started) * 1000)
         return result
     except BaseException:
         terminate_tree(proc)
         raise
     finally:
         _OWNED.pop(proc.pid, None)
-        for stream in (proc.stdout, proc.stderr):
+        for stream in (proc.stdout,):
             try:
                 stream.close()
             except Exception:

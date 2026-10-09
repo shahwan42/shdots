@@ -2,8 +2,10 @@
 
     ~/.local/share/ai-tools-doctor-runtime/venv/bin/python tests/ai_tools_doctor_test.py -v
 """
+import contextlib
 import hashlib
 import http.server
+import io
 import json
 import os
 import signal
@@ -14,13 +16,14 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "dot_local/share/ai-tools-doctor"
 FIXTURE = ROOT / "tests/fixtures/ai_tools_doctor_server.py"
 sys.path.insert(0, str(PACKAGE))
 
-from ai_tools_doctor import config, context, install, probe, proc, skills  # noqa: E402
+from ai_tools_doctor import cli, config, context, install, probe, proc, report, skills  # noqa: E402
 from ai_tools_doctor.model import ServerConfig  # noqa: E402
 from ai_tools_doctor.redact import Redactor  # noqa: E402
 
@@ -30,7 +33,8 @@ PG_URL = f"postgresql://app:{PG_PASSWORD}@db.internal:5432/farm"
 HEADER_SECRET = "header-secret-value-77"
 QUERY_SECRET = "query-secret-value-55"
 STDERR_SECRET = "stderr-secret-value-33"
-ALL_SECRETS = [GH_TOKEN, PG_PASSWORD, HEADER_SECRET, QUERY_SECRET, STDERR_SECRET]
+SHORT_SECRET = "s4!"
+ALL_SECRETS = [GH_TOKEN, PG_PASSWORD, HEADER_SECRET, QUERY_SECRET, STDERR_SECRET, SHORT_SECRET]
 
 
 def write_exec(path: Path, body: str) -> Path:
@@ -41,7 +45,7 @@ def write_exec(path: Path, body: str) -> Path:
 
 
 def sh(version="1.2.3", code=0):
-    return f"#!/bin/sh\n[ \"$1\" = --version ] && echo 'tool {version}' && exit {code}\nexit {code}\n"
+    return f"#!/bin/sh\n[ \"$1\" = --version ] && echo \"${{0##*/}} {version}\" && exit {code}\nexit {code}\n"
 
 
 def make_ctx(home: Path, path_dirs, kind="mac", role="personal", project=None) -> context.Context:
@@ -61,6 +65,12 @@ def alive(pid: int) -> bool:
         return True
 
 
+def stop_and_reap(process: subprocess.Popen) -> None:
+    if process.poll() is None:
+        process.kill()
+    process.wait()
+
+
 class Tmp(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -71,6 +81,20 @@ class Tmp(unittest.TestCase):
 
 
 class OwnershipTests(Tmp):
+    def test_version_failures_keep_codes_and_drop_command_output(self):
+        ctx = make_ctx(self.home, [])
+        secret = "version-output-sentinel-92"
+        failed = write_exec(self.tmp / "codex-failed",
+                            f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{secret}'; exit 23; fi\nexit 0\n")
+        check = install.version_of(ctx, str(failed))
+        self.assertEqual((check["reason_code"], check["exit_code"]), ("version_command_failed", 23))
+        self.assertNotIn(secret, json.dumps(check))
+        malformed = write_exec(self.tmp / "codex-malformed",
+                               f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{secret}'; exit 0; fi\nexit 0\n")
+        check = install.version_of(ctx, str(malformed))
+        self.assertEqual((check["reason_code"], check["version"]), ("unparseable_version", None))
+        self.assertNotIn(secret, json.dumps(check))
+
     def test_homebrew_codex_native_claude_mise_opencode_pass_on_mac(self):
         brew = self.tmp / "opt/homebrew/bin"
         write_exec(brew / "codex", sh())
@@ -280,8 +304,42 @@ class ProtocolTests(Tmp):
     def test_success_through_smoke_and_body_not_retained(self):
         rows = self.run_probe(fixture_config("ok"))
         self.assertEqual(self.outcomes(rows), {"connection": "passed", "tools": "passed", "smoke": "passed"})
-        blob = json.dumps(rows) + "".join(p.read_text() for p in (self.tmp / "out/diagnostics").glob("*"))
+        diagnostic_paths = list((self.tmp / "out/diagnostics").glob("*"))
+        self.assertEqual([p.suffix for p in diagnostic_paths], [".json"])
+        diagnostics = json.loads(diagnostic_paths[0].read_text())
+        stages = {event["stage"]: event for event in diagnostics["stages"]}
+        self.assertIs(type(stages["connection"]["elapsed_ms"]), int)
+        self.assertEqual((stages["discovery"]["tools_count"], stages["discovery"]["pages_count"]), (2, 1))
+        self.assertEqual((diagnostics["worker_stderr"], diagnostics["server_stderr"]), ("[withheld]", "[withheld]"))
+        self.assertFalse(any({"detail", "server_info", "worker_stderr", "server_stderr"} & set(event)
+                             for event in diagnostics["stages"]))
+        blob = json.dumps(rows) + json.dumps(diagnostics)
         self.assertNotIn("project-list-body-that-must-not-be-stored", blob)
+        from ai_tools_doctor import report
+        proof = report.proof_levels([{"client": "claude", "server": "codebase-memory-mcp", "enabled": True}], rows)
+        self.assertEqual(proof[0]["proof"], "smoke_passed")
+
+    def test_provider_exception_and_noisy_server_stderr_are_withheld(self):
+        secret = "synthetic-provider-message-37"
+        cfg = fixture_config("initialize-error", env={"FIXTURE_ERROR_TEXT": secret,
+                                                         "FIXTURE_STDERR_SECRET": secret})
+        rows = self.run_probe(cfg)
+        diagnostics = [p.read_text() for p in (self.tmp / "out/diagnostics").glob("*")]
+        blob = json.dumps(rows) + "".join(diagnostics)
+        self.assertNotIn(secret, blob)
+        self.assertNotIn("traceback", blob.lower())
+        diag = json.loads(diagnostics[0])
+        self.assertEqual((diag["worker_stderr"], diag["server_stderr"]), ("[withheld]", "[withheld]"))
+        self.assertEqual(rows[0]["outcome"], "failed")
+        self.assertEqual(rows[0]["reason_code"], "protocol_error")
+        self.assertEqual(rows[0]["protocol_code"], -32077)
+
+    def test_smoke_failure_does_not_retain_response_text(self):
+        rows = self.run_probe(fixture_config("iserror"))
+        self.assertEqual(self.outcomes(rows)["smoke"], "failed")
+        smoke = next(r for r in rows if r["layer"] == "smoke")
+        self.assertEqual(smoke["reason_code"], "smoke_tool_error")
+        self.assertNotIn("boom", json.dumps(rows))
 
     def test_connection_success_is_not_a_functional_pass(self):
         rows = self.run_probe(fixture_config("ok", name="unreviewed-server"))
@@ -306,7 +364,7 @@ class ProtocolTests(Tmp):
     def test_paginated_discovery_collects_all_pages(self):
         rows = self.run_probe(fixture_config("paginated"))
         detail = next(r["detail"] for r in rows if r["layer"] == "tools")
-        self.assertIn("2 tools over 2 page", detail)
+        self.assertIn("2 tools found across 2 page", detail)
 
     def test_malformed_tools_list_fails_discovery(self):
         rows = self.run_probe(fixture_config("malformed-tools"))
@@ -320,24 +378,37 @@ class ProtocolTests(Tmp):
     def test_missing_command_fails_connection(self):
         cfg = fixture_config("ok")
         cfg.command = str(self.tmp / "does-not-exist")
-        self.assertEqual(self.outcomes(self.run_probe(cfg))["connection"], "failed")
+        row = self.run_probe(cfg)[0]
+        self.assertEqual(row["outcome"], "failed")
+        self.assertEqual(row["reason_code"], "executable_not_found")
 
-    def test_http_401_is_auth_required(self):
-        class Handler(http.server.BaseHTTPRequestHandler):
-            def do_POST(self):
-                self.send_response(401)
-                self.send_header("WWW-Authenticate", "Bearer")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-            do_GET = do_POST
-            def log_message(self, *a): pass
-        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        cfg = ServerConfig(client="claude", name="remote", enabled=True, transport="http", provenance="test",
-                           url=f"http://127.0.0.1:{server.server_address[1]}/mcp", headers={"X-Key": "abc123456"})
-        rows = self.run_probe(cfg)
-        self.assertEqual(rows[0]["outcome"], "auth_required", rows)
+    def test_http_401_and_403_are_structured_auth_failures(self):
+        for status in (401, 403):
+            class Handler(http.server.BaseHTTPRequestHandler):
+                def do_POST(self):
+                    self.send_response(status)
+                    self.send_header("WWW-Authenticate", "Bearer")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                do_GET = do_POST
+                def log_message(self, *a): pass
+            server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            self.addCleanup(server.server_close)
+            self.addCleanup(server.shutdown)
+            cfg = ServerConfig(client="claude", name="remote", enabled=True, transport="http", provenance="test",
+                               url=f"http://127.0.0.1:{server.server_address[1]}/mcp", headers={"X-Key": "abc123456"})
+            row = self.run_probe(cfg)[0]
+            self.assertEqual((row["outcome"], row["reason_code"], row["http_status"]),
+                             ("auth_required", f"http_{status}", status))
+
+    def test_permission_failure_has_a_controlled_reason(self):
+        command = write_exec(self.tmp / "not-executable", f"#!{sys.executable}\n")
+        command.chmod(0o600)
+        cfg = fixture_config("ok")
+        cfg.command = str(command)
+        row = self.run_probe(cfg)[0]
+        self.assertEqual((row["outcome"], row["reason_code"]), ("failed", "permission_denied"))
 
     def test_unsupported_transport_and_oauth_and_launcher_and_empty_credential_never_start(self):
         marker = self.tmp / "started"
@@ -360,7 +431,7 @@ class ProtocolTests(Tmp):
 class CleanupTests(Tmp):
     def test_timeout_stops_owned_tree_and_spares_sentinel(self):
         sentinel = subprocess.Popen(["sleep", "300"], start_new_session=True)
-        self.addCleanup(sentinel.kill)
+        self.addCleanup(stop_and_reap, sentinel)
         pidfile = self.tmp / "child.pid"
         cfg = fixture_config("hang-children", env={"FIXTURE_PIDFILE": str(pidfile)})
         old = probe.BACKSTOP_SECONDS
@@ -382,7 +453,7 @@ class CleanupTests(Tmp):
 
     def test_cancellation_exits_130_with_partial_report_and_clean_tree(self):
         sentinel = subprocess.Popen(["sleep", "300"], start_new_session=True)
-        self.addCleanup(sentinel.kill)
+        self.addCleanup(stop_and_reap, sentinel)
         pidfile = self.tmp / "child.pid"
         env, out = self.cli_env(f"claude={FIXTURE}:hang-children", pidfile)
         cmd = [sys.executable, "-m", "ai_tools_doctor", "--probe", "--server", "hang", "--client", "claude",
@@ -438,7 +509,8 @@ class ReadOnlyAndRedactionTests(Tmp):
             write_exec(bins / tool, f"#!/bin/sh\necho {tool} >> {marker}\n")
         codex_json = [{"name": "github", "enabled": True, "disabled_reason": None, "auth_status": "unsupported",
                        "transport": {"type": "stdio", "command": "github-mcp-server", "args": ["stdio"],
-                                     "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": GH_TOKEN}, "env_vars": [], "cwd": None}},
+                                     "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": GH_TOKEN, "DB_PASSWORD": SHORT_SECRET},
+                                     "env_vars": [], "cwd": None}},
                       {"name": "postgres", "enabled": True, "disabled_reason": None, "auth_status": "unsupported",
                        "transport": {"type": "stdio", "command": "npx", "args": ["-y", "server-postgres", PG_URL],
                                      "env": None, "env_vars": [], "cwd": None}},
@@ -485,9 +557,95 @@ class ReadOnlyAndRedactionTests(Tmp):
         doc = json.loads((out / "result.json").read_text())
         self.assertEqual(doc["mode"], "inventory")
         github = next(s for s in doc["servers"] if s["server"] == "github" and s["client"] == "codex")
-        self.assertEqual(github["env_keys"], ["GITHUB_PERSONAL_ACCESS_TOKEN"])
+        self.assertEqual(github["env_keys"], ["DB_PASSWORD", "GITHUB_PERSONAL_ACCESS_TOKEN"])
+        self.assertEqual(github["credential_values_present"], ["DB_PASSWORD", "GITHUB_PERSONAL_ACCESS_TOKEN"])
+        self.assertEqual(doc["diagnostic_policy"], "structured")
+        github_proof = next(p["proof"] for p in doc["proof"]
+                            if (p["client"], p["server"]) == ("codex", "github"))
+        self.assertEqual(github_proof, "discoverable")
         self.assertEqual(oct((out / "result.json").stat().st_mode & 0o777), "0o600")
         self.assertEqual(oct(out.stat().st_mode & 0o777), "0o700")
+
+    def test_native_note_text_and_parser_values_are_discarded(self):
+        bins, _ = self.setup_account()
+        sentinel = "argument-sentinel-81"
+        done, out = self.run_cli(bins, "--native-note", f"codex/github=passed:{sentinel}")
+        self.assert_clean(done, out)
+        self.assertNotIn(sentinel, done.stdout + done.stderr)
+        doc = json.loads((out / "result.json").read_text())
+        note = next(row for row in doc["results"] if row["provenance"] == "--native-note")
+        self.assertEqual((note["outcome"], note["detail"], note["client"], note["server"]),
+                         ("passed", "User-recorded result.", "codex", "github"))
+        self.assertNotIn(sentinel, json.dumps(doc))
+
+        table_value, table_out = self.run_cli(bins, "--native-note", "codex/github|<column>=passed:discard-me")
+        self.assert_clean(table_value, table_out)
+        self.assertIn("github\\|\\<column\\>", table_value.stdout)
+        table_doc = json.loads((table_out / "result.json").read_text())
+        table_note = next(row for row in table_doc["results"] if row["provenance"] == "--native-note")
+        self.assertEqual(table_note["server"], "github|<column>")
+
+        import shutil
+        shutil.rmtree(out)
+        invalid, invalid_out = self.run_cli(bins, "--native-note", f"codex/github=bad:{sentinel}")
+        self.assertNotIn(sentinel, invalid.stdout + invalid.stderr)
+        self.assertFalse(invalid_out.exists())
+        parser_error, parser_out = self.run_cli(bins, "--client", sentinel)
+        self.assertNotIn(sentinel, parser_error.stdout + parser_error.stderr)
+        self.assertFalse(parser_out.exists())
+
+        invalid_server, invalid_server_out = self.run_cli(
+            bins, "--native-note", f"codex/github\n{sentinel}=passed")
+        self.assertNotIn(sentinel, invalid_server.stdout + invalid_server.stderr)
+        self.assertFalse(invalid_server_out.exists())
+
+    def test_unexpected_top_level_failure_is_a_fixed_structured_error(self):
+        sentinel = "top-level-failure-sentinel-52"
+        stderr = io.StringIO()
+        previous_umask = os.umask(0o077)
+        try:
+            with patch.object(cli, "_run", side_effect=RuntimeError(sentinel)), \
+                    contextlib.redirect_stderr(stderr):
+                code = cli.main([])
+        finally:
+            os.umask(previous_umask)
+        self.assertEqual(code, 1)
+        self.assertNotIn(sentinel, stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+        diagnostic = json.loads(stderr.getvalue())
+        self.assertEqual(diagnostic["diagnostic_policy"], "structured")
+        self.assertEqual(diagnostic["results"][0]["reason_code"], "unexpected_failure")
+        self.assertEqual(diagnostic["results"][0]["detail"],
+                         "Doctor failed unexpectedly; internal messages and tracebacks withheld.")
+
+    def test_malformed_client_export_becomes_fixed_unexpected_failure(self):
+        bins, _ = self.setup_account()
+        sentinel = "malformed-export-sentinel-64"
+        write_exec(bins / "codex", "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'codex 0.1.0'; exit 0; fi\n"
+                   f"printf '%s\\n' '[{{\"name\":\"broken\",\"transport\":{{\"type\":\"stdio\","
+                   f"\"command\":\"server\",\"env\":\"{sentinel}\"}}}}]'\n")
+        done, out = self.run_cli(bins, "--client", "codex")
+        self.assertEqual(done.returncode, 1)
+        self.assertNotIn(sentinel, done.stdout + done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+        doc = json.loads((out / "result.json").read_text())
+        row = next(row for row in doc["results"] if row["check"] == "doctor")
+        self.assertEqual(row["reason_code"], "unexpected_failure")
+        self.assertEqual(row["detail"], "Doctor failed unexpectedly; internal messages and tracebacks withheld.")
+        self.assertNotIn(sentinel, json.dumps(doc))
+
+    def test_malformed_opencode_entry_is_a_structured_inventory_failure(self):
+        sentinel = "malformed-opencode-sentinel-82"
+        bins = self.tmp / "bins"
+        payloads = (f'{{"mcp":{{"broken":"{sentinel}"}}}}', '{"mcp":[]}', '{"mcp":null}')
+        for payload in payloads:
+            write_exec(bins / "opencode", f"#!/bin/sh\ncat <<'EOF'\n{payload}\nEOF\n")
+            servers, rows = config.read_opencode(make_ctx(self.home, [bins]))
+            self.assertEqual(servers, [])
+            self.assertEqual((rows[0]["outcome"], rows[0]["reason_code"]),
+                             ("unverified", "malformed_client_export"))
+            self.assertEqual(report.exit_code(rows, None), report.EXIT_INCOMPLETE)
+            self.assertNotIn(sentinel, json.dumps(rows))
 
     def test_probe_leaks_nothing_installs_nothing_and_skips_launchers(self):
         bins, marker = self.setup_account()
@@ -557,6 +715,31 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertEqual(row["outcome"], "skipped")
         self.assertFalse(marker.exists())
 
+    def test_native_status_suffix_is_not_retained(self):
+        secret = "native-status-sentinel-25"
+        script = write_exec(self.tmp / "bin/claude",
+                            f"#!/bin/sh\nprintf '%s\\n' 'Status: Requires authentication {secret}'\nexit 37\n")
+        ctx = make_ctx(self.home, [script.parent])
+        cfg = ServerConfig(client="claude", name="remote", enabled=True, transport="http", provenance="test",
+                           url="https://mcp.example.test/server")
+        row = probe.native_status(ctx, cfg)
+        self.assertEqual((row["outcome"], row["reason_code"], row["exit_code"]),
+                         ("auth_required", "authentication_required", 37))
+        self.assertNotIn(secret, json.dumps(row))
+        self.assertEqual(row["detail"], "Claude reports that authentication is required.")
+
+    def test_native_status_failure_keeps_exit_code_and_withholds_suffix(self):
+        secret = "native-failure-sentinel-46"
+        write_exec(self.tmp / "bin/claude", f"#!/bin/sh\nprintf '%s\\n' 'Status: Failed {secret}'\nexit 37\n")
+        ctx = make_ctx(self.home, [self.tmp / "bin"])
+        cfg = ServerConfig(client="claude", name="remote", enabled=True, transport="http", provenance="test",
+                           url="https://mcp.example.test/server")
+        row = probe.native_status(ctx, cfg)
+        self.assertEqual((row["outcome"], row["reason_code"], row["exit_code"]),
+                         ("failed", "native_status_failed", 37))
+        self.assertNotIn(secret, json.dumps(row))
+        self.assertEqual(row["detail"], "Claude reports a failed server status.")
+
     def test_empty_credential_detected_by_config_reader(self):
         cfg = ServerConfig(client="opencode", name="x", enabled=True, transport="stdio", provenance="t",
                            command="srv", env={"DATABASE_URI": "", "LOG_LEVEL": ""})
@@ -566,14 +749,16 @@ class ReadOnlyAndRedactionTests(Tmp):
     def test_probe_without_runtime_is_actionable_and_exit_2(self):
         bins, _ = self.setup_account()
         env = {"HOME": str(self.home), "PATH": f"{bins}:/usr/bin:/bin", "PYTHONPATH": str(PACKAGE)}
-        import shutil
-        python = shutil.which("python3", path=os.environ["PATH"])
+        python = str(Path(sys.base_prefix) / f"bin/python{sys.version_info.major}.{sys.version_info.minor}")
+        if not Path(python).is_file():
+            self.skipTest("base Python executable is unavailable")
         done = subprocess.run([python, "-m", "ai_tools_doctor", "--kind", "mac", "--probe", "--server",
                                "x", "--project", str(self.home), "--output-dir", str(self.tmp / "o")],
                               env=env, cwd=PACKAGE, capture_output=True, text=True)
         if python == sys.executable or "No module named" in done.stderr:
             self.skipTest("python3 on PATH is the test interpreter or lacks the stdlib needed")
         self.assertIn(done.returncode, (1, 2), done.stderr)   # 1 wins when fixture ownership also fails
+        self.assertTrue((self.tmp / "o/result.json").exists(), done.stdout + done.stderr)
         row = next(r for r in json.loads((self.tmp / "o/result.json").read_text())["results"]
                    if r["check"] == "probe runtime")
         self.assertEqual((row["outcome"], row["next_action"]), ("unverified", "Run: ai-tools-doctor setup"))
