@@ -74,7 +74,7 @@ the supported hosts. Re-apply this adaptation on upgrade.
 
 Source: [`JuliusBrussee/caveman`](https://github.com/JuliusBrussee/caveman)
 `v2.6.0` (`b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3`), `skills/<name>/`.
-Byte-identical, no adaptations. The same release that script 44 pins.
+Byte-identical except the local `migration` adaptation below. The same release that script 44 pins.
 
 | Skill | Claude adapter |
 |---|---|
@@ -88,6 +88,14 @@ engineering workflows (no Caveman Cloud, no credentials, no paths), and script
 44 runs only where personal tools live. Vendoring gives every machine,
 including work VMs, the same copy. When script 44's Caveman pin moves, re-copy
 them from the new tag.
+
+Local adaptation of `migration` (2026-10-09): `SKILL.md` gains one bullet
+pointing to `references/compatibility-proof.md`, a locally authored recipe for
+version-overlap and rollback proof. `ai-baseline.md` also points agents at the
+installed file path directly, because Claude on personal accounts loads
+`caveman:migration` from the plugin, which lacks the reference. Plugin
+ownership, adapters and invocation policies are unchanged. On upgrade, re-copy
+from the new tag, then re-apply the bullet and keep the reference file.
 
 `browser-harness` is not vendored: the browser-harness install writes the
 canonical copy to `~/.agents/skills/browser-harness` (newer releases print it

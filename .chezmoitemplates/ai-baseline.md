@@ -3,6 +3,14 @@
 {{ template "codebase-memory.md" . }}
 {{ template "worktrees.md" . }}
 
+## Version overlap and rollback
+
+For work where two versions can read or write the same data (rolling deploys,
+runtime rollback, cached older clients), state the compatibility claim before
+implementing and prove it for the exact versions tested. Follow
+`~/.agents/skills/migration/references/compatibility-proof.md`; read it directly,
+as the Claude `migration` skill may come from the Caveman plugin without it.
+
 ## Authentication diagnostics
 
 For MCP authentication questions, use `ai-tools-doctor` inventory and its structured report; see

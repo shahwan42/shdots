@@ -13,5 +13,6 @@ Map current readers, writers, data shape, compatibility window, and ownership be
 - Sequence expand, migrate, verify, then contract when applicable.
 - Make retries idempotent and partial failure observable.
 - Verify old and new paths at required transition stages.
+- When versions overlap or rollback is supported, follow [compatibility proof](references/compatibility-proof.md) before implementing.
 
 Stop after requested stage passes; do not perform later destructive contraction implicitly.
