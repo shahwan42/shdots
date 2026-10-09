@@ -44,8 +44,9 @@ HOMEBREW_PREFIX=$2/unit-brew
 compaudit() { [[ -n $finding ]] && print -r -- "$finding"; return 1; }
 compinit() { print -r -- "compinit:$*"; }
 zstat() {
-  [[ ${@[-1]} == $HOMEBREW_PREFIX ]] && { _stat=(uid 501); return 0; }
-  [[ ${@[-1]} == "$unit_home/unexpected" ]] && { _stat=(uid 777); return 0; }
+  local _stat_path=${@[-1]:A}
+  [[ -n $HOMEBREW_PREFIX && $_stat_path == "${HOMEBREW_PREFIX:A}" ]] && { _stat=(uid 501); return 0; }
+  [[ $_stat_path == "${unit_home:A}/unexpected" ]] && { _stat=(uid 777); return 0; }
   [[ $owner == missing ]] && return 1
   _stat=(uid $owner)
 }
