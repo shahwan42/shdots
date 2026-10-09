@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -15,8 +16,19 @@ from .redact import origin, tilde
 CLIENT_CHOICES = ("codex", "claude", "opencode", "all")
 
 
+class SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        print("ai-tools-doctor: invalid arguments; run with --help for supported options.", file=sys.stderr)
+        raise SystemExit(2)
+
+
+class InvalidNativeNote(ValueError):
+    pass
+
+
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    p = SafeArgumentParser(
         prog="ai-tools-doctor",
         description="Read-only health check. Default: inventory only (no live MCP connections). "
                     "Use `ai-tools-doctor setup` once to install the locked runtime.")
@@ -47,25 +59,28 @@ def runtime_available() -> bool:
     return importlib.util.find_spec("mcp") is not None
 
 
-def native_notes(args, ctx) -> list[dict]:
+def parse_native_note(note: str) -> tuple[str, str, str]:
+    target, sep, rest = note.partition("=")
+    client, slash, server = target.partition("/")
+    outcome, colon, _text = rest.partition(":")
+    valid = (bool(sep) and bool(slash) and client in context.CLIENTS and bool(server.strip())
+             and server.isprintable()
+             and outcome in ("passed", "failed", "unverified", "auth_required"))
+    if not valid:
+        raise InvalidNativeNote
+    return client, server, outcome
+
+
+def native_notes(notes: list[tuple[str, str, str]]) -> list[dict]:
     rows = []
-    for note in args.native_note:
-        try:
-            target, _, rest = note.partition("=")
-            client, _, server = target.partition("/")
-            outcome, _, text = rest.partition(":")
-            assert client in context.CLIENTS and server and outcome in ("passed", "failed", "unverified", "auth_required")
-        except AssertionError:
-            raise SystemExit(f"invalid --native-note: {note!r}")
+    for client, server, outcome in notes:
         rows.append(result(client=client, server=server, check="native-client call (user-recorded)", layer="native",
-                           outcome=outcome, detail=ctx.scrub(text or "recorded without detail"),
-                           provenance="--native-note", informational=True))
+                           outcome=outcome, reason_code="user_recorded_result",
+                           detail="User-recorded result.", provenance="--native-note", informational=True))
     return rows
 
 
-def main(argv: list[str] | None = None) -> int:
-    os.umask(0o077)
-    args = parser().parse_args(argv)
+def _run(args, notes: list[tuple[str, str, str]]) -> int:
     if args.probe and not args.server:
         print("--probe needs at least one --server NAME", file=sys.stderr)
         return report.EXIT_INCOMPLETE
@@ -125,11 +140,16 @@ def main(argv: list[str] | None = None) -> int:
                         native = probe.native_status(ctx, cfg)
                         native["informational"] = True
                         rows.append(native)
-        rows += native_notes(args, ctx)
+        rows += native_notes(notes)
     except proc.Cancelled as exc:
         state = "deadline" if str(exc) == "deadline" else "cancelled"
         progress(f"{state}: stopping owned processes; writing partial report")
         proc.kill_owned()
+    except Exception:
+        state = "unexpected_failure"
+        rows.append(result(client="-", check="doctor", layer="configuration", outcome="failed",
+                           reason_code="unexpected_failure",
+                           detail="Doctor failed unexpectedly; internal messages and tracebacks withheld."))
     finally:
         try:
             import signal
@@ -141,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     code = report.exit_code(rows, state)
     doc = {
         "started": doc_started, "mode": "probe" if args.probe else "inventory", "state": state, "exit_code": code,
+        "diagnostic_policy": "structured",
         "account": {"user": getpass.getuser(), "kind": ctx.kind, "role": ctx.role, "profile_source": ctx.profile_source},
         "project": tilde(ctx.project, ctx.home), "clients": clients, "tools": tools, "skills": skill_summary,
         "servers": safe_servers, "results": rows, "proof": report.proof_levels(safe_servers, rows),
@@ -149,12 +170,32 @@ def main(argv: list[str] | None = None) -> int:
     doc = ctx.redactor.scrub_data(doc)
     try:
         json_text, md_text = report.write(out_dir, doc, ctx.scrub, ctx.redactor.leaks)
-    except PermissionError as exc:   # gate trips before anything is written
-        print(f"Refusing to publish: {exc}", file=sys.stderr)
+    except PermissionError:   # gate trips before anything is written
+        print("Refusing to publish: diagnostic safety check failed.", file=sys.stderr)
         return report.EXIT_INCOMPLETE
     print(md_text)
     print(f"Report: {tilde(str(out_dir), ctx.home)}  (result.json, summary.md)", file=sys.stderr)
     return code
+
+
+def main(argv: list[str] | None = None) -> int:
+    os.umask(0o077)
+    args = parser().parse_args(argv)
+    try:
+        notes = [parse_native_note(note) for note in args.native_note]
+    except InvalidNativeNote:
+        print("ai-tools-doctor: invalid arguments; run with --help for supported options.", file=sys.stderr)
+        return report.EXIT_INCOMPLETE
+    try:
+        return _run(args, notes)
+    except Exception:
+        failure = result(client="-", check="doctor", layer="configuration", outcome="failed",
+                         reason_code="unexpected_failure",
+                         detail="Doctor failed unexpectedly; internal messages and tracebacks withheld.")
+        structured = {"diagnostic_policy": "structured", "state": "unexpected_failure",
+                      "exit_code": report.EXIT_FAILED, "results": [failure]}
+        print(json.dumps(structured, sort_keys=True), file=sys.stderr)
+        return report.EXIT_FAILED
 
 
 if __name__ == "__main__":
