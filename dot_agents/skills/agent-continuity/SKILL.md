@@ -1,6 +1,6 @@
 ---
 name: agent-continuity
-description: Resume work after an interruption or handoff, and reconcile a user's scope or terminology correction, using verified live state instead of stale context. Use when picking up a prior session, checkpoint, or handoff, or when the user narrows, redirects, or corrects settled scope.
+description: Resume work after interruption or handoff, and reconcile a user's scope or terminology correction using verified live state. Use when resuming a checkpoint, cleaning up task resources, or handing off work while preserving evidence.
 ---
 
 # Agent continuity
@@ -17,6 +17,10 @@ Skip the checkpoint for trivial tasks. Use [the template](references/checkpoint-
 when a task spans sessions, agents, worktrees, or hosts. A project names the
 checkpoint location; without one, keep it in ignored task notes outside tracked
 files and verify it is ignored before writing.
+
+When finishing or handing off work, follow [resource cleanup](references/resource-cleanup.md)
+to verify ownership, preserve artifacts, release only identified task-owned
+resources, and record what remains.
 
 ## 1. Establish intent and evidence
 

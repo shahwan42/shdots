@@ -29,7 +29,34 @@ Do not record credentials or session material. Link large artifacts.
 
 ## Resources and proof
 
-- Owned resources (process, port, database, browser target; owned or borrowed):
+- Record one row for every relevant resource, including borrowed, shared, or
+  uncertain resources. Use `task-created`, `borrowed`, `shared`, or `unknown`;
+  do not infer ownership from a matching port, path, process ID, or name.
+
+| Resource                    | Exact locator | Owner (task / account / host) | Classification | Live identity proof | Intended disposition | Last verified result |
+| --------------------------- | ------------- | ----------------------------- | -------------- | ------------------- | -------------------- | -------------------- |
+| Process or port             |               |                               |                |                     |                      |                      |
+| Browser target or recording |               |                               |                |                     |                      |                      |
+| Worktree                    |               |                               |                |                     |                      |                      |
+| Database                    |               |                               |                |                     |                      |                      |
+| Artifact                    |               |                               |                |                     |                      |                      |
+
+Include the identity details required by the resource type:
+
+- **Process and port:** original session handle; PID, start time, and
+  executable when available; process-group membership only when established.
+  A port records usage, never ownership.
+- **Browser and recording:** use the browser-driving record for endpoint,
+  exact target ID, expected page, ownership, recording path, and controller
+  status.
+- **Worktree:** repository, exact path, branch and head, and whether this task
+  created or borrowed it.
+- **Database:** host and account, generated database names, and Worktrunk
+  identity. Never store connection credentials.
+- **Artifact:** exact task-related paths, producer status, preservation
+  destination, and verification result. Include checkpoints, CI results, and
+  failed-run evidence.
+
 - Browser ownership notes:
 - CI: head, base, result:
 - Evidence paths and inspection/upload status:
