@@ -1,9 +1,9 @@
 {{ template "ai-baseline.md" . }}
 **Claude Code waits and long-lived processes**
-- For a command you start, use Bash `run_in_background: true` and act on its completion notification; never wait with foreground `sleep` or `sleep N; check`.
-- For external conditions (CI, PR state, ports), use Monitor with an until-loop and a bounded timeout, when available; otherwise use one bounded background Bash loop, not repeated Bash polls.
-- For dev/demo servers and watchers, use `preview_start` with the project's `.claude/launch.json`, or a Terminal tab, when available; otherwise give the user the exact command to run in their terminal. Use these instead of background Bash, which can stop at its time limit.
-- Finite long jobs (such as a 20-minute `pnpm ci:local`) belong in background Bash: set a sufficient bounded timeout and redirect output to a log file so an interrupted run leaves evidence.
+- Dev/demo servers and persistent file watchers: NEVER start them through Bash (foreground or background). Use `preview_start` with an existing project `.claude/launch.json`, or a Terminal tab, when available; otherwise give the user the exact terminal command. Background Bash can expire.
+- Finite commands, including long builds/tests: use Bash `run_in_background: true`, a sufficient bounded timeout, and a log file; act on the completion notification.
+- External conditions (CI, PR state, ports): use Monitor with a bounded until-loop when available; otherwise use one bounded background Bash until-loop. Act on its notification, not repeated Bash polls.
+- Foreground `sleep` and `sleep N; check` are forbidden, including server-readiness waits; use the external-condition rule above.
 {{ if and (eq .kind "vm") (eq .role "work") }}
 @RTK.md
 {{ end }}
