@@ -25,11 +25,11 @@ init event.
 `pencil-workflow` is model-invoked so Pencil and `.pen` work can discover it
 automatically.
 
-`agent-continuity` is also model-invoked, with a narrow description: resumption
-after interruption or handoff, and reconciliation of user scope corrections. It
-is a guide plus one checkpoint template; it has no checker, hooks, or memory
-system. The agent verifies live state itself. Projects choose the checkpoint
-location.
+`agent-continuity` is also model-invoked, covering resumption after interruption
+or handoff, user scope corrections, and resource cleanup that preserves evidence.
+It is a guide with a checkpoint template and cleanup reference; it has no
+checker, hooks, or memory system. The agent verifies live state itself. Projects
+choose the checkpoint location.
 
 ## Vendored skills
 
