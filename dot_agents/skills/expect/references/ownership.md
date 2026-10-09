@@ -1,10 +1,11 @@
 # Ownership
 
 This CLI skill derives from millionco/expect's MIT skill version 2.0.0, installed
-on as-dev before 2026-10-08. The installed skillFolderHash and original source
-reference are recorded in shdots `docs/ai/expect-check.md`. Its broad automatic
-browser-facing invocation remains in place; its commands and failure handling
-are adapted to the managed runner. The upstream MCP-first workflow is not imported.
+on the former personal VM before 2026-10-08. The installed skillFolderHash
+and original source reference are recorded in shdots `docs/ai/expect-check.md`.
+Its broad automatic browser-facing invocation remains in place; its commands and
+failure handling are adapted to the managed runner. The upstream MCP-first workflow
+is not imported.
 
 shdots owns `~/.agents/skills/expect`; Claude reads the standard adapter at
 `~/.claude/skills/expect`. Codex and OpenCode discover the shared directory natively.
