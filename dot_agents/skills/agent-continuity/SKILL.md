@@ -95,6 +95,9 @@ what remains unknown.
 
 ## 5. Retrieve compactly and report truthfully
 
+Routes, identity, completeness, response-shape recipes, and the done condition for
+each question type: [discovery](references/discovery.md). In brief:
+
 - Indexed code: graph tools first. Configuration, strings, errors: targeted search.
 - Chat history: the native reader first; use a browser only when the reader is
   unavailable or incomplete (`browser-driving`). Never dump a full session. Inspect the

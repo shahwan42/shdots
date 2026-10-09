@@ -118,6 +118,12 @@ When upgrading the harness, inspect its installed signatures and recheck the
 recipes on a disposable mobile fixture; follow the linked upstream recovery
 guidance rather than copying its manual into this companion.
 
+The `agent-continuity` reference `references/discovery.md` is the single discovery reference: tool
+choice per question type, identity, completeness, and response-shape recipes. The
+baseline (`ai-baseline.md`, `codebase-memory.md`) and continuity section 5 point to it;
+keep the details there. Its recipes were checked on 2026-10-09 against the
+codebase-memory-mcp tool schemas. Recheck them when those schemas change.
+
 ## Expect
 
 `expect` is shdots-owned, with the standard Claude adapter. Its CLI workflow,

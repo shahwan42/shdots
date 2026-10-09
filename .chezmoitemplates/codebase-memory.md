@@ -10,4 +10,6 @@ graph tools over grep, globbing, or file search for code discovery:
 5. `get_architecture` — obtain a high-level project summary
 
 Fall back to text search for string literals, error messages, configuration,
-non-code files, or when the graph is insufficient.
+non-code files, or when the graph is insufficient. For project identity, empty
+results, pagination, and fallback, read
+`~/.agents/skills/agent-continuity/references/discovery.md`.
