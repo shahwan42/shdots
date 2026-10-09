@@ -11,6 +11,12 @@ implementing and prove it for the exact versions tested. Follow
 `~/.agents/skills/migration/references/compatibility-proof.md`; read it directly,
 as the Claude `migration` skill may come from the Caveman plugin without it.
 
+## Discovery
+
+Read `~/.agents/skills/agent-continuity/references/discovery.md` when a question spans
+code, text, chat history, and external tools; when a tool signature is unknown; or
+when a result is empty, paginated, or truncated.
+
 ## Authentication diagnostics
 
 For MCP authentication questions, use `ai-tools-doctor` inventory and its structured report; see
