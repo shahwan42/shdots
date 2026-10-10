@@ -140,6 +140,15 @@ def profile(label, username, role, kind='mac', extra=None):
         check('launchctl bootstrap' not in entries['30-schedule-autoupdate.sh']['contents'], f'{label}: scheduling active')
         updater = entries['.local/bin/chezmoi-autoupdate']['contents']
         check(updater.index('exit 0') < updater.index('fetch -q origin'), f'{label}: disabled updater can fetch')
+        check('verify_web_flow_signature' in updater and 'GNUPGHOME=' in updater, f'{label}: GPG verification is not isolated')
+        check('$SRC/dot_config/git/github-web-flow.gpg.asc' in updater, f'{label}: updater uses the wrong GPG allowlist')
+        gpg_key = rendered/'.config/git/github-web-flow.gpg.asc'
+        key_info = run(['gpg', '--show-keys', '--with-colons', '--fingerprint', str(gpg_key)]).stdout
+        key_fingerprints = [line.split(':')[9] for line in key_info.splitlines() if line.startswith('fpr:')]
+        check(
+            key_fingerprints == ['968479A1AFF927E37D1A566BB5690EEEBB952194'],
+            f'{label}: GPG allowlist is not the pinned web-flow key',
+        )
         check(not any('/tasks/' in name or name.endswith(('.timer', '.service')) for name in entries), f'{label}: scheduled task deployed')
         check('sail=' not in entries['.zshrc']['contents'], f'{label}: Docker alias is default')
         check(all('as-dev' not in e.get('contents', '') for n, e in entries.items() if n != '.config/git/allowed_signers'), f'{label}: old VM default/reference in native render')
