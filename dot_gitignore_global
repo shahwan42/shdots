@@ -37,3 +37,10 @@ node_modules/
 
 # Agent tooling — per-project local overrides, never shared
 **/.claude/settings.local.json
+
+# Human Scratchpad
+.human_scratchpad/
+
+# Command Code
+.commandcode/
+
