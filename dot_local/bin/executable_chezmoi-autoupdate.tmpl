@@ -105,10 +105,32 @@ fi
 if ! git -C "$SRC" merge-base --is-ancestor HEAD "$UPSTREAM" 2>/dev/null; then
   warn "chezmoi: source repo has diverged from $UPSTREAM — reconcile, then 'chezmoi update'"
 fi
-# Supply-chain gate: only auto-apply commits signed by a key in the managed
-# allowed_signers. Merge commits are disabled repo-side, so the tip is always
-# an SSH-signed commit; anything unverifiable waits for a human.
-if ! git -C "$SRC" verify-commit "$UPSTREAM" >/dev/null 2>&1; then
+# GPG is a separate allowlist from SSH's managed allowed_signers. GitHub signs
+# web-interface commits with its web-flow key, so verify those in an isolated
+# keyring containing only the pinned public key. Its current fingerprint is
+# 968479A1AFF927E37D1A566BB5690EEEBB952194 (from github.com/web-flow.gpg).
+# Recheck that source and fingerprint before rotating the key. Other formats
+# still use normal Git verification and the SSH allowed_signers file.
+verify_web_flow_signature() {
+  _gnupg_home="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-gpg.XXXXXX")" || return 1
+  chmod 700 "$_gnupg_home" || { rm -rf "$_gnupg_home"; return 1; }
+  if ! gpg --homedir "$_gnupg_home" --batch --import \
+    "$SRC/dot_config/git/github-web-flow.gpg.asc" >/dev/null 2>&1; then
+    rm -rf "$_gnupg_home"
+    return 1
+  fi
+  GNUPGHOME="$_gnupg_home" git -C "$SRC" -c gpg.format=openpgp \
+    verify-commit "$UPSTREAM" >/dev/null 2>&1
+  _verify_status=$?
+  rm -rf "$_gnupg_home"
+  return "$_verify_status"
+}
+
+if git -C "$SRC" cat-file commit "$UPSTREAM" 2>/dev/null \
+  | grep -q '^gpgsig -----BEGIN PGP SIGNATURE-----'; then
+  verify_web_flow_signature \
+    || warn "chezmoi: $UPSTREAM is not signed by the pinned GitHub web-flow key — refusing to auto-apply"
+elif ! git -C "$SRC" verify-commit "$UPSTREAM" >/dev/null 2>&1; then
   warn "chezmoi: $UPSTREAM is not signed by a trusted key — refusing to auto-apply"
 fi
 
