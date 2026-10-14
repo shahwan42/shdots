@@ -8,7 +8,7 @@ Do not reopen these:
 
 1. The rule lives in the repository, so every agent that reads its instructions follows it. One owner document holds the rule, for example `docs/pull-request-diagrams.md`. The agent instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) gets a one-sentence pointer. Other documents only point to the owner document.
 2. The view table is a menu, not a quota.
-3. The overview stays visible; a rollout someone must act on stays visible; every other view is folded in its own `<details>` block.
+3. The visible part carries the visual that explains the diff best: a table, a diagram, both, or none. A rollout stays visible directly under the `> [!IMPORTANT]` box when a person must act in three or more ordered steps. Every other view folds, one diagram per `<details>` block.
 4. Before/after pairs are part of the rule.
 5. The worked example comes from a real merged PR in the repository. If no merged PR exercises a view, leave that view out of the example and say so.
 
@@ -17,7 +17,7 @@ Do not reopen these:
 - In "Draw from the diff", name the repository's real migration directory, schema files, and contract or API schema location.
 - Drop a table row only when the repository cannot have that subject at all (no database means no ER row). Add a row only for a subject the product has that the table misses.
 - Inline the Mermaid validation steps in the owner document (teammates do not have Ahmed's `CLAUDE.md`): write one diagram without its fence to a scratch `.mmd` outside the repo, run `mmdc -i x.mmd -o x.svg`, require exit 0, and require `grep 'Syntax error in text' x.svg` to find nothing.
-- Drop the line "When the repository has its own PR-diagram document, it wins" — the owner document is that document.
+- Drop the line "When the repository has its own PR-body or PR-diagram rules, they win over this whole skill". The owner document is those rules.
 
 ## Worked example
 

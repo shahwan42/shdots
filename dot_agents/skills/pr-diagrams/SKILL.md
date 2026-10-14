@@ -7,22 +7,22 @@ description: Pull request diagrams — which Mermaid views a PR body earns, how 
 
 Describe the change visually from the angles a reviewer needs, each drawn with the Mermaid type that fits that angle. One linear happy-path flowchart shows the flow, not what changed or where the risk is.
 
+When the repository has its own PR-body or PR-diagram rules, they win over this whole skill. Follow this skill only where they are silent.
+
 ## Choose the views
 
 The table is a **menu, not a quota**. A view appears only when the change contains its subject and a reviewer needs it. A change with nothing to describe (docs, a typo, a one-line fix) carries no diagram. Skip a view another view already shows, or that the diff shows faster, such as one added optional field. A before/after pair counts as one view.
 
 | Subject in the change | View | Mermaid type | Placement |
 | --- | --- | --- | --- |
-| Several modules or layers | Overview: touched layers and modules, changes highlighted | `flowchart` | Visible |
-| Transaction, lock, retry, race, or another multi-step operation | Zoom-in on that operation | `sequenceDiagram` with `alt`, `opt`, `rect` | Folded |
+| Several modules or layers | Overview: touched layers and modules, changes highlighted | `flowchart` | Visible when it is the visual that explains the diff best, else folded |
+| Transaction, lock, retry, race, or another multi-step operation | Zoom-in on that operation | `sequenceDiagram` with `alt`, `opt`, `rect` | Folded unless the reshaped flow is the point |
 | Migration: new or changed table, column, constraint, or relation | Data change: changed tables and the tables that explain them | `erDiagram` | Folded |
 | New status or lifecycle | Lifecycle | `stateDiagram-v2` | Folded |
 | Branching validation or business rule | Decision logic | `flowchart TD` | Folded |
 | API or contract shape | Request and response shape | `classDiagram` | Folded |
-| Deploy order, rollback, or a stack of pull requests | Rollout | `flowchart LR` | Visible when someone must act, else folded |
-| Reshaped mechanism that highlights on the After diagram alone cannot show: a reordered step, moved ownership, a replaced flow, a split table | Before/after pair, in place of a highlighted After-only view of the same subject | Any type above, the same for both | Same as the view it replaces; when folded, both share one block |
-
-When the repository has its own PR-diagram document, it wins over this table.
+| Deploy order, rollback, or a stack of pull requests | Rollout | `flowchart LR` | Visible directly under the `> [!IMPORTANT]` box when a person must act in three or more ordered steps, else folded or dropped |
+| Reshaped mechanism that highlights on the After diagram alone cannot show: a reordered step, moved ownership, a replaced flow, a split table | Before/after pair, in place of a highlighted After-only view of the same subject | Any type above, the same for both | Folded unless the reshaped flow is the point; when folded, each diagram gets its own block |
 
 ## Draw from the diff
 
@@ -62,7 +62,12 @@ Label nodes with real module, table, column, and endpoint names, in the reposito
 
 ## Placement
 
-The overview sits in the visible part of the body, beside the prose it replaces; diagrams do not count toward the prose budget. Each folded view gets its own `<details>` block whose `<summary>` names the view and its point, for example `Sequence: saving output locks the parent row before checking the cap`. Leave a blank line after `</summary>`, or the diagram renders as text.
+The visible part of the body carries the visual that explains the diff best: a table, a diagram, both, or none. It sits beside the prose it replaces. Diagrams do not count toward the prose budget.
+
+- **Rollout:** when a person must act in three or more ordered steps, the rollout sits visible directly under the `> [!IMPORTANT]` action box, outside it. With fewer steps the box's text is enough, so the rollout folds or is dropped.
+- **Everything else folds.** A zoom-in or before/after pair stays visible only when the reshaped flow is the point.
+- **One diagram per fold.** Each folded diagram gets its own `<details>` block, so a before/after pair takes two. GHE leaves the first of two Mermaid fences in one fold stuck on "Loading" (verified 2026-10-14).
+- **Summary line:** each `<summary>` names the view and its point, for example `Sequence: saving output locks the parent row before checking the cap`. Leave a blank line after `</summary>`, or the diagram renders as text.
 
 ## Done when
 
