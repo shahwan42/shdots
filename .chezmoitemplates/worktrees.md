@@ -4,7 +4,7 @@ Worktrunk (`wt`) is the standard worktree lifecycle manager. Use it for normal
 creation and removal rather than direct `git worktree add` or `git worktree remove`.
 Read-only Git diagnostics such as `git worktree list` remain acceptable.
 
-- Create a branch and worktree: `wt switch --create <branch>` (defaults to the repository's default branch).
+- Create a branch and worktree from a fresh base: `git fetch origin`, then `wt switch --create <branch> --base origin/<default-branch>`. Without `--base`, `wt` uses the *local* default branch, which may be stale.
 - Choose a base: `wt switch --create <branch> --base=<ref>`.
 - Intentionally start from current HEAD: `wt switch --create <branch> --base=@`.
 - Inspect: `wt list`.

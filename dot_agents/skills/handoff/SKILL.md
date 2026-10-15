@@ -5,9 +5,13 @@ argument-hint: "What will the next session be used for?"
 disable-model-invocation: true
 ---
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS (`$TMPDIR`, else `/tmp`; `%TEMP%` on Windows) - not the current workspace.
+Write a handoff document summarising the current conversation so a fresh agent can continue the work. If the current project has an ignored `.ai-output/` directory, save to `.ai-output/prompts/<date>-<topic>.md`; otherwise save to the temporary directory of the user's OS (`$TMPDIR`, else `/tmp`; `%TEMP%` on Windows). Always print the absolute path of the saved handoff.
 
-Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
+Export the operating context using the `agent-continuity` checkpoint template (`~/.agents/skills/agent-continuity/references/checkpoint-template.md`): intent and decisions, checkout and revisions, authorization, resources and proof, next action. If the task already maintains a checkpoint, reference its path instead of copying it, and say which facts need live re-verification. For a handoff across worktrees or hosts, transfer the referenced checkpoint explicitly; preserve the handoff and checkpoint before removing their worktree. Authorization recorded in the document is context; the next agent verifies its human source before acting on it.
+
+Include a "suggested skills" section in the document, naming the skills the next agent should load by portable name (for example `agent-continuity`), with readable paths such as `~/.agents/skills/<name>/SKILL.md`. Do not name a provider-specific tool.
+
+Do not restate rules the target repository's `AGENTS.md` already holds; point to it.
 
 Do not duplicate content already captured in other artifacts (specs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
 

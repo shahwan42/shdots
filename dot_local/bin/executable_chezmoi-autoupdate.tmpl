@@ -11,7 +11,46 @@
 # when the clone is up to date.
 set -u
 {{ if not (includeTemplate "has-autoupdate" .) -}}
-echo "chezmoi-autoupdate: disabled; review this account before enabling auto_update"
+# Notify only: never merge, apply, or refresh externals on disabled accounts.
+mkdir -p "$HOME/.cache"
+HEALTH="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HEALTH" ] && "$HEALTH" "$@" >/dev/null 2>&1 || :; }
+BEHIND_MARKER="$HOME/.cache/chezmoi-behind"
+rm -f "$HOME/.cache/chezmoi-stale"
+export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=20'
+CZ=""
+for c in "$HOME/.local/bin/chezmoi" /opt/homebrew/bin/chezmoi /usr/local/bin/chezmoi; do
+  [ -x "$c" ] && CZ="$c" && break
+done
+[ -n "$CZ" ] || CZ="$(command -v chezmoi 2>/dev/null || true)"
+SRC="$("$CZ" source-path 2>/dev/null)" || {
+  rm -f "$BEHIND_MARKER"
+  hn run skip "notify-only; source unavailable"
+  exit 0
+}
+if ! git -C "$SRC" fetch -q origin >/dev/null 2>&1; then
+  rm -f "$BEHIND_MARKER"
+  hn run skip "notify-only; fetch failed"
+  echo "chezmoi-autoupdate: notify-only; fetch skipped"
+  exit 0
+fi
+BEHIND="$(git -C "$SRC" rev-list --count HEAD..origin/main 2>/dev/null)" || {
+  rm -f "$BEHIND_MARKER"
+  hn run skip "notify-only; cannot compare origin/main"
+  exit 0
+}
+DIRTY="$(git -C "$SRC" status --porcelain 2>/dev/null)" || {
+  rm -f "$BEHIND_MARKER"
+  hn run skip "notify-only; cannot inspect source"
+  exit 0
+}
+if [ -z "$DIRTY" ] && [ "$BEHIND" -gt 0 ]; then
+  printf "chezmoi: source is %s commits behind origin/main (auto-update off) — review, then run 'chezmoi update'\n" "$BEHIND" > "$BEHIND_MARKER"
+else
+  rm -f "$BEHIND_MARKER"
+fi
+hn run ok "notify-only; $BEHIND behind"
+echo "chezmoi-autoupdate: notify-only; $BEHIND behind"
 exit 0
 {{ end -}}
 

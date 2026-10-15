@@ -30,7 +30,7 @@ Pick one real merged PR that touches several layers and has at least one complex
 3. Load the `writing-for-agents` skill, then write the owner document and the pointers.
 4. Validate every diagram, then run the repository's formatting, link, and CI checks.
 5. Follow the repository's review gate. If it has none, run one read-only adversarial reviewer on correctness and consistency: the example against the code, the rule against existing instructions for contradictions or quota-like wording. Verify every finding, fix it, re-review the fixed areas.
-6. Open the PR. By the rule itself, a documentation-only PR body carries no diagram. Check the owner document's rendered page on GitHub in a foreground tab.
+6. Open the PR. By the rule itself, a documentation-only PR body carries no diagram.
 7. Leave the PR unmerged. Report the PR link, the checks run, and open decisions to Ahmed.
 
 ## Gotchas from the first rollout

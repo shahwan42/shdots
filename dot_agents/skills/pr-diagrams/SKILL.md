@@ -71,7 +71,6 @@ The visible part of the body carries the visual that explains the diff best: a t
 
 ## Done when
 
-1. Every diagram passed the Mermaid validation in `~/.claude/CLAUDE.md` (one `.mmd` per fence, exit 0, no `Syntax error in text`), re-run after any edit.
-2. After pushing, the rendered PR page is open in a foreground tab (background tabs can render Mermaid frames blank), every `<details>` block is expanded, and each diagram renders.
+Every diagram passed the shared Mermaid validation rule rendered in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` (one `.mmd` per fence, exit 0, no `Syntax error in text`), re-run after any edit.
 
 Promoting this rule into a team repository: follow [`team-port.md`](team-port.md).

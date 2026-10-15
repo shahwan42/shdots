@@ -86,9 +86,20 @@ find-skills copies remain outside this import.
 | `writing-fragments` | `skills/in-progress/writing-fragments` | `98e500e0097ec80f52f6a024c5a2ff6d15235bdb` |
 | `writing-shape` | `skills/in-progress/writing-shape` | `ac92229646fccf7315ae139c37b479b3790617f2` |
 
-`agents/openai.yaml` files are imported metadata. This sync uses the installed
-contents, including their replacement of the earlier local `code-review` and
-`handoff` adaptations and the domain-modeling rename from `CONTEXT` to `GLOSSARY`.
+`agents/openai.yaml` files are imported metadata. The installed snapshot includes
+the domain-modeling rename from `CONTEXT` to `GLOSSARY`.
+
+### Local adaptations to re-apply after a snapshot sync
+
+| Skill | Adaptation | Reason |
+| --- | --- | --- |
+| `handoff` | Ignored `.ai-output/prompts` save location, checkpoint export, portable skill names, reference repository rules, and checkpoint transfer | Agent handoffs between Codex and Claude |
+| `code-review` | Tracker fallback and repository standards sources | No `/setup-matt-pocock-skills` dependency |
+| `pr` | Repository rules and GitHub templates win; optional glossary wording | FMS and other repos own their PR body |
+| `pr-diagrams` | `77fefcc` repository precedence and one diagram per fold; local validation only | Repo rules win; Ahmed decided 2026-10-15 |
+| `migration` | Existing Caveman adaptation below | Version overlap and rollback proof |
+
+After a sync, diff each listed skill against its pre-sync version and re-apply the adaptations in this table before committing.
 
 ### From Caveman
 
