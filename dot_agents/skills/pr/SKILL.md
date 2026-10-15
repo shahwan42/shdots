@@ -9,6 +9,10 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
+When the repository has its own PR-body rules (a template, a document such as `docs/pull-request-body.md`, or a skill), they win over this whole skill. Follow this one only where they are silent.
+
+Read the repository's GitHub pull request template when present (including templates under `.github/`); passing a body to the CLI does not fill it in automatically.
+
 Use this template for writing the PR body:
 
 ```markdown
@@ -34,7 +38,7 @@ Use this template for writing the PR body:
 
 ## Sections
 
-Skip all preambles and keep prose brief. Use the user's domain language from `GLOSSARY.md`.
+Skip all preambles and keep prose brief. Use the user's domain language from the repository's glossary, if it has one.
 
 ### Summary
 

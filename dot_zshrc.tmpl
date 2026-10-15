@@ -165,6 +165,7 @@ typeset -U path PATH
 # could NOT safely fast-forward (divergence, local edits, failed apply). One
 # stat() — zero startup cost when the fleet is converged.
 [[ -f "$HOME/.cache/chezmoi-stale" ]] && cat "$HOME/.cache/chezmoi-stale" >&2
+[[ -f "$HOME/.cache/chezmoi-behind" ]] && cat "$HOME/.cache/chezmoi-behind" >&2
 # Second channel: the last auto-sync recorded a non-ok run (a run-script failed
 # or timed out even though the fast-forward succeeded). `chezmoi-health` shows
 # the history; the marker above may be absent while this still fires.
