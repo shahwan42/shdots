@@ -25,12 +25,12 @@ add() {
   fi
 }
 
-{{ if includeTemplate "has-work" . -}}
+{{ if not (includeTemplate "has-personal" .) -}}
 "$CODEX" mcp remove github >/dev/null 2>&1 || :
 "$CODEX" mcp remove gmail >/dev/null 2>&1 || :
 "$CODEX" mcp remove google-calendar >/dev/null 2>&1 || :
 "$CODEX" mcp remove postgres >/dev/null 2>&1 || :
-{{ else -}}
+{{ else if not (includeTemplate "has-work" .) -}}
 "$CODEX" mcp remove github-enterprise >/dev/null 2>&1 || :
 {{ end -}}
 

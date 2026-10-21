@@ -5,14 +5,17 @@
 {{- $role := dig "role" "" . -}}
 {{- if eq .kind "mac" -}}
 {{-   if eq $username "as" -}}
-{{-     if and (ne $role "") (ne $role "personal") }}{{ fail "as must use the personal role" }}{{ end -}}
-{{-     $role = "personal" -}}
+{{-     if and (ne $role "") (ne $role "personal") (ne $role "combined") }}{{ fail "as must use the personal or combined role" }}{{ end -}}
+{{-     if eq $role "" }}{{ $role = "personal" }}{{ end -}}
 {{-   else if eq $username "foodics" -}}
 {{-     if and (ne $role "") (ne $role "work") }}{{ fail "foodics must use the work role" }}{{ end -}}
 {{-     $role = "work" -}}
 {{-   end -}}
 {{- end -}}
-{{- if not (has $role (list "personal" "work")) -}}
-{{-   fail "An explicit personal or work account role is required; re-run chezmoi init" -}}
+{{- if not (has $role (list "personal" "work" "combined")) -}}
+{{-   fail "An explicit personal, work or combined account role is required; re-run chezmoi init" -}}
+{{- end -}}
+{{- if and (eq $role "combined") (ne .kind "mac") -}}
+{{-   fail "The combined role is for single-account Macs; VMs keep one explicit role" -}}
 {{- end -}}
 {{- $role -}}

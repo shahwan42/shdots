@@ -1,0 +1,7 @@
+# Work identity for GitHub Enterprise repositories on a combined-role account.
+# Included from ~/.gitconfig by remote URL; rendered only for role=combined.
+[user]
+	email = a.shahwan@foodics.com
+	name = A. S. Foodics
+{{ if includeTemplate "has-git-signing" . }}	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ template "work-git-key" . }}.pub
+{{ end -}}

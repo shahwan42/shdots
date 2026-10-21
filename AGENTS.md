@@ -25,8 +25,10 @@ dotfiles work from here, not from a bare `~`.
    `~/.local/share/chezmoi`. Do not directly edit a rendered target as the
    primary workflow.
 3. Keep machine and account identity separate: `kind=mac|vm`, `hostname`,
-   `username`, and `role=personal|work`. Use `has-personal` / `has-work` for
-   role gates. Native Macs are primary development environments; VM conditions
+   `username`, and `role=personal|work|combined`. Use `has-personal` /
+   `has-work` for role gates; `combined` (one Mac account holding both) makes
+   both true, so never treat them as mutually exclusive — gate the work-only
+   case as `has-work` and not `has-personal`. Native Macs are primary development environments; VM conditions
    describe optional Linux compatibility only. Before changing account roles,
    secrets, onboarding or scheduling, read `docs/plans/account-aware-macos.md`.
 4. If a rendered target was changed outside chezmoi, inspect it with

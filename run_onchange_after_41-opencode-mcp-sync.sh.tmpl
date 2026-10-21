@@ -127,10 +127,10 @@ mcp.pop("shadcn-ui", None)
 mcp.pop("playwright", None)
 mcp.pop("figma", None)
 # Remove only opposite-role entries owned by shdots; preserve other custom MCPs.
-{{ if includeTemplate "has-work" . -}}
+{{ if not (includeTemplate "has-personal" .) -}}
 for name in ("gmail", "google-calendar", "github", "postgres"):
     mcp.pop(name, None)
-{{ else -}}
+{{ else if not (includeTemplate "has-work" .) -}}
 mcp.pop("github-enterprise", None)
 {{ end -}}
 mcp.update(servers)

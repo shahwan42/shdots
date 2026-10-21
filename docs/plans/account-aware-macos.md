@@ -43,6 +43,31 @@ turned off, allowing initial local commits before keys exist. Enable
 Public historical signers are verification metadata, not signing credentials;
 the work render contains only historical work signers.
 
+## Combined single-account role (2026-10-21)
+
+`role=combined` is for a Mac where one account does both personal and work
+(planned for `as-host/as`, replacing the two-account split; also any fresh
+single-user Mac). It is Mac-only; VMs keep one explicit role. `as` may set
+`personal` or `combined`; `foodics` stays `work`; other usernames choose.
+
+Both `has-personal` and `has-work` are true, plus `has-combined`. Identity is
+routed per repository, not per OS account:
+
+- Git defaults to the personal identity and key. `includeIf
+  "hasconfig:remote.*.url:git@github.foodics.com:*/**"` (and the HTTPS form)
+  loads `~/.config/git/work.gitconfig` with the work identity and
+  `~/.ssh/id_ed25519_work.pub`. Remote matching covers Worktrunk worktrees.
+  `:**` alone does not match `pay/repo.git`; the `*/**` form is required.
+- SSH loads both `config.d/personal` and `config.d/work`; `github.com` uses
+  `id_ed25519`, `github.foodics.com` uses `id_ed25519_work`.
+- No global `GH_HOST`: inside a repository `gh` follows the remote's host.
+- MCP sync scripts register both roles' servers and strip neither.
+- Brewfile maintenance runs for `as` or any combined account.
+- `secret_integrations` stays one opt-in flag for both roles' references.
+
+Personal and work renders are byte-identical to before this role existed,
+apart from `ai-tools-doctor` accepting the new value.
+
 ## Secret provisioning
 
 Native profiles ignore both retained age-encrypted targets (`.config/op/env` and

@@ -1,8 +1,18 @@
+{{- $workOnly := and (includeTemplate "has-work" .) (not (includeTemplate "has-personal" .)) -}}
 [user]
-{{ if includeTemplate "has-work" . }}	email = a.shahwan@foodics.com
+{{ if $workOnly }}	email = a.shahwan@foodics.com
 {{ else }}	email = a.shahwan42@gmail.com
-{{ end }}	name = {{ if includeTemplate "has-work" . }}A. S. Foodics{{ else }}Ahmed Shahwan{{ end }}
+{{ end }}	name = {{ if $workOnly }}A. S. Foodics{{ else }}Ahmed Shahwan{{ end }}
 {{ if includeTemplate "has-git-signing" . }}	signingkey = {{ .chezmoi.homeDir }}/.ssh/{{ template "git-signing-key" . }}.pub
+{{ end -}}
+{{ if includeTemplate "has-combined" . -}}
+# One account, two identities: repositories whose remote is on GitHub
+# Enterprise get the work identity. Matching the remote (not the path) also
+# covers Worktrunk worktrees, which share their repository's config.
+[includeIf "hasconfig:remote.*.url:git@github.foodics.com:*/**"]
+	path = {{ .chezmoi.homeDir }}/.config/git/work.gitconfig
+[includeIf "hasconfig:remote.*.url:https://github.foodics.com/**"]
+	path = {{ .chezmoi.homeDir }}/.config/git/work.gitconfig
 {{ end -}}
 [core]
 	editor = nvim

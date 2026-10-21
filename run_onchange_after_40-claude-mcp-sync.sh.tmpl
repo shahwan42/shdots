@@ -28,12 +28,12 @@ add() {
   fi
 }
 
-{{ if includeTemplate "has-work" . -}}
+{{ if not (includeTemplate "has-personal" .) -}}
 "$CLAUDE" mcp remove github --scope user >/dev/null 2>&1 || :
 "$CLAUDE" mcp remove gmail --scope user >/dev/null 2>&1 || :
 "$CLAUDE" mcp remove google-calendar --scope user >/dev/null 2>&1 || :
 "$CLAUDE" mcp remove postgres --scope user >/dev/null 2>&1 || :
-{{ else -}}
+{{ else if not (includeTemplate "has-work" .) -}}
 "$CLAUDE" mcp remove github-enterprise --scope user >/dev/null 2>&1 || :
 {{ end -}}
 

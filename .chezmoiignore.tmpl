@@ -109,8 +109,11 @@ Library
 .claude/skills/migration
 {{ end -}}
 
-# Old directory-based Git identity overrides are obsolete on dedicated accounts.
+{{ if not (includeTemplate "has-combined" .) -}}
+# Dedicated accounts carry one identity. Only a combined account renders the
+# remote-matched work include (the old directory-based override is retired).
 .config/git/work.gitconfig
+{{ end -}}
 {{ if eq .kind "mac" -}}
 # Retained ciphertext is legacy source state, not native onboarding input.
 # Without encryption configured, chezmoi retains the .age target suffix.
