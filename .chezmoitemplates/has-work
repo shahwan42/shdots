@@ -1,1 +1,1 @@
-{{- if eq (includeTemplate "account-role" .) "work" }}true{{ end -}}
+{{- if has (includeTemplate "account-role" .) (list "work" "combined") }}true{{ end -}}

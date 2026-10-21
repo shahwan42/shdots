@@ -3,10 +3,11 @@ Host *
     IgnoreUnknown UseKeychain
 
 # Account-local host declarations; legacy mixed config.d files are not loaded.
+{{ if includeTemplate "has-personal" . -}}
+Include ~/.ssh/config.d/personal/*
+{{ end -}}
 {{ if includeTemplate "has-work" . -}}
 Include ~/.ssh/config.d/work/*
-{{ else -}}
-Include ~/.ssh/config.d/personal/*
 {{ end }}
 # Optional compatibility VM on this machine; never opens a remote session.
 Host linux-compat
@@ -23,6 +24,13 @@ Host github.com
     IdentityAgent none
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
+{{ if includeTemplate "has-combined" . }}
+# Work Git key in the same account; never offered to public GitHub.
+Host github.foodics.com
+    IdentityAgent none
+    IdentityFile ~/.ssh/{{ template "work-git-key" . }}
+    IdentitiesOnly yes
+{{ end -}}
 {{ else -}}
 # Provision a fresh account-local Git key later. Public GitHub is optional;
 # it uses this work account's key and login, never the personal account's.

@@ -2,19 +2,22 @@
 {{- $username := .chezmoi.username -}}
 {{- $role := "" -}}
 {{- if and (eq $kind "mac") (eq $username "as") -}}
-{{-   $role = "personal" -}}
+{{- /* A single-account Mac keeps an explicit combined role across re-inits. */ -}}
+{{-   $role = dig "role" "personal" . | default "personal" -}}
 {{- else if and (eq $kind "mac") (eq $username "foodics") -}}
 {{-   $role = "work" -}}
+{{- else if eq $kind "mac" -}}
+{{-   $role = promptChoiceOnce . "role" "Account role" (list "personal" "work" "combined") -}}
 {{- else -}}
 {{-   $role = promptChoiceOnce . "role" "Account role" (list "personal" "work") -}}
 {{- end -}}
 {{- $hostname := promptStringOnce . "hostname" "Machine hostname" (output "hostname" "-s" | trim) -}}
 {{- $eod := false -}}
-{{- if eq $role "work" -}}
+{{- if has $role (list "work" "combined") -}}
 {{-   $eod = promptBoolOnce . "eod" "Install eod skill" false -}}
 {{- end -}}
 {{- $signingDefault := eq $kind "vm" -}}
-{{- if and (eq $role "personal") (stat (joinPath .chezmoi.homeDir ".ssh/id_ed25519.pub")) -}}
+{{- if and (has $role (list "personal" "combined")) (stat (joinPath .chezmoi.homeDir ".ssh/id_ed25519.pub")) -}}
 {{-   $signingDefault = true -}}
 {{- end -}}
 # Native accounts never receive the fleet age key or shared service token.

@@ -40,7 +40,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--output-dir", help="report directory (default: timestamped under $XDG_STATE_HOME/ai-tools-doctor)")
     p.add_argument("--deadline", type=float, default=600, help="overall deadline in seconds (default 600)")
     p.add_argument("--kind", choices=("mac", "vm"), help="override detected machine kind (for fixtures)")
-    p.add_argument("--role", choices=("personal", "work"), help="override detected role (for fixtures)")
+    p.add_argument("--role", choices=("personal", "work", "combined"), help="override detected role (for fixtures)")
     p.add_argument("--native-note", action="append", default=[], metavar="CLIENT/SERVER=OUTCOME:TEXT",
                    help="record a native-client call you made yourself, e.g. codex/codebase-memory-mcp=passed:list_projects ok")
     return p

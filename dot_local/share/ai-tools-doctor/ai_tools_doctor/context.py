@@ -19,7 +19,7 @@ class Context:
     env: dict
     project: str
     kind: str          # mac | vm
-    role: str          # personal | work | unknown
+    role: str          # personal | work | combined | unknown
     redactor: Redactor = field(default_factory=Redactor)
     profile_source: str = "unknown"
     notes: list = field(default_factory=list)

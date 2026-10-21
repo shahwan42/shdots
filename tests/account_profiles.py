@@ -132,7 +132,11 @@ def profile(label, username, role, kind='mac', extra=None):
     full_name = run(['git', 'config', '--file', str(gitfile), 'user.name']).stdout.strip()
     expected_name = 'A. S. Foodics' if role == 'work' else 'Ahmed Shahwan'
     check(full_name == expected_name, f'{label}: incorrect Git full name {full_name}')
-    check('includeIf' not in gitconfig, f'{label}: path-dependent identity remains')
+    if role == 'combined':
+        check('includeIf "hasconfig:remote.*.url:git@github.foodics.com:*/**"' in gitconfig, f'{label}: work include missing')
+        check('gitdir' not in gitconfig, f'{label}: path-dependent identity remains')
+    else:
+        check('includeIf' not in gitconfig, f'{label}: path-dependent identity remains')
     if kind == 'mac':
         check(not any(e['type'] == 'remove' for e in entries.values()), f'{label}: native state deletion')
         check('.config/op/env' not in entries and '.ssh/config.d/foodics' not in entries, f'{label}: legacy encrypted target')
@@ -161,7 +165,11 @@ def profile(label, username, role, kind='mac', extra=None):
         check([(m['from']['key_code'], m['to'][0]['key_code']) for m in mappings] == [('caps_lock', 'escape'), ('escape', 'caps_lock')], f'{label}: incorrect keyboard candidate')
         check('.config/karabiner/karabiner.json' not in entries, f'{label}: keyboard candidate activated')
         verify_profile(label, entries, rendered, audit, cz)
-        run(['/usr/bin/ssh', '-G', '-F', str(rendered/'.ssh/config'), 'github.foodics.com' if role == 'work' else 'github.com'])
+        for host in (['github.foodics.com'] if role == 'work' else ['github.com'] if role == 'personal' else ['github.com', 'github.foodics.com']):
+            resolved = run(['/usr/bin/ssh', '-G', '-F', str(rendered/'.ssh/config'), host]).stdout
+            if role == 'combined':
+                key = 'id_ed25519_work' if host == 'github.foodics.com' else 'id_ed25519'
+                check(f'identityfile ~/.ssh/{key}\n' in resolved, f'{label}: {host} uses the wrong key')
         # Full non-mutating diff and apply against empty scratch destination.
         before = sorted(str(f.relative_to(dest)) for f in dest.rglob('*'))
         diff = cz('diff', '--exclude=encrypted,externals')
@@ -188,21 +196,62 @@ def profile(label, username, role, kind='mac', extra=None):
         check('servers["gmail"]' in entries['41-opencode-mcp-sync.sh']['contents'], f'{label}: personal Gmail missing')
         check('.claude/skills/qa-manual/SKILL.md' in entries, f'{label}: personal QA missing')
         check('.ssh/config.d/personal/shahwan' in entries, f'{label}: Hetzner host missing')
+    if kind == 'mac' and role == 'combined':
+        work_git = entries['.config/git/work.gitconfig']['contents']
+        check('email = a.shahwan@foodics.com' in work_git and 'name = A. S. Foodics' in work_git, f'{label}: work identity missing')
+        check('id_ed25519_work.pub' in work_git, f'{label}: work signing key missing')
+        check('id_ed25519.pub' in gitconfig, f'{label}: personal signing key missing')
+        check('GH_HOST' not in entries['.zshenv']['contents'], f'{label}: global CLI host default')
+        for script in ('40-claude-mcp-sync.sh', '43-codex-mcp-sync.sh'):
+            contents = entries[script]['contents']
+            check('mcp remove gmail' not in contents and 'mcp remove github-enterprise' not in contents, f'{label}: {script} strips a role')
+        opencode = entries['41-opencode-mcp-sync.sh']['contents']
+        check('servers["gmail"]' in opencode and 'servers["github-enterprise"]' in opencode, f'{label}: OpenCode lacks a role')
+        check('mcp.pop("github-enterprise"' not in opencode and 'for name in ("gmail"' not in opencode, f'{label}: OpenCode strips a role')
+        check('awscli' in entries['.config/mise/config.toml']['contents'], f'{label}: work tools missing')
+        check('brew bundle' in entries['25-brew-bundle.sh']['contents'], f'{label}: sole account cannot maintain Homebrew')
+        check('foodics@as-host' in entries['.config/git/allowed_signers']['contents'], f'{label}: work signer untrusted')
+        check('Include ~/.ssh/config.d/personal/*' in entries['.ssh/config']['contents'] and 'Include ~/.ssh/config.d/work/*' in entries['.ssh/config']['contents'], f'{label}: SSH host includes incomplete')
+    if role != 'combined':
+        check('.config/git/work.gitconfig' not in entries, f'{label}: combined-only work include rendered')
     (audit/'commands.json').write_text(json.dumps(command_log, indent=2) + '\n')
     (audit/'summary.json').write_text(json.dumps(dict(label=label, username=username, role=role, kind=kind, counts=counts, git_name=full_name, git_email=email, externals='excluded (no downloads)', encrypted='excluded (no decryption)', actual_user=run(['id','-un']).stdout.strip()), indent=2)+'\n')
     return cz, entries
 
 
 (ARTIFACTS/'expected-errors.txt').write_text('')
-personal, pentries = profile('personal', 'as', 'personal')
+# The personal render stats /Users/as, which other accounts cannot read. Run a
+# subset elsewhere with SHDOTS_PROFILES=work,combined; only a full run is a gate.
+ALL_PROFILES = ['personal', 'work', 'combined', 'linux-personal', 'linux-work']
+SELECTED = os.environ.get('SHDOTS_PROFILES', ','.join(ALL_PROFILES)).split(',')
+check(set(SELECTED) <= set(ALL_PROFILES), f'unknown profile in SHDOTS_PROFILES: {SELECTED}')
+identities = []
+if 'personal' in SELECTED:
+    personal, pentries = profile('personal', 'as', 'personal')
+    identities.append(('a.shahwan42@gmail.com', 'Ahmed Shahwan', 'personal', None))
 work, wentries = profile('work', 'foodics', 'work')
+identities.append(('a.shahwan@foodics.com', 'A. S. Foodics', 'work', None))
+if 'combined' in SELECTED:
+    # A fresh single-account Mac: any username with an explicit combined role.
+    combined, centries = profile('combined', 'ahmed', 'combined', extra={'git_signing': True})
+    identities.append(('a.shahwan@foodics.com', 'A. S. Foodics', 'combined', 'git@github.foodics.com:pay/example.git'))
+    identities.append(('a.shahwan42@gmail.com', 'Ahmed Shahwan', 'combined', 'git@github.com:shahwan42/example.git'))
 # Read-only Git identity inheritance proof for linked worktrees outside Code/foodics.
 repo = ARTIFACTS/'git-worktree-fixture'
 repo.mkdir(exist_ok=True)
 run(['git','init','--quiet',str(repo)])
-for email, cz, entries in [('a.shahwan@foodics.com',work,wentries),('a.shahwan42@gmail.com',personal,pentries)]:
-    file = ARTIFACTS/('work' if 'foodics' in email else 'personal')/'rendered/.gitconfig'
+for email, expected_name, label, remote in identities:
+    file = ARTIFACTS/label/'rendered/.gitconfig'
+    if label == 'combined':
+        # The include names the simulated home; point it at the rendered copy.
+        fixture = ARTIFACTS/label/'fixture.gitconfig'
+        fixture.write_text(file.read_text().replace('/Users/ahmed/', str(ARTIFACTS/label/'rendered') + '/'))
+        file = fixture
     env = dict(os.environ, GIT_CONFIG_GLOBAL=str(file), GIT_CONFIG_NOSYSTEM='1')
+    # Combined identity follows the repository's remote, so set one per case.
+    run(['git','-C',str(repo),'remote','remove','origin'], check=False)
+    if remote:
+        run(['git','-C',str(repo),'remote','add','origin',remote])
     for location in ['checkout', 'Code/worktrees/example/migration-123']:
         dest = ARTIFACTS/location
         dest.mkdir(parents=True,exist_ok=True)
@@ -210,14 +259,17 @@ for email, cz, entries in [('a.shahwan@foodics.com',work,wentries),('a.shahwan42
         result = subprocess.run(['git','-C',str(dest),'config','user.email'],env=env,text=True,capture_output=True)
         check(result.returncode == 0 and result.stdout.strip() == email, f'worktree identity inheritance failed: {result.stdout}{result.stderr}')
         result = subprocess.run(['git','-C',str(dest),'config','user.name'],env=env,text=True,capture_output=True)
-        expected_name = 'A. S. Foodics' if 'foodics' in email else 'Ahmed Shahwan'
         check(result.returncode == 0 and result.stdout.strip() == expected_name, f'worktree full name inheritance failed: {result.stdout}{result.stderr}')
-# Legacy empty-role Macs are resolved by username, rather than carrying both roles.
-for cz, username, role in [(personal,'as','personal'),(work,'foodics','work')]:
-    result = cz('--override-data', json.dumps({'kind':'mac','role':'','chezmoi':{'username':username}}), 'execute-template', '{{ includeTemplate "account-role" . }}')
-    check(result.stdout == role, 'legacy empty role inference failed')
-# Mismatched identity and unknown accounts fail closed.
-for override in [{'role':'personal','chezmoi':{'username':'foodics'}}, {'role':'','chezmoi':{'username':'unknown'}}, {'username':'as','chezmoi':{'username':'foodics'}}]:
+# Legacy empty-role Macs are resolved by username, rather than carrying both roles;
+# as may opt into combined explicitly. Role resolution never stats a home.
+for username, role, expected in [('as','','personal'),('foodics','','work'),('as','combined','combined'),('ahmed','combined','combined')]:
+    result = work('--override-data', json.dumps({'kind':'mac','role':role,'username':username,'chezmoi':{'username':username}}), 'execute-template', '{{ includeTemplate "account-role" . }}')
+    check(result.stdout == expected, f'role resolution failed for {username}/{role!r}: {result.stdout}')
+# Mismatched identity and unknown accounts fail closed; foodics stays work-only
+# and VMs keep one explicit role.
+for override in [{'role':'personal','chezmoi':{'username':'foodics'}}, {'role':'','chezmoi':{'username':'unknown'}}, {'username':'as','chezmoi':{'username':'foodics'}},
+                 {'role':'combined','chezmoi':{'username':'foodics'}}, {'role':'work','username':'as','chezmoi':{'username':'as'}},
+                 {'kind':'vm','role':'combined','username':'ubuntu','chezmoi':{'username':'ubuntu'}}]:
     result = work('--override-data',json.dumps(override),'execute-template','{{ includeTemplate "has-personal" . }}',check=False)
     check(result.returncode != 0, 'invalid account identity unexpectedly accepted')
     with (ARTIFACTS/'expected-errors.txt').open('a') as f:
@@ -229,9 +281,13 @@ check('xwug424' not in result.stdout and 'jypxox' not in result.stdout and 'i4fk
 result = work('--override-data', json.dumps({'eod':True}), 'execute-template', '--file', str(ROOT/'dot_claude/skills/eod/SKILL.md.tmpl'))
 check('A. S. Foodics' in result.stdout and 'A[.] S[.] Foodics' in result.stdout and 'A. S. Shahwan' not in result.stdout, 'EOD work identity mismatch')
 # Compatibility renders retain their explicit Linux role, without accessing ciphertext.
-profile('linux-personal','ubuntu','personal','vm')
-profile('linux-work','ubuntu','work','vm')
+if 'linux-personal' in SELECTED:
+    profile('linux-personal','ubuntu','personal','vm')
+if 'linux-work' in SELECTED:
+    profile('linux-work','ubuntu','work','vm')
 verify_bootstrap(ROOT, ARTIFACTS)
 run(['git','-C',str(ROOT),'diff','HEAD','--check'])
-print('PASS: personal/work native and Linux renders, init, syntax, secret boundaries, linked-worktree identities, non-mutating diff/apply, invalid identity rejection.')
+if SELECTED != ALL_PROFILES:
+    print('PARTIAL (not a release gate): profiles', ','.join(SELECTED))
+print('PASS: personal/work/combined native and Linux renders, init, syntax, secret boundaries, linked-worktree identities, non-mutating diff/apply, invalid identity rejection.')
 print('Audit artifacts:', ARTIFACTS)

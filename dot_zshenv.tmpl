@@ -29,6 +29,7 @@ typeset -U path PATH
 export AWS_PROFILE=foodics_pay_export
 {{ end -}}
 
-{{ if includeTemplate "has-work" . }}# Enterprise is the work CLI default; use GH_HOST=github.com for public GitHub.
+{{ if and (includeTemplate "has-work" .) (not (includeTemplate "has-personal" .)) }}# Enterprise is the work CLI default; use GH_HOST=github.com for public GitHub.
 export GH_HOST=github.foodics.com
 {{ end -}}
+{{- /* combined: no global default; inside a repo gh follows its remote's host. */ -}}
