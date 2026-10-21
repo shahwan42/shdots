@@ -158,7 +158,14 @@ def profile(label, username, role, kind='mac', extra=None):
         check(all('as-dev' not in e.get('contents', '') for n, e in entries.items() if n != '.config/git/allowed_signers'), f'{label}: old VM default/reference in native render')
         check('command herdr --remote' not in entries['.zshrc']['contents'], f'{label}: remote startup')
         check('.claude/skills/eod/SKILL.md' not in entries, f'{label}: EOD default enabled')
-        check('~/Code/worktrees/{{ repo }}/{{ branch | sanitize_hash }}' in entries['.config/worktrunk/config.toml']['contents'], f'{label}: wrong worktree path')
+        worktrunk = entries['.config/worktrunk/config.toml']['contents']
+        check('~/Code/worktrees/{{ repo }}/{{ branch | sanitize_hash }}' in worktrunk, f'{label}: wrong worktree path')
+        hooks = ['capital-deps', 'capital-slot', 'pay-deps', 'pay-slot']
+        if role in ('work', 'combined'):
+            check(all(h in worktrunk for h in hooks), f'{label}: Foodics Worktrunk hooks missing')
+            check('"$HOME/Code/foodics/.dev/bin/slot" create' in worktrunk and '/Users/' not in worktrunk, f'{label}: Worktrunk hooks not home-relative')
+        else:
+            check(not any(h in worktrunk for h in hooks), f'{label}: Foodics Worktrunk hooks on a personal account')
         keyboard = json.loads(entries['.config/karabiner/assets/complex_modifications/native-account-baseline.json']['contents'])
         mappings = keyboard['rules'][0]['manipulators']
         check(len(mappings) == 2 and all(m['type'] == 'basic' for m in mappings), f'{label}: invalid keyboard candidate structure')
