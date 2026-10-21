@@ -63,6 +63,10 @@ routed per repository, not per OS account:
 - No global `GH_HOST`: inside a repository `gh` follows the remote's host.
 - MCP sync scripts register both roles' servers and strip neither.
 - Brewfile maintenance runs for `as` or any combined account.
+- Worktrunk's config carries the Foodics hooks on work-role Macs (`work` and
+  `combined`): `capital-deps`/`pay-deps` (pre-start `composer install`) and
+  `capital-slot`/`pay-slot` (post-start `$HOME/Code/foodics/.dev/bin/slot create`).
+  Personal accounts and VMs render only `worktree-path`.
 - `secret_integrations` stays one opt-in flag for both roles' references.
 
 Personal and work renders are byte-identical to before this role existed,

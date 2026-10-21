@@ -1,0 +1,25 @@
+{{- /* Worktrunk's own {{ }} variables are escaped as Go raw strings; its {% %} tags pass through untouched. */ -}}
+worktree-path = "~/Code/worktrees/{{ `{{ repo }}` }}/{{ `{{ branch | sanitize_hash }}` }}"
+{{- if and (eq .kind "mac") (includeTemplate "has-work" .) }}
+
+# Foodics work hooks (Macs with the work role). They need ~/Code/foodics/.dev
+# (the local slot control plane) and Homebrew PHP 8.4; neither exists on VMs.
+
+# capital-api worktrees: deps + .dev slot (DB, .env, migrate, seed) so the
+# pre-push gate can boot the app. --no-scripts keeps cghooks off .git/hooks.
+# Deps are pre-start (blocking) so vendor/ exists before a Claude session can open the worktree and start
+# the Laravel Boost MCP server (~/Code/foodics/.dev/bin/boost-mcp); slot create stays in the background.
+[[pre-start]]
+capital-deps = """{% if repo == "capital-api" %}COMPOSER_IGNORE_PLATFORM_REQ=ext-imap /opt/homebrew/opt/php@8.4/bin/php /opt/homebrew/bin/composer install --no-scripts --no-interaction && /opt/homebrew/opt/php@8.4/bin/php artisan package:discover --ansi{% endif %}"""
+
+[[post-start]]
+capital-slot = """{% if repo == "capital-api" %}"$HOME/Code/foodics/.dev/bin/slot" create{% endif %}"""
+
+# pay (Pay KSA core) worktrees: same shape as capital-api. Prebuilt CP/MMS assets stay manual
+# (npm ci --ignore-scripts + ~/Code/foodics/.dev/bin/pay-assets <worktree>) — only the browser UI needs them.
+[[pre-start]]
+pay-deps = """{% if repo == "pay" %}COMPOSER_IGNORE_PLATFORM_REQ=ext-imap /opt/homebrew/opt/php@8.4/bin/php /opt/homebrew/bin/composer install --no-scripts --no-interaction && /opt/homebrew/opt/php@8.4/bin/php artisan package:discover --ansi{% endif %}"""
+
+[[post-start]]
+pay-slot = """{% if repo == "pay" %}"$HOME/Code/foodics/.dev/bin/slot" create{% endif %}"""
+{{- end }}
