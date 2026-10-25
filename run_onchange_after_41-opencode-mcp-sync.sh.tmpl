@@ -52,16 +52,6 @@ servers = {
         "command": ["npx", "-y", "@sylphx/citra"],
         "enabled": True,
     },
-{{ if includeTemplate "has-personal" . -}}
-    "postgres": {
-        "type": "local",
-        "command": ["postgres-mcp", "--access-mode=restricted"],
-        "enabled": True,
-        "environment": {
-            "DATABASE_URI": "{env:DATABASE_URI}",
-        },
-    },
-{{ end -}}
 }
 
 if cbm and os.access(cbm, os.X_OK):
@@ -81,26 +71,6 @@ servers["google-calendar"] = {
     "type": "remote",
     "url": "https://calendarmcp.googleapis.com/mcp/v1",
     "enabled": True,
-}
-servers["github"] = {
-    "type": "local",
-    "command": ["github-mcp-server", "stdio"],
-    "enabled": True,
-    "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_READONLY_TOKEN}",
-    },
-}
-{{ end -}}
-{{ if includeTemplate "has-work" . -}}
-servers["github-enterprise"] = {
-    "type": "local",
-    "command": ["github-mcp-server", "stdio"],
-    "enabled": {{ if includeTemplate "has-secret-integrations" . }}True{{ else }}False{{ end }},
-    "environment": {
-        # Tokens come from ~/.config/zsh/secrets.zsh (1Password, by UUID).
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GHE_MCP_TOKEN}",
-        "GITHUB_HOST": "https://github.foodics.com",
-    },
 }
 {{ end -}}
 
@@ -126,12 +96,13 @@ if not isinstance(mcp, dict):
 mcp.pop("shadcn-ui", None)
 mcp.pop("playwright", None)
 mcp.pop("figma", None)
+# Retired: GitHub goes through the gh CLI and databases through psql instead.
+for name in ("github", "github-enterprise", "postgres"):
+    mcp.pop(name, None)
 # Remove only opposite-role entries owned by shdots; preserve other custom MCPs.
 {{ if not (includeTemplate "has-personal" .) -}}
-for name in ("gmail", "google-calendar", "github", "postgres"):
+for name in ("gmail", "google-calendar"):
     mcp.pop(name, None)
-{{ else if not (includeTemplate "has-work" .) -}}
-mcp.pop("github-enterprise", None)
 {{ end -}}
 mcp.update(servers)
 data["mcp"] = mcp
@@ -162,7 +133,7 @@ data["lsp"] = lsp_cfg
 
 # Shared AI baseline (.chezmoitemplates/ai-baseline.md), rendered by chezmoi to
 # instructions/baseline.md. Referenced here rather than written into the global
-# AGENTS.md, which the Caveman installer owns. Other entries are preserved.
+# AGENTS.md, which stays create-only. Other entries are preserved.
 baseline = {{ joinPath .chezmoi.homeDir ".config/opencode/instructions/baseline.md" | quote }}
 instructions = data.get("instructions", [])
 if instructions is None:

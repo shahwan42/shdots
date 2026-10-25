@@ -10,6 +10,15 @@ state.
 Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
 **P3** is optional.
 
+## Retired 2026-10-25
+
+The `github`, `github-enterprise` and `postgres` MCP servers and the Caveman
+integration are retired: GitHub goes through the `gh` CLI and databases through
+`psql`. Scripts 40, 41 and 43 now remove those servers, and script 44 prunes
+Caveman's skills, OpenCode plugin, commands, agents and `AGENTS.md` block. This
+closes every item below that is about those servers or Caveman, except one: the
+GitHub tokens that were stored inline (and once printed) still need rotating.
+
 ## Tool health findings (`ai-tools-doctor`, audited 2026-10-08, Mac `as`, personal)
 
 Runtime health is separate from registration health. Each finding below was

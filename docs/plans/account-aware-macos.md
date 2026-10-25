@@ -24,8 +24,8 @@ fail rendering. VM roles remain explicit.
 
 `has-personal` / `has-work` are the common gates. Shared shell ergonomics, CLI,
 terminals, portable agent skills, Worktrunk and editor configuration go to both
-accounts. Personal Gmail/Calendar, personal GitHub PATs, tutoring DB declarations,
-ClearMoney QA and Caveman integration stay personal. Work tool declarations
+accounts. Personal Gmail/Calendar, personal GitHub PATs and ClearMoney QA stay
+personal. GitHub and databases are reached through `gh` and `psql`, not MCP servers. Work tool declarations
 include AWS/Jira/Sonar tooling and Harlequin; EOD is work-only and opt-in.
 No work package-registry credentials, AWS profile/login or repositories are copied.
 
@@ -61,7 +61,7 @@ routed per repository, not per OS account:
 - SSH loads both `config.d/personal` and `config.d/work`; `github.com` uses
   `id_ed25519`, `github.foodics.com` uses `id_ed25519_work`.
 - No global `GH_HOST`: inside a repository `gh` follows the remote's host.
-- MCP sync scripts register both roles' servers and strip neither.
+- MCP sync scripts strip neither role's Gmail/Calendar entries.
 - Brewfile maintenance runs for `as` or any combined account.
 - Worktrunk's config carries the Foodics hooks on work-role Macs (`work` and
   `combined`): `capital-deps`/`pay-deps` (pre-start `composer install`) and
@@ -80,10 +80,9 @@ Do not copy the age identity into the work account. The ciphertext and source
 stash remain intact. Legacy VM handling is retained, not endorsed for new users.
 
 `secret_integrations=false` is the work onboarding default. It prevents shell
-secret consumers and PAT registration. The Enterprise OpenCode declaration is
-disabled until the flag is enabled. Existing personal targeted PAT consumers
+secret consumers. Existing personal targeted PAT consumers
 remain available through personal account-local 1Password authentication.
-An opt-in work render includes only the work PAT/Jira/Sonar references. These
+An opt-in work render includes only the work Jira/Sonar references. These
 old UUID references must be reviewed against a work-only vault/login before
 opting in; template gating does not grant or restrict 1Password vault access.
 

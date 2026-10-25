@@ -192,18 +192,21 @@ def profile(label, username, role, kind='mac', extra=None):
         (audit/'dry-run.txt').write_text(dry.stdout + dry.stderr)
         after = sorted(str(f.relative_to(dest)) for f in dest.rglob('*'))
         check(before == after == [], f'{label}: dry run changed destination')
+    # Retired integrations: GitHub goes through gh, databases through psql, and
+    # Caveman is pruned rather than installed.
+    declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
+    for needle in ['github-mcp-server', 'server-postgres', 'postgres-mcp', 'JuliusBrussee/caveman']:
+        check(needle not in declared, f'{label}: retired integration declared: {needle}')
     if kind == 'mac' and role == 'work':
         for needle in ['/Users/as', 'a.shahwan42@gmail.com', 'ahmed@shahwan.me', 'xwug424pq6bcit35v5abzpt5vm', 'jypxoxjttljurjhg3f72bvlx6e', 'postgresql://tutoring', 'OP_SERVICE_ACCOUNT_TOKEN']:
             check(needle not in all_text, f'{label}: personal leakage: {needle}')
         check('.config/zsh/secrets.zsh' not in entries, f'{label}: unprovisioned secret consumer')
-        check('.local/bin/mcp-github-register' not in entries, f'{label}: unprovisioned MCP token helper')
         check('.claude/skills/qa-manual/SKILL.md' not in entries, f'{label}: personal project skill')
         check('.ssh/authorized_keys' not in entries, f'{label}: legacy host access grant')
         check('.ssh/config.d/personal/shahwan' not in entries, f'{label}: personal Hetzner host')
         check('export GH_HOST=github.foodics.com' in entries['.zshenv']['contents'], f'{label}: Enterprise CLI default missing')
         check('brew bundle' not in entries['25-brew-bundle.sh']['contents'], f'{label}: Homebrew mutation')
         check('op_read \'op://' not in entries['40-claude-mcp-sync.sh']['contents'] + entries['43-codex-mcp-sync.sh']['contents'], f'{label}: automatic PAT acquisition')
-        check('"enabled": False' in entries['41-opencode-mcp-sync.sh']['contents'], f'{label}: unprovisioned GHE enabled')
     if kind == 'mac' and role == 'personal':
         for needle in ['i4fkk5sxnoihinvcnv2evqg7be', 'cuhmbyox773pricvf6xmm5nfba', 'vxwnzlffnicehkjjd5jjmg63xe']:
             check(needle not in all_text, f'{label}: work token consumer')
@@ -218,10 +221,10 @@ def profile(label, username, role, kind='mac', extra=None):
         check('GH_HOST' not in entries['.zshenv']['contents'], f'{label}: global CLI host default')
         for script in ('40-claude-mcp-sync.sh', '43-codex-mcp-sync.sh'):
             contents = entries[script]['contents']
-            check('mcp remove gmail' not in contents and 'mcp remove github-enterprise' not in contents, f'{label}: {script} strips a role')
+            check('mcp remove gmail' not in contents, f'{label}: {script} strips a role')
         opencode = entries['41-opencode-mcp-sync.sh']['contents']
-        check('servers["gmail"]' in opencode and 'servers["github-enterprise"]' in opencode, f'{label}: OpenCode lacks a role')
-        check('mcp.pop("github-enterprise"' not in opencode and 'for name in ("gmail"' not in opencode, f'{label}: OpenCode strips a role')
+        check('servers["gmail"]' in opencode, f'{label}: OpenCode lacks a role')
+        check('for name in ("gmail"' not in opencode, f'{label}: OpenCode strips a role')
         check('awscli' in entries['.config/mise/config.toml']['contents'], f'{label}: work tools missing')
         check('brew bundle' in entries['25-brew-bundle.sh']['contents'], f'{label}: sole account cannot maintain Homebrew')
         check('foodics@as-host' in entries['.config/git/allowed_signers']['contents'], f'{label}: work signer untrusted')
@@ -289,8 +292,8 @@ for override in [{'role':'personal','chezmoi':{'username':'foodics'}}, {'role':'
     with (ARTIFACTS/'expected-errors.txt').open('a') as f:
         f.write(json.dumps(override)+'\n'+result.stdout+result.stderr+'\n')
 # Role-scoped opt-in work consumers never gain personal references.
-result = work('--override-data',json.dumps({'secret_integrations':True}), 'execute-template','--file',str(ROOT/'dot_config/zsh/secrets.zsh.tmpl'),str(ROOT/'dot_local/bin/executable_mcp-github-register.tmpl'))
-check('xwug424' not in result.stdout and 'jypxox' not in result.stdout and 'i4fkk5' in result.stdout, 'opt-in token boundary failed')
+result = work('--override-data',json.dumps({'secret_integrations':True}), 'execute-template','--file',str(ROOT/'dot_config/zsh/secrets.zsh.tmpl'))
+check('xwug424' not in result.stdout and 'jypxox' not in result.stdout and 'cuhmbyox' in result.stdout, 'opt-in token boundary failed')
 # The opt-in EOD consumer must find new work commits as well as historical ones.
 result = work('--override-data', json.dumps({'eod':True}), 'execute-template', '--file', str(ROOT/'dot_claude/skills/eod/SKILL.md.tmpl'))
 check('A. S. Foodics' in result.stdout and 'A[.] S[.] Foodics' in result.stdout and 'A. S. Shahwan' not in result.stdout, 'EOD work identity mismatch')

@@ -26,68 +26,21 @@ add() {
 }
 
 {{ if not (includeTemplate "has-personal" .) -}}
-"$CODEX" mcp remove github >/dev/null 2>&1 || :
 "$CODEX" mcp remove gmail >/dev/null 2>&1 || :
 "$CODEX" mcp remove google-calendar >/dev/null 2>&1 || :
-"$CODEX" mcp remove postgres >/dev/null 2>&1 || :
-{{ else if not (includeTemplate "has-work" .) -}}
-"$CODEX" mcp remove github-enterprise >/dev/null 2>&1 || :
 {{ end -}}
 
-# Remove MCP servers retired from the shared declaration.
-"$CODEX" mcp remove shadcn-ui >/dev/null 2>&1 || :
-"$CODEX" mcp remove playwright >/dev/null 2>&1 || :
-
-# `op read` blocks indefinitely when 1Password has no non-interactive auth.
-# Cap it so an unattended `chezmoi apply` remains non-fatal when the vault is
-# locked. An empty result is handled by the role-specific blocks below.
-op_read() {
-  _q="$1"
-  for _t in timeout gtimeout; do
-    if command -v "$_t" >/dev/null 2>&1; then
-      "$_t" 15 op read "$_q" 2>/dev/null
-      return
-    fi
-  done
-  op read "$_q" 2>/dev/null &
-  _op=$!
-  ( sleep 15; kill "$_op" 2>/dev/null ) &
-  _kill=$!
-  wait "$_op" 2>/dev/null; _rc=$?
-  kill "$_kill" 2>/dev/null; wait "$_kill" 2>/dev/null
-  return "$_rc"
-}
+# Remove MCP servers retired from the shared declaration. GitHub goes through
+# the gh CLI and databases through psql instead.
+for _retired in shadcn-ui playwright github github-enterprise postgres; do
+  "$CODEX" mcp remove "$_retired" >/dev/null 2>&1 || :
+done
 
 # --- shared everywhere (mac + vm, personal + work) ---
 add context7 -- npx -y @upstash/context7-mcp
 add citra -- npx -y @sylphx/citra
-{{ if includeTemplate "has-personal" . -}}
-# Inert until compose.yaml maps the DB port (plan 0003 §1).
-add postgres -- npx -y @modelcontextprotocol/server-postgres \
-  postgresql://tutoring:local-development-only@127.0.0.1:5432/tutoring
-{{ end -}}
 
 CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 [ -x "$CBM_BIN" ] && add codebase-memory-mcp -- "$CBM_BIN"
-
-# Codex's option is --env KEY=VALUE (Claude's equivalent is -e).
-{{ if and (includeTemplate "has-personal" .) (includeTemplate "has-secret-integrations" .) -}}
-GH_PAT="$(op_read 'op://dev-secrets/xwug424pq6bcit35v5abzpt5vm/credential')"
-if [ -n "$GH_PAT" ]; then
-  add github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GH_PAT" -- github-mcp-server stdio
-else
-  echo "github mcp: 1Password item xwug424pq6bcit35v5abzpt5vm (dev-secrets, 'GitHub PAT (github.com, MCP write)') field 'credential' is unavailable; unlock/fix it, then run 'mcp-github-register'." >&2
-  hn github skip "1Password PAT unavailable (op read empty/timed out)"
-fi
-{{ end -}}
-{{ if and (includeTemplate "has-work" .) (includeTemplate "has-secret-integrations" .) -}}
-GHE_PAT="$(op_read 'op://dev-secrets/i4fkk5sxnoihinvcnv2evqg7be/credential')"
-if [ -n "$GHE_PAT" ]; then
-  add github-enterprise --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GHE_PAT" --env GITHUB_HOST=https://github.foodics.com -- github-mcp-server stdio
-else
-  echo "github-enterprise mcp: 1Password item i4fkk5sxnoihinvcnv2evqg7be (dev-secrets) field 'credential' is unavailable; unlock/fix it, then run 'mcp-github-register'." >&2
-  hn github-enterprise skip "1Password PAT unavailable (op read empty/timed out)"
-fi
-{{ end -}}
 
 exit 0
