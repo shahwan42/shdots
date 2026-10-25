@@ -97,7 +97,9 @@ SSH loads only `.ssh/config.d/personal/*` or `.ssh/config.d/work/*`. It ignores
 the old mixed directory's files. `linux-compat` is an optional alias to
 `fdx-dev.local`; no terminal startup connects to it. `herdr-devbox` requires
 an explicit VM name. Work Git authentication points to a future local key;
-company-server hosts and 1Password key selection remain manual provisioning.
+company-server hosts and 1Password key selection remain manual provisioning,
+in the unmanaged, ignored `~/.ssh/config.d/work/foodics`. `~/.ssh/config` holds
+only shared settings; each role's Git hosts render to `config.d/<role>/github`.
 
 ## Shared installation, isolated state
 

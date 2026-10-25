@@ -172,11 +172,18 @@ def profile(label, username, role, kind='mac', extra=None):
         check([(m['from']['key_code'], m['to'][0]['key_code']) for m in mappings] == [('caps_lock', 'escape'), ('escape', 'caps_lock')], f'{label}: incorrect keyboard candidate')
         check('.config/karabiner/karabiner.json' not in entries, f'{label}: keyboard candidate activated')
         verify_profile(label, entries, rendered, audit, cz)
-        for host in (['github.foodics.com'] if role == 'work' else ['github.com'] if role == 'personal' else ['github.com', 'github.foodics.com']):
-            resolved = run(['/usr/bin/ssh', '-G', '-F', str(rendered/'.ssh/config'), host]).stdout
-            if role == 'combined':
-                key = 'id_ed25519_work' if host == 'github.foodics.com' else 'id_ed25519'
-                check(f'identityfile ~/.ssh/{key}\n' in resolved, f'{label}: {host} uses the wrong key')
+        # Includes name ~/.ssh; point them at the render so the real home never leaks in.
+        ssh_config = audit/'ssh_config'
+        ssh_config.write_text(entries['.ssh/config']['contents'].replace('Include ~/.ssh/', f'Include {rendered}/.ssh/'))
+        check(('.ssh/config.d/personal/github' in entries) == (role != 'work'), f'{label}: personal SSH hosts gated wrongly')
+        check(('.ssh/config.d/work/github' in entries) == (role != 'personal'), f'{label}: work SSH hosts gated wrongly')
+        check('.ssh/config.d/work/foodics' not in entries, f'{label}: company server hosts managed')
+        expected_keys = {'personal': {'github.com': 'id_ed25519'},
+                         'work': {'github.com': 'id_ed25519', 'github.foodics.com': 'id_ed25519'},
+                         'combined': {'github.com': 'id_ed25519', 'github.foodics.com': 'id_ed25519_work'}}[role]
+        for host, key in expected_keys.items():
+            resolved = run(['/usr/bin/ssh', '-G', '-F', str(ssh_config), host]).stdout
+            check(f'identityfile ~/.ssh/{key}\n' in resolved and 'identitiesonly yes\n' in resolved, f'{label}: {host} uses the wrong key')
         # Full non-mutating diff and apply against empty scratch destination.
         before = sorted(str(f.relative_to(dest)) for f in dest.rglob('*'))
         diff = cz('diff', '--exclude=encrypted,externals')

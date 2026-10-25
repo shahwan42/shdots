@@ -1,8 +1,9 @@
 # vim: filetype=sshconfig
+# Settings shared by every account. Hosts live in config.d/personal and
+# config.d/work; config.d/work/foodics holds company servers and is local-only.
 Host *
     IgnoreUnknown UseKeychain
 
-# Account-local host declarations; legacy mixed config.d files are not loaded.
 {{ if includeTemplate "has-personal" . -}}
 Include ~/.ssh/config.d/personal/*
 {{ end -}}
@@ -14,31 +15,6 @@ Host linux-compat
     HostName fdx-dev.local
     User ubuntu
 
-{{ if includeTemplate "has-personal" . -}}
-# Administrative access remains in the personal account.
-Host fdx-host as-host
-    User as
-    IdentityFile ~/.ssh/id_ed25519
-
-Host github.com
-    IdentityAgent none
-    IdentityFile ~/.ssh/id_ed25519
-    IdentitiesOnly yes
-{{ if includeTemplate "has-combined" . }}
-# Work Git key in the same account; never offered to public GitHub.
-Host github.foodics.com
-    IdentityAgent none
-    IdentityFile ~/.ssh/{{ template "work-git-key" . }}
-    IdentitiesOnly yes
-{{ end -}}
-{{ else -}}
-# Provision a fresh account-local Git key later. Public GitHub is optional;
-# it uses this work account's key and login, never the personal account's.
-Host github.foodics.com github.com
-    IdentityAgent none
-    IdentityFile ~/.ssh/{{ template "git-signing-key" . }}
-    IdentitiesOnly yes
-{{ end }}
 Host *
     ServerAliveInterval 60
     ServerAliveCountMax 3
