@@ -26,19 +26,6 @@
       ],
       "enabled": true
     }
-{{ if includeTemplate "has-personal" . }},
-    "postgres": {
-      "type": "local",
-      "command": [
-        "postgres-mcp",
-        "--access-mode=restricted"
-      ],
-      "enabled": true,
-      "environment": {
-        "DATABASE_URI": "{env:DATABASE_URI}"
-      }
-    }
-{{ end -}}
   },
   "lsp": {
     "intelephense": {

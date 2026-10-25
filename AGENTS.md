@@ -170,12 +170,13 @@ cache, AI login/session, scheduled task, SSH key or approval database across use
 
 Personal consumers use personal GitHub and Gmail/Calendar. Work consumers use
 GitHub Enterprise and company services; `secret_integrations=false` prevents
-automatic PAT acquisition at first bootstrap. Enable it only after account-local
-work-vault authentication and reference review. `mcp-github-register` registers
-only the active role's server. Public GitHub for work is separately authenticated.
+shell token consumers at first bootstrap. Enable it only after account-local
+work-vault authentication and reference review. GitHub and GitHub Enterprise are
+reached through the `gh` CLI, not an MCP server; databases through `psql`.
+Public GitHub for work is separately authenticated.
 
-Generic context7/citra/codebase-memory registrations are portable. Personal
-project database declarations and ClearMoney QA skills stay personal. Generated
+Generic context7/citra/codebase-memory registrations are the only MCP servers
+shdots declares, and they are portable. ClearMoney QA skills stay personal. Generated
 client configuration and trust records remain local; the source never copies them.
 
 ## AI tooling layout
@@ -191,13 +192,14 @@ their own `AGENTS.md`, `.agents/skills`, and MCP config.
   `opencode.jsonc` `instructions` by script 41). Edit the baseline once.
   `~/.config/opencode/AGENTS.md` is create-only (`create_AGENTS.md`): it must
   exist, or OpenCode falls back to `~/.claude/CLAUDE.md` and loads the
-  baseline twice; Caveman appends its fenced block to it.
+  baseline twice.
 - **Codebase Memory** is installed with `--skip-config` (script 40), so it
   never writes instruction files; scripts 40/41/43 register its MCP server.
 - **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, read
   natively by Codex and OpenCode. Provenance and the upgrade flow are in
   `docs/ai/skills.md`. Never make `dot_agents/skills` `exact_`: installers
-  (Caveman, `npx skills`, herdr, browser-harness) also write there.
+  (`npx skills`, herdr, browser-harness) also write there. Caveman is retired;
+  script 44 prunes what its old installer left behind.
 - **Claude adapter:** `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
   Claude-only skills (`eod`, `qa-manual`) stay under `dot_claude/skills`.
 - **Project skills win.** Claude and OpenCode both let a global skill beat a

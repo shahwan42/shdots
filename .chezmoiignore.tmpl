@@ -106,16 +106,6 @@ Library
 .claude/skills/browser-harness
 {{ end -}}
 
-{{ if includeTemplate "has-personal" . -}}
-# Where Caveman is installed (script 44), Claude already has these four as
-# caveman:* plugin skills; an adapter would list each twice. Elsewhere (work
-# VMs) the adapter is Claude's only copy.
-.claude/skills/investigate-first
-.claude/skills/safe-refactor
-.claude/skills/verify-and-stop
-.claude/skills/migration
-{{ end -}}
-
 {{ if not (includeTemplate "has-combined" .) -}}
 # Dedicated accounts carry one identity. Only a combined account renders the
 # remote-matched work include (the old directory-based override is retired).
@@ -136,7 +126,6 @@ Library
 {{ end -}}
 {{ if not (includeTemplate "has-secret-integrations" .) -}}
 .config/zsh/secrets.zsh
-.local/bin/mcp-github-register
 {{ end -}}
 {{ if not (includeTemplate "has-autoupdate" .) -}}
 Library/LaunchAgents/com.shahwan42.chezmoi-update.plist

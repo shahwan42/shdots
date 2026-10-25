@@ -1,3 +1,5 @@
+# Retired GitHub MCP registration helper; gh replaces the GitHub MCP servers.
+.local/bin/mcp-github-register
 {{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics

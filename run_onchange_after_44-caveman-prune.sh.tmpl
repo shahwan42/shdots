@@ -1,0 +1,83 @@
+#!/bin/sh
+# Caveman is retired fleet-wide. Its pinned installer (the old script 44) put
+# assets into each agent's own directories, which chezmoi never owned, so remove
+# them here. Only Caveman's own names are touched. run_onchange_: it runs once
+# per version of this script; every step is a no-op where nothing is installed.
+set -u
+
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 44-caveman-prune "$@" >/dev/null 2>&1 || :; }
+
+OC="$HOME/.config/opencode"
+
+# Shared skills (Codex and OpenCode read ~/.agents/skills) and any per-agent
+# copies. Globs, because a full-release install on a VM carried more caveman-*
+# skills than the seven this fleet pinned.
+for d in "$HOME/.agents/skills" "$OC/skills" "$HOME/.codex/skills" "$HOME/.claude/skills"; do
+  rm -rf "$d"/caveman "$d"/caveman-* "$d"/cavecrew "$d"/cavecrew-*
+done
+
+# OpenCode integration, as listed in Caveman's ownership manifest.
+rm -rf "$OC/plugins/caveman" "$OC/commands"/caveman*.md "$OC/agents"/cavecrew-*.md \
+  "$OC/.caveman-active" "$OC/.caveman-opencode-ownership.json"
+
+# Claude Code plugin, if a past install registered it.
+if command -v claude >/dev/null 2>&1; then
+  claude plugin uninstall caveman >/dev/null 2>&1 || :
+fi
+
+PYTHON="$(command -v python3 || true)"
+[ -n "$PYTHON" ] || PYTHON="$HOME/.local/share/mise/shims/python3"
+if [ ! -x "$PYTHON" ]; then
+  hn opencode skip "python3 not available; Caveman config entries left in place"
+  exit 0
+fi
+
+# Drop the plugin entry from OpenCode configs and Caveman's fenced block from
+# the create-only global AGENTS.md. Everything else in those files is kept.
+if OC="$OC" "$PYTHON" - <<'PY'
+import os
+import pathlib
+import re
+
+oc = pathlib.Path(os.environ["OC"])
+plugin_list = re.compile(r'(,?\s*)"plugin"\s*:\s*\[([^\]]*)\]')
+
+
+def drop_caveman(match):
+    items = [i.strip() for i in match.group(2).split(",") if i.strip()]
+    kept = [i for i in items if "caveman" not in i]
+    if not kept:
+        return ""
+    return f'{match.group(1)}"plugin": [{", ".join(kept)}]'
+
+
+# Text-level edit: the JSONC files carry comments a JSON round-trip would drop.
+for name in ("opencode.jsonc", "opencode.lean.jsonc", "opencode.json"):
+    path = oc / name
+    if not path.is_file():
+        continue
+    text = path.read_text()
+    pruned = plugin_list.sub(drop_caveman, text)
+    if pruned != text:
+        path.write_text(pruned)
+
+# The file must stay non-empty: chezmoi deletes a whitespace-only target, and
+# without it OpenCode falls back to ~/.claude/CLAUDE.md (baseline twice).
+agents = oc / "AGENTS.md"
+if agents.is_file():
+    text = agents.read_text()
+    pruned = re.sub(r"\n?<!-- caveman-begin -->.*?<!-- caveman-end -->\n?", "\n", text, flags=re.S)
+    if not pruned.strip():
+        pruned = {{ include "dot_config/opencode/create_AGENTS.md" | quote }}
+    if pruned != text:
+        agents.write_text(pruned.rstrip("\n") + "\n")
+PY
+then
+  hn caveman ok "Caveman assets removed"
+else
+  echo "caveman prune: could not update OpenCode config; remove the caveman plugin entry by hand." >&2
+  hn opencode fail "could not drop the caveman plugin entry"
+fi
+
+exit 0

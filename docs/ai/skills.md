@@ -10,7 +10,7 @@ Claude Code discovers symlinked skill directories. This was verified on
 appeared in the `skills` list of the `claude -p --output-format stream-json`
 init event.
 
-`~/.agents/skills` has other writers: the Caveman installer (script 44),
+`~/.agents/skills` has other writers:
 `npx skills` (`find-skills`, `.skill-lock.json`), herdr
 (`herdr-gpui-browser`), and browser-harness. Do not make `dot_agents/skills` an
 `exact_` directory, and do not manage `.skill-lock.json`.
@@ -43,7 +43,7 @@ The installer lock remains account-local and is not managed by chezmoi.
 
 All 37 imported skills have Claude adapters except `code-review`, which
 collides with Claude's built-in command. `tdd` is excluded because it collides
-with a project skill. Installer-owned Caveman, browser-harness, herdr and
+with a project skill. Installer-owned browser-harness, herdr and
 find-skills copies remain outside this import.
 
 | Skill | Upstream path | Installer skillFolderHash |
@@ -97,7 +97,7 @@ the domain-modeling rename from `CONTEXT` to `GLOSSARY`.
 | `code-review` | Tracker fallback and repository standards sources | No `/setup-matt-pocock-skills` dependency |
 | `pr` | Repository rules and GitHub templates win; optional glossary wording | FMS and other repos own their PR body |
 | `pr-diagrams` | `77fefcc` repository precedence and one diagram per fold; local validation only | Repo rules win; Ahmed decided 2026-10-15 |
-| `migration` | Existing Caveman adaptation below | Version overlap and rollback proof |
+| `migration` | Local adaptation below | Version overlap and rollback proof |
 
 After a sync, diff each listed skill against its pre-sync version and re-apply the adaptations in this table before committing.
 
@@ -105,28 +105,24 @@ After a sync, diff each listed skill against its pre-sync version and re-apply t
 
 Source: [`JuliusBrussee/caveman`](https://github.com/JuliusBrussee/caveman)
 `v2.6.0` (`b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3`), `skills/<name>/`.
-Byte-identical except the local `migration` adaptation below. The same release that script 44 pins.
+Byte-identical except the local `migration` adaptation below.
 
 | Skill | Claude adapter |
 |---|---|
-| investigate-first | only where Caveman is not installed (work VMs); elsewhere the `caveman` plugin provides `caveman:investigate-first` |
-| safe-refactor | same |
-| verify-and-stop | same |
-| migration | same |
+| investigate-first | every account |
+| safe-refactor | every account |
+| verify-and-stop | every account |
+| migration | every account |
 
-They are vendored rather than installed by script 44, because they are plain
-engineering workflows (no Caveman Cloud, no credentials, no paths), and script
-44 runs only where personal tools live. Vendoring gives every machine,
-including work VMs, the same copy. When script 44's Caveman pin moves, re-copy
-them from the new tag.
+These four plain engineering workflows (no Caveman Cloud, no credentials, no
+paths) are vendored and stay. The Caveman plugin, persona and its own
+`caveman*`/`cavecrew` skills are retired (2026-10-25); script 44 now prunes
+them from every agent.
 
 Local adaptation of `migration` (2026-10-09): `SKILL.md` gains one bullet
 pointing to `references/compatibility-proof.md`, a locally authored recipe for
-version-overlap and rollback proof. `ai-baseline.md` also points agents at the
-installed file path directly, because Claude on personal accounts loads
-`caveman:migration` from the plugin, which lacks the reference. Plugin
-ownership, adapters and invocation policies are unchanged. On upgrade, re-copy
-from the new tag, then re-apply the bullet and keep the reference file.
+version-overlap and rollback proof. On upgrade, re-copy from the upstream tag,
+then re-apply the bullet and keep the reference file.
 
 `browser-harness` is not vendored: the browser-harness install writes the
 canonical copy to `~/.agents/skills/browser-harness` (newer releases print it

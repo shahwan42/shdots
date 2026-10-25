@@ -8,8 +8,7 @@
 For work where two versions can read or write the same data (rolling deploys,
 runtime rollback, cached older clients), state the compatibility claim before
 implementing and prove it for the exact versions tested. Follow
-`~/.agents/skills/migration/references/compatibility-proof.md`; read it directly,
-as the Claude `migration` skill may come from the Caveman plugin without it.
+`~/.agents/skills/migration/references/compatibility-proof.md`.
 
 ## Discovery
 
