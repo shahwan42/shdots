@@ -112,15 +112,24 @@ export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTim
 TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 300"
 $TO git -C "$SRC" fetch -q origin || warn "chezmoi: could not fetch origin (offline?) — run 'chezmoi update' manually"
 
-UPSTREAM="$(git -C "$SRC" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo origin/main)"
+# The fleet follows main only. A clone left on another branch (a migration or
+# feature checkout) is someone's work in progress: never auto-apply it.
+UPSTREAM=origin/main
+BRANCH="$(git -C "$SRC" symbolic-ref -q --short HEAD 2>/dev/null)"
+[ "$BRANCH" = main ] \
+  || warn "chezmoi: source is on '${BRANCH:-detached HEAD}', not main — auto-update skipped" skip
 git -C "$SRC" rev-parse --verify -q "$UPSTREAM^{commit}" >/dev/null \
-  || warn "chezmoi: cannot resolve upstream '$UPSTREAM' — reconcile manually"
-BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)"
+  || warn "chezmoi: cannot resolve '$UPSTREAM' — reconcile manually"
+# Pin the commit: verification, the pre-apply check and the fast-forward must
+# all see the same tip.
+TIP="$(git -C "$SRC" rev-parse "$UPSTREAM^{commit}")"
+BEHIND="$(git -C "$SRC" rev-list --count "HEAD..$TIP" 2>/dev/null)"
 [ -n "$BEHIND" ] || warn "chezmoi: cannot compare against $UPSTREAM — reconcile manually"
 
 # The nvim config is a git-repo external: only 'chezmoi apply' pulls it, and
 # apply runs only when this repo moves. Pull it on quiet runs too, or nvim-only
 # pushes never reach the fleet. Fast-forward only; a failure is noted, not fatal.
+# Not signature-verified by decision: the gates below cover shdots only.
 refresh_nvim() {
   NV="$HOME/.config/nvim"
   [ -d "$NV/.git" ] || return 0
@@ -141,7 +150,7 @@ fi
 if [ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]; then
   warn "chezmoi: source repo has local edits and is $BEHIND commit(s) behind $UPSTREAM — reconcile, then 'chezmoi update'"
 fi
-if ! git -C "$SRC" merge-base --is-ancestor HEAD "$UPSTREAM" 2>/dev/null; then
+if ! git -C "$SRC" merge-base --is-ancestor HEAD "$TIP" 2>/dev/null; then
   warn "chezmoi: source repo has diverged from $UPSTREAM — reconcile, then 'chezmoi update'"
 fi
 # GPG is a separate allowlist from SSH's managed allowed_signers. GitHub signs
@@ -150,27 +159,63 @@ fi
 # 968479A1AFF927E37D1A566BB5690EEEBB952194 (from github.com/web-flow.gpg).
 # Recheck that source and fingerprint before rotating the key. Other formats
 # still use normal Git verification and the SSH allowed_signers file.
-verify_web_flow_signature() {
-  _gnupg_home="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-gpg.XXXXXX")" || return 1
-  chmod 700 "$_gnupg_home" || { rm -rf "$_gnupg_home"; return 1; }
-  if ! gpg --homedir "$_gnupg_home" --batch --import \
-    "$SRC/dot_config/git/github-web-flow.gpg.asc" >/dev/null 2>&1; then
-    rm -rf "$_gnupg_home"
-    return 1
+# Every incoming commit is checked, not just the tip: an unsigned commit must
+# not ride along behind a signed merge.
+GNUPG_HOME=""
+cleanup() { [ -n "$GNUPG_HOME" ] && rm -rf "$GNUPG_HOME"; [ -n "${GATE:-}" ] && rm -rf "$GATE"; }
+trap cleanup EXIT
+
+verify_commit() {
+  if git -C "$SRC" cat-file commit "$1" 2>/dev/null \
+    | grep -q '^gpgsig -----BEGIN PGP SIGNATURE-----'; then
+    if [ -z "$GNUPG_HOME" ]; then
+      GNUPG_HOME="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-gpg.XXXXXX")" || return 1
+      chmod 700 "$GNUPG_HOME" \
+        && gpg --homedir "$GNUPG_HOME" --batch --import \
+          "$SRC/dot_config/git/github-web-flow.gpg.asc" >/dev/null 2>&1 \
+        || return 1
+    fi
+    GNUPGHOME="$GNUPG_HOME" git -C "$SRC" -c gpg.format=openpgp \
+      verify-commit "$1" >/dev/null 2>&1
+  else
+    git -C "$SRC" verify-commit "$1" >/dev/null 2>&1
   fi
-  GNUPGHOME="$_gnupg_home" git -C "$SRC" -c gpg.format=openpgp \
-    verify-commit "$UPSTREAM" >/dev/null 2>&1
-  _verify_status=$?
-  rm -rf "$_gnupg_home"
-  return "$_verify_status"
 }
 
-if git -C "$SRC" cat-file commit "$UPSTREAM" 2>/dev/null \
-  | grep -q '^gpgsig -----BEGIN PGP SIGNATURE-----'; then
-  verify_web_flow_signature \
-    || warn "chezmoi: $UPSTREAM is not signed by the pinned GitHub web-flow key — refusing to auto-apply"
-elif ! git -C "$SRC" verify-commit "$UPSTREAM" >/dev/null 2>&1; then
-  warn "chezmoi: $UPSTREAM is not signed by a trusted key — refusing to auto-apply"
+for c in $(git -C "$SRC" rev-list "HEAD..$TIP"); do
+  verify_commit "$c" \
+    || warn "chezmoi: $(git -C "$SRC" rev-parse --short "$c") on $UPSTREAM is not signed by a trusted key — refusing to auto-apply"
+done
+
+# Render the verified tip before touching the clone. A template error, or a
+# shell file zsh cannot parse, would otherwise land on every auto-updating
+# machine (and a template error aborts apply after other files are written).
+# Encrypted files are skipped so no plaintext reaches the temp dir; externals
+# and run scripts are rendered as text, never pulled or executed.
+# gate writes its reason to $GATE/reason and returns non-zero on failure.
+gate() {
+  mkdir "$GATE/src" "$GATE/out" || return 1
+  git -C "$SRC" archive "$TIP" | tar -x -C "$GATE/src" || return 1
+  if ! "$CZ" --source "$GATE/src" archive --no-tty --exclude externals,encrypted \
+      >"$GATE/out.tar" 2>"$GATE/err"; then
+    grep -v 'config file template has changed' "$GATE/err" | tail -n 1 >"$GATE/reason"
+    return 1
+  fi
+  tar -x -C "$GATE/out" -f "$GATE/out.tar" || return 1
+  command -v zsh >/dev/null 2>&1 || return 0
+  for f in "$GATE/out/.zshenv" "$GATE/out/.zprofile" "$GATE/out/.zshrc" \
+      $(find "$GATE/out" -name '*.zsh' -type f); do
+    [ -f "$f" ] || continue
+    if ! zsh -n "$f" 2>"$GATE/err"; then
+      echo "${f#"$GATE/out/"}: $(head -n 1 "$GATE/err")" >"$GATE/reason"
+      return 1
+    fi
+  done
+}
+GATE="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-gate.XXXXXX")" \
+  || warn "chezmoi: cannot create a temp dir for the pre-apply check" fail
+if ! gate; then
+  warn "chezmoi: $UPSTREAM fails the pre-apply check ($(cat "$GATE/reason" 2>/dev/null || echo render failed)) — refusing to auto-apply" fail
 fi
 
 # Fast-forward to the exact commit that was just verified, then apply — not
@@ -179,7 +224,7 @@ fi
 # unit's 15-min TimeoutStartSec, so this handler wins) so a hung run-script —
 # e.g. a blocked `op read` — wedges one run, not the timer forever.
 : > "$LAST"
-git -C "$SRC" merge --ff-only "$UPSTREAM" >>"$LAST" 2>&1 \
+git -C "$SRC" merge --ff-only "$TIP" >>"$LAST" 2>&1 \
   || warn "chezmoi: fast-forward to $UPSTREAM failed — see $LAST"
 
 capped 720 "$CZ" apply --no-tty >>"$LAST" 2>&1

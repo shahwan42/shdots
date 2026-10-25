@@ -6,8 +6,9 @@
 # chezmoi runs `git pull` in it on every apply / `chezmoi update`; chezmoi-autoupdate
 # also pulls it on runs where this repo has no new commits (and so skips apply).
 # Deliberately a live git-repo, not a pinned archive like the plugins below: it is
-# actively edited in place, it is Ahmed's own repo, and the autoupdate signature
-# gate on this repo is the accepted control for what lands on the fleet.
+# actively edited in place and it is Ahmed's own repo. Its pulls are NOT
+# signature-verified (decided 2026-10-25); shdots' autoupdate gates cover only
+# this repository.
 [".config/nvim"]
     type = "git-repo"
     url = "https://github.com/shahwan42/nvim-config.git"

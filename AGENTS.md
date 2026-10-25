@@ -132,6 +132,15 @@ VM-first tooling; it is not used for native account onboarding.
 
 ## Fleet health
 
+Auto-update follows `origin/main` only and skips a clone on any other branch.
+Before fast-forwarding it verifies the signature on every incoming commit, then
+renders the new tip from a `git archive` copy (externals and encrypted files
+excluded) and runs `zsh -n` on the rendered shell files; any failure refuses the
+update with a `fail` record, leaving the clone and `$HOME` untouched. There is
+no canary branch: this pre-apply check is the accepted gate. nvim-config pulls
+are not signature-verified (both decided 2026-10-25).
+`tests/autoupdate.py` covers these gates against scratch repositories.
+
 The auto-update timer records what happened to `chezmoi-health` — an append-only
 NDJSON log at `${XDG_STATE_HOME:-~/.local/state}/chezmoi/health.ndjson`, capped at
 500 lines. Read it when a box looks stale, a run-script's effect is missing (an
@@ -144,7 +153,7 @@ working":
 
 Statuses: `ok` (converged) · `degraded` (fast-forward fine, something after it
 isn't — e.g. `chezmoi init` needed) · `fail` (a run-script errored) · `timeout`
-(`chezmoi apply` was killed at 900s — a run-script is hanging; the tail of
+(`chezmoi apply` was killed at 720s — a run-script is hanging; the tail of
 `~/.cache/chezmoi-autoupdate.last` shows where) · `skip` (an optional step was
 consciously not done, e.g. a 1Password item missing).
 
