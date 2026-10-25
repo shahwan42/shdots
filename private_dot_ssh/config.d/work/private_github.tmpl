@@ -1,0 +1,15 @@
+# vim: filetype=sshconfig
+{{ if includeTemplate "has-combined" . -}}
+# Work Git key in the same account; never offered to public GitHub.
+Host github.foodics.com
+    IdentityAgent none
+    IdentityFile ~/.ssh/{{ template "work-git-key" . }}
+    IdentitiesOnly yes
+{{- else -}}
+# Provision a fresh account-local Git key later. Public GitHub is optional;
+# it uses this work account's key and login, never the personal account's.
+Host github.foodics.com github.com
+    IdentityAgent none
+    IdentityFile ~/.ssh/{{ template "git-signing-key" . }}
+    IdentitiesOnly yes
+{{- end }}

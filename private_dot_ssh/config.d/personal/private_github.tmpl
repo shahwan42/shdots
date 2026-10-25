@@ -1,0 +1,10 @@
+# vim: filetype=sshconfig
+# Administrative access remains in the personal account.
+Host fdx-host as-host
+    User as
+    IdentityFile ~/.ssh/id_ed25519
+
+Host github.com
+    IdentityAgent none
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
