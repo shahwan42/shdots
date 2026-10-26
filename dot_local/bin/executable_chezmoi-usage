@@ -13,6 +13,8 @@ already exists on this machine:
   chezmoi-usage [--days N] [--unused] [--source DIR]
 
 --unused lists candidates for removal: nothing in the window and not kept.
+It also marks the monthly review done: `chezmoi-health check` reminds once
+the marker is 30 days old.
 Indirect use (a library, a hook, a language server) is invisible to these
 logs; record it in <source>/.usage-keep instead:
 
@@ -423,6 +425,21 @@ def main():
         print(f'{status:<8} {kind:<6} {name:<40} {last:<10} {uses:>5}  {note}')
     if args.unused and not rows:
         print('no unused config in this window')
+    if args.unused:
+        mark_reviewed(len(rows))
+
+
+def mark_reviewed(candidates):
+    state = Path(os.environ.get('XDG_STATE_HOME', HOME/'.local/state'))/'chezmoi'
+    try:
+        state.mkdir(parents=True, exist_ok=True)
+        (state/'usage-reviewed').write_text(datetime.now(timezone.utc).isoformat() + '\n')
+    except OSError:
+        return
+    health = HOME/'.local/bin/chezmoi-health'
+    if os.access(health, os.X_OK):
+        subprocess.run([str(health), 'note', 'chezmoi-usage', 'review', 'ok',
+                        f'{candidates} removal candidate(s)'], capture_output=True)
 
 
 if __name__ == '__main__':

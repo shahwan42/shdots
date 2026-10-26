@@ -134,9 +134,12 @@ rows, _ = usage('--days', '365')
 check(rows['mise:bat'][0] == 'used', 'a wider window should include the old use')
 print('PASS: --days widens the window')
 
+marker = home/'.local/state/chezmoi/usage-reviewed'
+check(not marker.exists(), 'a full report should not mark the review done')
 rows, _ = usage('--unused')
 check({s for s, _ in rows.values()} == {'unused'}, f'--unused shows more: {rows}')
-print('PASS: --unused lists only removal candidates')
+check(marker.is_file(), '--unused should mark the review done')
+print('PASS: --unused lists only removal candidates and marks the review done')
 
 # `n` runs nvim: using the alias credits the tool behind it.
 with (home/'.zsh_history').open('a') as f:
@@ -144,5 +147,18 @@ with (home/'.zsh_history').open('a') as f:
 rows, _ = usage()
 check(rows['alias:n'][0] == 'used' and rows['mise:neovim'][0] == 'used', f'alias target: {rows}')
 print('PASS: an alias credits its target command')
+
+# Script 42 merges only its keys into Claude's own settings.json.
+script = (ROOT/'run_onchange_after_42-claude-settings.sh.tmpl').read_text()
+script = '\n'.join(l for l in script.splitlines() if '{{' not in l)
+settings = home/'.claude/settings.json'
+settings.write_text(json.dumps({'theme': 'dark', 'cleanupPeriodDays': 30}))
+settings.chmod(0o600)
+for _ in range(2):
+    subprocess.run(['sh', '-c', script], env=env | {'PATH': f'{Path(sys.executable).parent}:/usr/bin:/bin'},
+                   check=True, capture_output=True)
+check(json.loads(settings.read_text()) == {'theme': 'dark', 'cleanupPeriodDays': 90}, settings.read_text())
+check(settings.stat().st_mode & 0o777 == 0o600, 'settings.json lost its mode')
+print('PASS: script 42 sets cleanupPeriodDays, keeps other keys and the file mode')
 
 shutil.rmtree(tmp)
