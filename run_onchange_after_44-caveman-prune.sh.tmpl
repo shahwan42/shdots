@@ -3,7 +3,13 @@
 # assets into each agent's own directories, which chezmoi never owned, so remove
 # them here. Only Caveman's own names are touched. run_onchange_: it runs once
 # per version of this script; every step is a no-op where nothing is installed.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "claude" "python3")) }}
 set -u
+
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
 
 HN="$HOME/.local/bin/chezmoi-health"
 hn() { [ -x "$HN" ] && "$HN" note 44-caveman-prune "$@" >/dev/null 2>&1 || :; }

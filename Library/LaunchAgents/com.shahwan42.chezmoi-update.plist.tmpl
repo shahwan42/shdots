@@ -8,6 +8,14 @@
 	<array>
 		<string>{{ .chezmoi.homeDir }}/.local/bin/chezmoi-autoupdate</string>
 	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- launchd's default PATH is /usr/bin:/bin:/usr/sbin:/sbin, which hides
+		     gpg (GitHub web-flow merge signatures), timeout, brew and the agent
+		     CLIs from the updater and every run script it triggers. -->
+		<key>PATH</key>
+		<string>{{ .chezmoi.homeDir }}/.local/share/mise/shims:{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StartInterval</key>

@@ -4,6 +4,11 @@
 set -u
 
 {{ if and (eq .kind "mac") (or (eq .chezmoi.username "as") (includeTemplate "has-combined" .)) -}}
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "brew")) }}
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
+
 if command -v brew >/dev/null 2>&1; then
   echo "Installing Homebrew packages from Brewfile…"
   BREWFILE_TMP="$(mktemp)"

@@ -9,6 +9,8 @@ exit 0
 # source — this call is idempotent and no-ops on both). rtk itself comes from
 # mise (dot_config/mise/config.toml.tmpl); this only wires it into Claude Code.
 # Re-runs whenever this rendered script changes.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "rtk")) }}
 set -u
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.

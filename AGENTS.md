@@ -148,6 +148,13 @@ isn't — e.g. `chezmoi init` needed) · `fail` (a run-script errored) · `timeo
 `~/.cache/chezmoi-autoupdate.last` shows where) · `skip` (an optional step was
 consciously not done, e.g. a 1Password item missing).
 
+A run script that skips because its tool is missing still exits 0, so chezmoi
+records it as done. Each such script renders a `tools present at render` line
+(`.chezmoitemplates/tools-present`); when the tool later appears the line
+changes and the script reruns. The launchd agent and systemd service set `PATH`
+to include mise shims, `~/.local/bin` and Homebrew, and the scripts prepend the
+same directories, so a bare-shell apply finds what the fingerprint saw.
+
 Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only when
 a fast-forward was refused) and this log (every run's outcome). A green marker
 does not imply a green log.

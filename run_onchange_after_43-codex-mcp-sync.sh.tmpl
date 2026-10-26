@@ -2,7 +2,13 @@
 # Reconciles Codex's MCP servers into ~/.codex/config.toml.
 # `codex mcp add` upserts [mcp_servers.*]; each server is removed then re-added
 # for idempotency. Model and per-project trust keys are Codex's own — untouched.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "codex" "codebase-memory-mcp")) }}
 set -u
+
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.
 HN="$HOME/.local/bin/chezmoi-health"

@@ -2,6 +2,7 @@
 # Re-run whenever the managed mise config changes, so the toolchain is
 # self-provisioning. Hash below forces re-run on config edits.
 # mise config hash: {{ include "dot_config/mise/config.toml.tmpl" | sha256sum }}
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "mise")) }}
 #
 # Non-fatal on purpose: github:/ubi: backends need a token to avoid the 60/hr
 # unauthenticated API limit. Without it some tools won't resolve — that must not

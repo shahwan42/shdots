@@ -197,6 +197,12 @@ def profile(label, username, role, kind='mac', extra=None):
     declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
     for needle in ['github-mcp-server', 'server-postgres', 'postgres-mcp', 'JuliusBrussee/caveman']:
         check(needle not in declared, f'{label}: retired integration declared: {needle}')
+    # A script that skips on a missing tool must rerun once the tool appears, and
+    # find it then under the scheduler's bare PATH.
+    for name in ('20-mise-install.sh', '40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '45-herdr-plugins.sh') + (('25-brew-bundle.sh',) if '25-brew-bundle.sh' in entries and 'brew bundle' in entries['25-brew-bundle.sh']['contents'] else ()):
+        script = entries[name]['contents']
+        check('tools present at render' in script, f'{label}: {name} has no tool-presence rerun trigger')
+        check(name.startswith('20-') or '\nPATH="' in script, f'{label}: {name} does not extend PATH for bare-shell applies')
     if kind == 'mac' and role == 'work':
         for needle in ['/Users/as', 'a.shahwan42@gmail.com', 'ahmed@shahwan.me', 'xwug424pq6bcit35v5abzpt5vm', 'jypxoxjttljurjhg3f72bvlx6e', 'postgresql://tutoring', 'OP_SERVICE_ACCOUNT_TOKEN']:
             check(needle not in all_text, f'{label}: personal leakage: {needle}')
@@ -297,6 +303,14 @@ check('xwug424' not in result.stdout and 'jypxox' not in result.stdout and 'cuhm
 # The opt-in EOD consumer must find new work commits as well as historical ones.
 result = work('--override-data', json.dumps({'eod':True}), 'execute-template', '--file', str(ROOT/'dot_claude/skills/eod/SKILL.md.tmpl'))
 check('A. S. Foodics' in result.stdout and 'A[.] S[.] Foodics' in result.stdout and 'A. S. Shahwan' not in result.stdout, 'EOD work identity mismatch')
+# The tool-presence trigger flips when a tool lands in a fixed directory, so a
+# skipped run script reruns; it never consults PATH.
+probe = ARTIFACTS/'tools-present-home'
+expr = '{{ includeTemplate "tools-present" (dict "home" "%s" "tools" (list "claude" "herdr")) }}' % probe
+check(work('execute-template', expr).stdout == 'claude=no herdr=no', 'tools-present reported an absent tool')
+(probe/'.local/bin').mkdir(parents=True)
+(probe/'.local/bin/claude').write_text('')
+check(work('execute-template', expr).stdout == 'claude=yes herdr=no', 'tools-present missed ~/.local/bin/claude')
 # Compatibility renders retain their explicit Linux role, without accessing ciphertext.
 if 'linux-personal' in SELECTED:
     profile('linux-personal','ubuntu','personal','vm')
