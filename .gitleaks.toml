@@ -1,0 +1,10 @@
+# gitleaks config for the pre-commit hook (.githooks/pre-commit).
+# This repo is public: server addresses are provisioned by hand on each machine.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "ssh-config-ipv4"
+description = "IPv4 address in managed SSH config; keep server hosts local-only"
+regex = '''\b(?:\d{1,3}\.){3}\d{1,3}\b'''
+path = '''(^|/)private_dot_ssh/'''
