@@ -26,4 +26,14 @@ caches, cookies, environment dumps, resolved configuration exports, credential-b
 arguments, raw logs, response bodies, or tracebacks. Keep the stage, reason code, outcome,
 numeric codes, counts, timings, and a value-free reproduction step.
 
+{{ if eq .kind "mac" -}}
+## Native-only Mac (no Docker)
+
+This Mac has no Docker and uses none by design. Where a repo's instructions say to run
+everything through Laravel Sail (`vendor/bin/sail ...`), ignore that and run the host
+equivalent: `vendor/bin/pint`, `php artisan`, `composer`, `npm`, using Homebrew PHP 8.4
+(`/opt/homebrew/opt/php@8.4/bin/php`). Use the local `slot` CLI under `~/Code/foodics/.dev`
+for databases. Never suggest installing Docker or OrbStack.
+
+{{ end -}}
 {{ template "agent-shell.md" . }}
