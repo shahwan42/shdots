@@ -1,0 +1,55 @@
+#!/bin/sh
+# Sets the Claude Code settings shdots owns in ~/.claude/settings.json. Claude
+# writes that file itself (permissions, plugins, theme), so chezmoi cannot own
+# it whole; this merges only the keys below and leaves every other key alone.
+# Re-runs whenever this rendered script changes.
+#
+#   cleanupPeriodDays  transcripts are chezmoi-usage's evidence for skills and
+#                      MCP servers; the 30-day default is shorter than its
+#                      90-day window.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "python3")) }}
+set -u
+
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
+
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 42-claude-settings "$@" >/dev/null 2>&1 || :; }
+
+PYTHON="$(command -v python3 || true)"
+[ -n "$PYTHON" ] || PYTHON="$HOME/.local/share/mise/shims/python3"
+if [ ! -x "$PYTHON" ]; then
+  echo "python3 not found — skipping Claude Code settings." >&2
+  hn python skip "python3 not available"
+  exit 0
+fi
+
+if "$PYTHON" - <<'PY'
+import json
+import os
+import pathlib
+
+OWNED = {"cleanupPeriodDays": 90}
+
+path = pathlib.Path.home() / ".claude" / "settings.json"
+settings = json.loads(path.read_text()) if path.is_file() else {}
+if any(settings.get(k) != v for k, v in OWNED.items()):
+    settings.update(OWNED)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.chezmoi-tmp")
+    tmp.write_text(json.dumps(settings, indent=2) + "\n")
+    if path.exists():
+        os.chmod(tmp, path.stat().st_mode & 0o777)
+    os.replace(tmp, path)
+PY
+then
+  hn settings ok "cleanupPeriodDays=90"
+else
+  echo "claude settings: could not update ~/.claude/settings.json (invalid JSON?); left unchanged." >&2
+  hn settings fail "could not merge owned keys into settings.json"
+fi
+
+exit 0

@@ -1,0 +1,37 @@
+# chezmoi-usage rules (repository-only: chezmoi ignores dot-prefixed source names).
+# Use that shell history and agent logs cannot see. A kept entry is never a
+# removal candidate, so give each one a reason that stays true.
+#
+#   keep <kind>:<name>  <reason>
+#   exe  <kind>:<name>  <command> [<command>…]   extra commands that count as use
+
+# Called by other programs, never typed.
+keep brew:gnupg                             chezmoi-autoupdate verifies GitHub's web-flow signatures
+keep brew:pinentry-mac                      gpg's passphrase prompt
+keep mise:age                               chezmoi decrypts the .age sources with it
+keep mise:gitleaks                          tracked pre-commit hook fails closed without it
+keep mise:aqua:dandavison/delta             git pager and interactive diff filter (dot_gitconfig)
+keep mise:node                              runtime for npx-launched MCP servers
+keep mise:python                            runtime for repo scripts and pipx tools
+keep mise:uv                                mise's pipx backend installs with it
+keep mise:starship                          prompt, started by zshrc
+keep mise:zoxide                            started by zshrc (`z`, `j`)
+keep mise:fzf                               zshrc key bindings and repo jumper
+keep mise:npm:intelephense                  OpenCode PHP language server (script 41)
+keep mise:npm:@vtsls/language-server        OpenCode TypeScript language server (script 41)
+keep mise:npm:@vue/language-server          OpenCode Vue language server (script 41)
+keep mise:npm:@tailwindcss/language-server  OpenCode Tailwind language server (script 41)
+keep mise:rtk                               Claude Code Bash hook on work VMs (script 46)
+keep bin:chezmoi-health                     zshrc and every run script call it
+keep bin:chezmoi-autoupdate                 launchd agent / systemd timer
+keep bin:chezmoi-usage                      this report
+keep bin:chromium                           stable Chromium path for browser tools
+keep cask:font-meslo-lg-nerd-font           terminal font
+keep cask:1password                         SSH agent for the work-server key
+keep cask:alt-tab                           login item; Spotlight never records a launch
+keep cask:rectangle                         login item; Spotlight never records a launch
+keep ssh:github.com                         git remotes, not typed hosts
+
+# Command names that differ from the package name.
+exe  brew:sevenzip                          7zz 7z
+exe  mise:zoxide                            z zi j

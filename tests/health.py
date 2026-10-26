@@ -3,10 +3,12 @@
 Runs the source script against a throwaway XDG_STATE_HOME; the real log is
 never read or written.
 """
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 
 from platform_stabilization import check, environment
 
@@ -54,6 +56,17 @@ check('degraded sync -' in health('problems').stdout, 'degraded run not listed')
 health('run', 'ok')
 is_open(False, 'later ok run')
 print('PASS: a non-ok sync run is open until the next ok run')
+
+REMINDER = 'monthly config review due'
+reviewed = tmp/'state/chezmoi/usage-reviewed'
+check(REMINDER in health('check').stderr, 'no review yet should remind')
+reviewed.write_text('x\n')
+result = health('check')
+check(REMINDER not in result.stderr and result.returncode == 0, f'fresh review still reminds: {result.stderr}')
+os.utime(reviewed, (time.time() - 40*86400,) * 2)
+result = health('check')
+check(REMINDER in result.stderr and result.returncode == 0, f'stale review: exit {result.returncode} {result.stderr}')
+print('PASS: a missing or 30-day-old usage review reminds without failing check')
 
 shown = health('2').stdout.splitlines()
 check(len(shown) == 3 and shown[0].startswith('# '), f'count argument ignored: {shown}')

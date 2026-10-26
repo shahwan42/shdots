@@ -8,7 +8,9 @@
 #   chezmoi-health note <src> <item> <status> [detail]   append one event
 #   chezmoi-health run  <status> [detail]                append a sync-run summary
 #   chezmoi-health check                                 quiet unless something is
-#                                                        open (one line to stderr, exit 1)
+#                                                        open (one line to stderr, exit 1);
+#                                                        also a monthly review reminder
+#                                                        (one line, exit unchanged)
 #   chezmoi-health problems                              list what is open
 #   chezmoi-health           [n]                         show the last n events (default 25)
 #
@@ -26,6 +28,8 @@
 set -u
 
 LOG="${XDG_STATE_HOME:-$HOME/.local/state}/chezmoi/health.ndjson"
+# Touched by `chezmoi-usage --unused`; check reminds once it is 30 days old.
+REVIEWED="${XDG_STATE_HOME:-$HOME/.local/state}/chezmoi/usage-reviewed"
 MAX=500
 HOST="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo '?')"
 
@@ -64,6 +68,9 @@ case "$cmd" in
     _append run sync - "${1:-ok}" "${2:-}"
     ;;
   check)
+    if [ ! -f "$REVIEWED" ] || [ -n "$(find "$REVIEWED" -mtime +30 2>/dev/null)" ]; then
+      echo "chezmoi: monthly config review due — run 'chezmoi-usage --unused'" >&2
+    fi
     open="$(_open)"
     [ -n "$open" ] || exit 0
     count=$(printf '%s\n' "$open" | wc -l | tr -d ' ')

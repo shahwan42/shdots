@@ -180,6 +180,22 @@ checks the installed owner, configuration, skills and, with `--probe --server
 `${XDG_STATE_HOME:-~/.local/state}/ai-tools-doctor/`. Findings live in
 `docs/plans/ai-tooling-followups.md`.
 
+## Unused configuration
+
+`chezmoi-usage --unused` (read-only) lists declared Brewfile entries, mise
+tools, aliases, `~/.local/bin` scripts, skills, MCP servers and SSH hosts with
+no use in the last 90 days (`--days N`). Evidence is this machine's zsh
+history, the shell commands, skill and MCP calls in Claude Code and Codex logs,
+and Spotlight's last-used date for cask apps. Claude Code transcripts are kept
+90 days (`cleanupPeriodDays`, set by script 42, which merges only the keys it
+owns into Claude's own `settings.json`). Every source is per machine, so check
+each machine before removing a fleet-wide entry. Running `--unused` marks the
+monthly review done; `chezmoi-health check` prints a one-line reminder once that
+is 30 days old, without counting it as a problem. Use the logs cannot see (hooks, language
+servers, libraries, login items) goes in `.usage-keep` with a reason; the
+report warns about rules for things no longer declared. `tests/usage.py`
+covers it against a scratch home.
+
 ## Account-local authentication
 
 Role gates choose consumers, not vault permissions. Native accounts ignore the
