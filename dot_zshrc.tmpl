@@ -166,9 +166,9 @@ typeset -U path PATH
 # stat() — zero startup cost when the fleet is converged.
 [[ -f "$HOME/.cache/chezmoi-stale" ]] && cat "$HOME/.cache/chezmoi-stale" >&2
 [[ -f "$HOME/.cache/chezmoi-behind" ]] && cat "$HOME/.cache/chezmoi-behind" >&2
-# Second channel: the last auto-sync recorded a non-ok run (a run-script failed
-# or timed out even though the fast-forward succeeded). `chezmoi-health` shows
-# the history; the marker above may be absent while this still fires.
+# Second channel: an open problem in the health log (a non-ok auto-sync run, or
+# a run-script whose latest note is a failure, from any apply). `chezmoi-health
+# problems` lists them; the marker above may be absent while this still fires.
 [[ -x "$HOME/.local/bin/chezmoi-health" ]] && "$HOME/.local/bin/chezmoi-health" check 2>&1 || true
 
 # 1Password-backed tokens (cached; see the file header).
