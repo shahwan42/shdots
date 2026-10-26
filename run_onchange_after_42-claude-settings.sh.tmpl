@@ -10,6 +10,12 @@
 #   hooks.SessionStart one entry running ~/.local/bin/pr-watch-hook, which starts
 #                      the read-only PR watch loop in chosen work repos. Added
 #                      only when missing; other hooks are left alone.
+#   permissions.allow  read-only MCP tools (search, get, read, list). Entries
+#                      are only added, never removed or reordered. The Foodics
+#                      tools (Sentry, Datadog, Atlassian, Slack, Laravel Boost)
+#                      are added on work-role accounts only. No shell commands
+#                      belong here: the common read-only ones are auto-allowed,
+#                      and the rest can run code or change state.
 #
 # tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "python3")) }}
 set -u
@@ -40,7 +46,34 @@ OWNED = {"cleanupPeriodDays": 90}
 path = pathlib.Path.home() / ".claude" / "settings.json"
 HOOK = str(pathlib.Path.home() / ".local" / "bin" / "pr-watch-hook")
 
+ALLOW = [
+    "mcp__codebase-memory-mcp__trace_path",
+    "mcp__codebase-memory-mcp__list_projects",
+    "mcp__codebase-memory-mcp__search_graph",
+    "mcp__codebase-memory-mcp__search_code",
+    "mcp__codebase-memory-mcp__get_code_snippet",
+    "mcp__codebase-memory-mcp__index_status",
+{{- if includeTemplate "has-work" . }}
+    "mcp__sentry__search_traces",
+    "mcp__sentry__search_errors",
+    "mcp__sentry__search_issues",
+    "mcp__claude_ai_Datadog__search_datadog_logs",
+    "mcp__claude_ai_Datadog__analyze_datadog_logs",
+    "mcp__claude_ai_Datadog_2__search_datadog_logs",
+    "mcp__claude_ai_Datadog_2__analyze_datadog_logs",
+    "mcp__claude_ai_Atlassian__getJiraIssue",
+    "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
+    "mcp__claude_ai_Atlassian__getConfluencePage",
+    "mcp__claude_ai_Slack__slack_read_thread",
+    "mcp__claude_ai_Slack__slack_read_channel",
+    "mcp__laravel-boost__application-info",
+{{- end }}
+]
+
 settings = json.loads(path.read_text()) if path.is_file() else {}
+allow = settings.setdefault("permissions", {}).setdefault("allow", [])
+allow_missing = [rule for rule in ALLOW if rule not in allow]
+allow.extend(allow_missing)
 session_start = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
 hook_missing = not any(
     h.get("command") == HOOK for entry in session_start for h in entry.get("hooks", [])
@@ -50,7 +83,7 @@ if hook_missing:
         "matcher": "startup|resume",
         "hooks": [{"type": "command", "command": HOOK, "timeout": 10}],
     })
-if hook_missing or any(settings.get(k) != v for k, v in OWNED.items()):
+if hook_missing or allow_missing or any(settings.get(k) != v for k, v in OWNED.items()):
     settings.update(OWNED)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.chezmoi-tmp")
@@ -60,7 +93,7 @@ if hook_missing or any(settings.get(k) != v for k, v in OWNED.items()):
     os.replace(tmp, path)
 PY
 then
-  hn settings ok "cleanupPeriodDays=90, pr-watch-hook"
+  hn settings ok "cleanupPeriodDays=90, pr-watch-hook, allowlist"
 else
   echo "claude settings: could not update ~/.claude/settings.json (invalid JSON?); left unchanged." >&2
   hn settings fail "could not merge owned keys into settings.json"
