@@ -84,8 +84,8 @@ chezmoi auto-update timer.
 | UUID | Title | What |
 |---|---|---|
 | `jypxoxjttljurjhg3f72bvlx6e` | GitHub PAT (github.com, read-only) | fine-grained, public read-only; `GITHUB_READONLY_TOKEN` / `MISE_GITHUB_TOKEN` |
-| `xwug424pq6bcit35v5abzpt5vm` | GitHub PAT (github.com, MCP write) | classic; Claude/Codex `github` MCP; `GH_TOKEN` on personal VMs |
-| `i4fkk5sxnoihinvcnv2evqg7be` | GitHub Enterprise GHE MCP PAT | github.foodics.com, scopes `repo, workflow`; `GHE_MCP_TOKEN` |
+| `xwug424pq6bcit35v5abzpt5vm` | GitHub PAT (github.com, MCP write) | classic; `GH_TOKEN` on personal VMs only (gh has no stored login there). Its MCP consumer was retired 2026-10-25; revoke once those VMs use `gh auth login`. |
+| `i4fkk5sxnoihinvcnv2evqg7be` | GitHub Enterprise GHE MCP PAT | github.foodics.com, scopes `repo, workflow`. No consumer since the GHE MCP server was retired 2026-10-25 (`gh` covers it); safe to revoke. |
 | `cuhmbyox773pricvf6xmm5nfba` | Foodics: Jira API Token | `JIRA_API_TOKEN` |
 | `vxwnzlffnicehkjjd5jjmg63xe` | Foodics: SonarQube Token | `SONAR_TOKEN` |
 | `gvljlmfqa2z23h3ip2rchz36uu` | Foodics MacBook (SSH key) | fdx-host's key = the work-server key (D14) |
