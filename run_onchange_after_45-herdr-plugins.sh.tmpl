@@ -86,6 +86,7 @@ printf '%s\n' "$PLUGINS" | while IFS='|' read -r src ref rev; do
 
   if [ "$cur" = "$rev" ]; then
     echo "plugin: $src ok ($short_rev)"
+    hn "$src" ok "at pinned $ref"
     continue
   fi
 
@@ -100,6 +101,7 @@ printf '%s\n' "$PLUGINS" | while IFS='|' read -r src ref rev; do
   # `herdr plugin install --ref` re-pins in place; no uninstall needed.
   if "$HERDR" plugin install "$src" --ref "$ref" --yes >/dev/null 2>&1; then
     echo "plugin: $verb $src -> $ref ($short_rev)"
+    hn "$src" ok "herdr plugin $verb succeeded"
   else
     echo "plugin: $src $verb failed — run 'herdr plugin install $src --ref $ref --yes'." >&2
     hn "$src" fail "herdr plugin $verb failed"
@@ -112,10 +114,12 @@ done
 for name in $INTEGRATIONS; do
   if "$HERDR" integration status 2>/dev/null | grep -qE "^${name}: current"; then
     echo "integration: $name current"
+    hn "$name" ok "integration current"
     continue
   fi
   if "$HERDR" integration install "$name" >/dev/null 2>&1; then
     echo "integration: $name installed"
+    hn "$name" ok "herdr integration install succeeded"
   else
     echo "integration: $name install failed — run 'herdr integration install $name'." >&2
     hn "$name" fail "herdr integration install failed"

@@ -7,10 +7,15 @@
 #
 #   chezmoi-health note <src> <item> <status> [detail]   append one event
 #   chezmoi-health run  <status> [detail]                append a sync-run summary
-#   chezmoi-health check                                 quiet unless the last
-#                                                        run was not "ok"
-#                                                        (one line to stderr, exit 1)
+#   chezmoi-health check                                 quiet unless something is
+#                                                        open (one line to stderr, exit 1)
+#   chezmoi-health problems                              list what is open
 #   chezmoi-health           [n]                         show the last n events (default 25)
+#
+# "Open" means the last sync run was not ok, or the latest event for some
+# script/item is fail, timeout or degraded. A later ok for the same script and
+# item closes it; to dismiss one by hand:
+#   chezmoi-health note <src> <item> ok "resolved by hand"
 #
 # status vocabulary: ok | degraded | fail | timeout | skip
 #
@@ -36,6 +41,18 @@ _append() {  # kind src item status detail
 
 _field() { printf '%s' "$1" | sed -n 's/.*"'"$2"'":"\([^"]*\)".*/\1/p'; }
 
+# _open: one "<status> <src> <item>" line per open problem, run first.
+_open() {
+  [ -f "$LOG" ] || return 0
+  awk '
+    function f(k,  s) { s = $0; if (!sub(".*\"" k "\":\"", "", s)) return ""; sub("\".*", "", s); return s }
+    { key = f("src") " " f("item"); st[key] = f("status"); kind[key] = f("kind") }
+    END {
+      for (k in st) if (kind[k] == "run" && st[k] != "ok") print st[k], k
+      for (k in st) if (kind[k] != "run" && st[k] ~ /^(fail|timeout|degraded)$/) print st[k], k
+    }' "$LOG" 2>/dev/null
+}
+
 cmd="${1:-show}"
 [ $# -gt 0 ] && shift
 
@@ -47,16 +64,24 @@ case "$cmd" in
     _append run sync - "${1:-ok}" "${2:-}"
     ;;
   check)
-    [ -f "$LOG" ] || exit 0
-    last="$(grep '"kind":"run"' "$LOG" 2>/dev/null | tail -n 1)"
-    [ -n "$last" ] || exit 0
-    st="$(_field "$last" status)"
-    [ "$st" = "ok" ] && exit 0
-    printf 'chezmoi: last auto-sync on this box was %s — run '\''chezmoi-health'\''\n' "${st:-unknown}" >&2
+    open="$(_open)"
+    [ -n "$open" ] || exit 0
+    count=$(printf '%s\n' "$open" | wc -l | tr -d ' ')
+    printf 'chezmoi: %s open problem(s), e.g. %s — run '\''chezmoi-health problems'\''\n' \
+      "$count" "$(printf '%s\n' "$open" | head -n 1)" >&2
     exit 1
     ;;
+  problems)
+    open="$(_open)"
+    [ -n "$open" ] || { echo "no open problems"; exit 0; }
+    printf '%s\n' "$open"
+    ;;
   show|*)
-    n="${cmd#show}"; [ "$cmd" = "show" ] && n="${1:-25}" || n=25
+    case "$cmd" in
+      show) n="${1:-25}" ;;
+      *[!0-9]*|'') n=25 ;;
+      *) n="$cmd" ;;
+    esac
     [ -f "$LOG" ] || { echo "no chezmoi health events yet ($LOG)"; exit 0; }
     echo "# $LOG  (newest last)"
     tail -n "$n" "$LOG" | while IFS= read -r l; do

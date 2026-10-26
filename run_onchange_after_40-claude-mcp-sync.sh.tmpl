@@ -28,6 +28,7 @@ add() {
   "$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
   if "$CLAUDE" mcp add "$name" --scope user "$@" >/dev/null 2>&1; then
     echo "mcp: $name registered"
+    hn "$name" ok "claude mcp add succeeded"
   else
     echo "mcp: $name registration failed" >&2
     hn "$name" fail "claude mcp add failed"

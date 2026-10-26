@@ -23,10 +23,12 @@ hn() { [ -x "$HN" ] && "$HN" note 20-mise-install "$@" >/dev/null 2>&1 || :; }
 MISE="$(command -v mise || echo "$HOME/.local/bin/mise")"
 if [ -x "$MISE" ] || command -v mise >/dev/null 2>&1; then
   echo "mise install (from managed config)…"
-  "$MISE" install -y || {
+  if "$MISE" install -y; then
+    hn mise ok "mise install succeeded"
+  else
     echo "mise install: some tools did not install (authenticate an account-local MISE_GITHUB_TOKEN if needed, then re-run 'mise install')."
     hn mise fail "mise install non-zero — MISE_GITHUB_TOKEN unset or a backend errored"
-  }
+  fi
 else
   echo "mise not found — toolchain NOT installed. Re-run: curl -fsSL https://mise.run | sh" >&2
   hn mise fail "mise binary not found"
@@ -46,6 +48,7 @@ if [ -x "$HOME/.local/share/mise/shims/claude" ] && ! "$MISE" x -- claude --vers
   if [ -n "$pkg" ]; then
     echo "claude-code: running skipped npm postinstall…"
     (cd "$(dirname "$pkg")" && "$MISE" x -- node install.cjs) \
+      && hn claude-code ok "npm postinstall succeeded" \
       || { echo "claude-code postinstall failed; run manually: $MISE x -- node $pkg"; hn claude-code fail "npm postinstall failed — binary may not launch"; }
   fi
 fi
@@ -67,6 +70,7 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
       echo "mermaid-cli: installing chrome-headless-shell ${chs}…"
       "$MISE" x node -- npx -y @puppeteer/browsers@3.2.1 install "chrome-headless-shell@${chs}" \
         --path "$HOME/.cache/puppeteer" >/dev/null 2>&1 \
+        && hn mermaid-cli ok "chrome-headless-shell ${chs} installed" \
         || { echo "mermaid-cli: browser install failed; run 'npx -y @puppeteer/browsers@3.2.1 install chrome-headless-shell@${chs} --path ~/.cache/puppeteer'."; hn mermaid-cli fail "chrome-headless-shell ${chs} install failed"; }
     fi
   fi
@@ -86,6 +90,7 @@ if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
     echo "mermaid-cli: installing Playwright chromium (arm64)…"
     "$MISE" x node -- npx -y playwright@1.62.1 install chromium >/dev/null 2>&1
     "$HOME/.local/bin/mmdc" -i "$probe/p.mmd" -o "$probe/p.svg" >/dev/null 2>&1 \
+      && hn mermaid-cli ok "Playwright chromium fixed mmdc" \
       || { echo "mermaid-cli: still broken after install — first error was:"; head -5 "$probe/err"; hn mermaid-cli fail "Playwright chromium install did not fix mmdc"; }
   fi
   rm -rf "$probe"

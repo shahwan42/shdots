@@ -83,7 +83,7 @@ then
   hn caveman ok "Caveman assets removed"
 else
   echo "caveman prune: could not update OpenCode config; remove the caveman plugin entry by hand." >&2
-  hn opencode fail "could not drop the caveman plugin entry"
+  hn caveman fail "could not drop the caveman plugin entry"
 fi
 
 exit 0

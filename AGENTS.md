@@ -149,7 +149,11 @@ working":
 
 - `chezmoi-health` — last 25 events, newest last (`ts status src item detail`).
 - `chezmoi-health check` — what `zshrc` runs each shell; one stderr line + exit 1
-  when the last sync run was not `ok`.
+  while anything is open: the last sync run was not `ok`, or the latest event
+  for a script and item is `fail`, `timeout` or `degraded` (manual applies
+  count too). A later `ok` for the same script and item closes it.
+- `chezmoi-health problems` — what is open. Dismiss one by hand with
+  `chezmoi-health note <src> <item> ok "resolved by hand"`.
 
 Statuses: `ok` (converged) · `degraded` (fast-forward fine, something after it
 isn't — e.g. `chezmoi init` needed) · `fail` (a run-script errored) · `timeout`
