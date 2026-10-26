@@ -64,17 +64,11 @@ alias g='git'
 alias ga='git add'
 alias gc='git commit -v'
 alias gco='git checkout'
-alias gcb='git checkout -b'
 alias gd='git diff'
 alias gl='git pull'
 alias glo='git log --oneline --decorate'
 alias gp='git push'
 alias gst='git status'
-alias gcp='git cherry-pick'
-alias gbd='git branch -d'
-alias gbD='git branch -D'
-alias gts='git tag -s'
-alias gsts='git stash show --text'
 
 # Personal aliases.
 alias n='nvim'
@@ -118,9 +112,6 @@ fi
 # for the numbered jumps.
 setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
 alias -g ...='../..'
-alias -g ....='../../..'
-alias -g .....='../../../..'
-alias -g ......='../../../../..'
 alias -- -='cd -'
 alias 1='cd -1'
 alias 2='cd -2'
@@ -133,7 +124,6 @@ if [[ -z ${_SHDOTS_AGENT_SHELL:-} ]]; then
   alias l='ls -lah'
   alias ll='ls -lh'
   alias la='ls -lAh'
-  alias lsa='ls -lah'
 fi
 
 # Interactive tools. Each guard keeps the same config portable to minimal VMs.
