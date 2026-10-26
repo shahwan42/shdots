@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 import tempfile
 from platform_stabilization import verify_profile, verify_bootstrap
@@ -198,6 +199,11 @@ def profile(label, username, role, kind='mac', extra=None):
     declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
     for needle in ['github-mcp-server', 'server-postgres', 'postgres-mcp', 'JuliusBrussee/caveman']:
         check(needle not in declared, f'{label}: retired integration declared: {needle}')
+    # Server hosts are local-only: no managed SSH file carries an IPv4 address.
+    check('.ssh/config.d/personal/shahwan' not in entries, f'{label}: Hetzner host is managed')
+    for name, entry in entries.items():
+        if name.startswith('.ssh/'):
+            check(not re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', entry.get('contents') or ''), f'{label}: IPv4 address in {name}')
     # Script 20 reruns whenever the rendered mise config changes, including a
     # role change that only alters the render.
     mise_hash = hashlib.sha256(entries['.config/mise/config.toml']['contents'].encode()).hexdigest()
@@ -214,7 +220,6 @@ def profile(label, username, role, kind='mac', extra=None):
         check('.config/zsh/secrets.zsh' not in entries, f'{label}: unprovisioned secret consumer')
         check('.claude/skills/qa-manual/SKILL.md' not in entries, f'{label}: personal project skill')
         check('.ssh/authorized_keys' not in entries, f'{label}: legacy host access grant')
-        check('.ssh/config.d/personal/shahwan' not in entries, f'{label}: personal Hetzner host')
         check('export GH_HOST=github.foodics.com' in entries['.zshenv']['contents'], f'{label}: Enterprise CLI default missing')
         check('brew bundle' not in entries['25-brew-bundle.sh']['contents'], f'{label}: Homebrew mutation')
         check('op_read \'op://' not in entries['40-claude-mcp-sync.sh']['contents'] + entries['43-codex-mcp-sync.sh']['contents'], f'{label}: automatic PAT acquisition')
@@ -223,7 +228,6 @@ def profile(label, username, role, kind='mac', extra=None):
             check(needle not in all_text, f'{label}: work token consumer')
         check('servers["gmail"]' in entries['41-opencode-mcp-sync.sh']['contents'], f'{label}: personal Gmail missing')
         check('.claude/skills/qa-manual/SKILL.md' in entries, f'{label}: personal QA missing')
-        check('.ssh/config.d/personal/shahwan' in entries, f'{label}: Hetzner host missing')
     if kind == 'mac' and role == 'combined':
         work_git = entries['.config/git/work.gitconfig']['contents']
         check('email = a.shahwan@foodics.com' in work_git and 'name = A. S. Foodics' in work_git, f'{label}: work identity missing')

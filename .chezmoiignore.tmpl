@@ -13,8 +13,10 @@ tests
 .npmrc
 .ssh/id_*
 .ssh/known_hosts*
-# Company server hosts and IPs are provisioned by hand; this repo is public.
+# Server hosts and IPs are provisioned by hand on each machine; this repo is
+# public. .gitleaks.toml rejects an IPv4 address under private_dot_ssh/.
 .ssh/config.d/work/foodics
+.ssh/config.d/personal/shahwan
 
 # herdr runtime state is not reproducible configuration. Plugins and integrations
 # are reproduced by run_onchange_after_45-herdr-plugins.sh, never checked in:
@@ -74,11 +76,6 @@ Library
 # authorized_keys is built for as-host only. Everywhere else the file is
 # host-generated (multipass injects its key) and must not be managed.
 .ssh/authorized_keys
-{{ end -}}
-
-{{ if not (and (eq .kind "mac") (includeTemplate "has-personal" .)) -}}
-# Hetzner keeper SSH host: personal Macs only (the keeper trusts workstation keys).
-.ssh/config.d/personal/shahwan
 {{ end -}}
 
 {{ if not (includeTemplate "has-personal" .) -}}
