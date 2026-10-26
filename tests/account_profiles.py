@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Account-boundary regression checks. Only scratch state is written; no installers run."""
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -197,6 +198,10 @@ def profile(label, username, role, kind='mac', extra=None):
     declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
     for needle in ['github-mcp-server', 'server-postgres', 'postgres-mcp', 'JuliusBrussee/caveman']:
         check(needle not in declared, f'{label}: retired integration declared: {needle}')
+    # Script 20 reruns whenever the rendered mise config changes, including a
+    # role change that only alters the render.
+    mise_hash = hashlib.sha256(entries['.config/mise/config.toml']['contents'].encode()).hexdigest()
+    check(f'mise config hash: {mise_hash}' in entries['20-mise-install.sh']['contents'], f'{label}: script 20 does not hash the rendered mise config')
     # A script that skips on a missing tool must rerun once the tool appears, and
     # find it then under the scheduler's bare PATH.
     for name in ('20-mise-install.sh', '40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '45-herdr-plugins.sh') + (('25-brew-bundle.sh',) if '25-brew-bundle.sh' in entries and 'brew bundle' in entries['25-brew-bundle.sh']['contents'] else ()):
