@@ -18,7 +18,13 @@
 #
 # Non-fatal on purpose, like the MCP-sync scripts: a missing tool or a network
 # failure must not fail `chezmoi apply`.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "herdr")) }}
 set -u
+
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.
 HN="$HOME/.local/bin/chezmoi-health"

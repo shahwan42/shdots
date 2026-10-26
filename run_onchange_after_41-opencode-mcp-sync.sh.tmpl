@@ -5,7 +5,13 @@
 #
 # OpenCode's `mcp add` is interactive for local servers, so this upserts the
 # `mcp` object in-place and leaves every other top-level key alone.
+#
+# tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "python3" "codebase-memory-mcp")) }}
 set -u
+
+# chezmoi apply can run from a bare shell (autoupdate, first bootstrap).
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+export PATH
 
 # Structured history (see AGENTS.md "Fleet health"); no-op until applied.
 HN="$HOME/.local/bin/chezmoi-health"

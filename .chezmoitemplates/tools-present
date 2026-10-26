@@ -1,0 +1,24 @@
+{{- /*
+  Rerun trigger for run_onchange_ scripts that skip when a tool is missing.
+  Renders "tool=yes tool=no ..." from fixed directories; put it in a comment
+  so the script text changes, and chezmoi reruns it, once a skipped tool
+  appears. Without it a skip exits 0, chezmoi records the hash, and the script
+  never runs again.
+
+  Checked with stat, never lookPath: autoupdate runs chezmoi under the
+  scheduler's PATH, and a PATH-dependent fingerprint would differ from an
+  interactive apply's, rerunning the script every time. Scripts prepend the
+  same directories to PATH so a tool rendered "yes" is also found at run time.
+
+  Usage: {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "claude")) }}
+*/ -}}
+{{- $dirs := list (joinPath .home ".local/share/mise/shims") (joinPath .home ".local/bin") "/opt/homebrew/bin" "/usr/local/bin" "/usr/bin" -}}
+{{- $out := list -}}
+{{- range $tool := .tools -}}
+{{-   $found := false -}}
+{{-   range $dir := $dirs -}}
+{{-     if stat (joinPath $dir $tool) }}{{ $found = true }}{{ end -}}
+{{-   end -}}
+{{-   $out = append $out (printf "%s=%s" $tool (ternary "yes" "no" $found)) -}}
+{{- end -}}
+{{- join " " $out -}}
