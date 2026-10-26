@@ -46,7 +46,7 @@ write(src/'private_dot_ssh/config.tmpl', 'Host *\nHost linux-compat\nHost fdx-ho
 write(src/'.usage-keep', 'keep brew:gnupg  verifies signatures\nexe mise:ripgrep rg\n'
       'exe mise:neovim nvim\nkeep mise:retired-tool  gone\n')
 write(home/'.config/mise/config.toml', '[settings]\n# see [tools] below\nlockfile = false\n\n'
-      '[tools]\neza = "1"\nripgrep = "1"\nbat = "1"\njq = "1"\nfd = "1"\nneovim = "1"\n'
+      '[tools]\neza = "1"\nripgrep = "1"\nbat = "1"\njq = "1"\nfd = "1"\nneovim = "1"\nglow = "1"\nwatchexec = "1"\n'
       '"npm:@scope/thing" = "1"\n')
 
 write(home/'.zsh_history', '\n'.join([
@@ -69,6 +69,8 @@ def tool_use(name, payload):
 
 claude = [
     tool_use('Bash', {'command': 'cat x.json | jq ".a \\"b\\""'}),
+    # Heredoc bodies and single-quoted text name tools without running them.
+    tool_use('Bash', {'command': "cat > body.md <<'EOF'\nuse `glow` here\nEOF\ngit commit -m 'try watchexec'"}),
     tool_use('Skill', {'skill': 'pr'}),
     tool_use('mcp__context7__query-docs', {}),
     {'timestamp': iso(recent), 'message': {'content': '<command-name>/grilling</command-name>'}},
@@ -119,7 +121,7 @@ expected = {
     'mcp:codebase-memory-mcp': 'used', 'mise:fd': 'used', 'skill:research': 'used',
     'mise:bat': 'unused', 'alias:gcp': 'unused', 'mcp:citra': 'unused', 'skill:wizard': 'unused',
     'skill:eod': 'unused', 'ssh:linux-compat': 'unused', 'bin:old-helper': 'unused',
-    'mise:neovim': 'unused', 'mise:npm:@scope/thing': 'unused', 'alias:n': 'unused',
+    'mise:neovim': 'unused', 'mise:glow': 'unused', 'mise:watchexec': 'unused', 'mise:npm:@scope/thing': 'unused', 'alias:n': 'unused',
     'brew:gnupg': 'kept', 'cask:zulu@17': 'unknown',
 }
 wrong = {k: (status.get(k), v) for k, v in expected.items() if status.get(k) != v}

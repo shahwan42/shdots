@@ -133,7 +133,7 @@ def executables(root):
     """Command names a mise install provides, across its layouts."""
     if not root or not root.is_dir():
         return []
-    dirs = [root, root/'bin', root/'node_modules/.bin'] + list(root.glob('*/bin'))
+    dirs = [root, root/'bin', root/'node_modules/.bin'] + list(root.glob('*/bin')) + list(root.glob('*/'))
     names = []
     for d in dirs:
         if d.is_dir():
@@ -158,7 +158,8 @@ def bin_items(source):
     d = source/'dot_local/bin'
     if not d.is_dir():
         return []
-    names = sorted({re.sub(r'\.tmpl$', '', p.name).replace('executable_', '', 1) for p in d.iterdir()})
+    names = sorted({re.sub(r'\.tmpl$', '', p.name).replace('executable_', '', 1)
+                    for p in d.iterdir() if p.is_file()})
     return [Item('bin', n, [n]) for n in names]
 
 
@@ -235,7 +236,14 @@ def history_entries(path):
     return entries
 
 
+# Text that is data, not commands: heredoc bodies and single-quoted strings
+# (a PR body or commit message naming a tool is not a use of it).
+HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?([^\n]*)\n.*?(?:\n\s*\1\s*(?=\n|$)|\Z)", re.S)
+SINGLE_QUOTED = re.compile(r"'[^']*'")
+
+
 def command_words(cmd):
+    cmd = SINGLE_QUOTED.sub("''", HEREDOC.sub(r'\2', cmd))
     words = []
     for segment in SEGMENT.split(cmd):
         tokens = [t.strip('\'"') for t in segment.split()]
