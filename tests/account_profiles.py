@@ -144,7 +144,7 @@ def profile(label, username, role, kind='mac', extra=None):
         check('launchctl bootstrap' not in entries['30-schedule-autoupdate.sh']['contents'], f'{label}: scheduling active')
         updater = entries['.local/bin/chezmoi-autoupdate']['contents']
         check(updater.index('exit 0') < updater.index('fetch -q origin'), f'{label}: disabled updater can fetch')
-        check('verify_web_flow_signature' in updater and 'GNUPGHOME=' in updater, f'{label}: GPG verification is not isolated')
+        check('verify_commit' in updater and 'GNUPGHOME="$GNUPG_HOME"' in updater and '--homedir "$GNUPG_HOME"' in updater, f'{label}: GPG verification is not isolated')
         check('$SRC/dot_config/git/github-web-flow.gpg.asc' in updater, f'{label}: updater uses the wrong GPG allowlist')
         gpg_key = rendered/'.config/git/github-web-flow.gpg.asc'
         key_info = run(['gpg', '--show-keys', '--with-colons', '--fingerprint', str(gpg_key)]).stdout
