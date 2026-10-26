@@ -4,5 +4,8 @@
 - Run `git rev-parse --short <revision>` once per revision; two revisions fail with `Needed a single revision`.
 - BSD `sed -i` needs `sed -i ''`; avoid GNU-only escapes and use a short Python script for multi-line edits.
 - Prefer `rg`, `fd`, `jq`, `yq`, `ast-grep` over `grep`/`find`/`sed`. Call `ast-grep` by its full name; the `sg` shim is not it.
+- Quote glob arguments (`--include='*.php'`, `'*.log'`); zsh aborts with `no matches found` before the command runs.
+- Test strings with `[ "$a" = "$b" ]`; an unquoted `==` is expanded by zsh and fails with `== not found`.
+- Do not name a function after an alias (`g`, `gc`); zsh fails with `defining function based on alias`. Use `unalias` first or pick another name.
 - Use `/bin/ls` or `command ls` when parsing listings.
 - `KSH_ARRAYS` also disables `$VAR:x`, but changes array indexing and expansion globally.
