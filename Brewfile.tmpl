@@ -19,13 +19,15 @@ brew "tree"
 brew "wget"
 
 # --- GUI apps / casks (shared across Macs) ---
+# Google Chrome (browser-harness drives it over CDP) is installed by hand, not
+# here: its own updater runs as root and takes ownership of the app, so every
+# Homebrew upgrade after a self-update fails.
 cask "1password"       # desktop app: SSH agent for the work-server key
 cask "1password-cli"
 cask "alt-tab"
 cask "codex"
 cask "font-meslo-lg-nerd-font"
 cask "ghostty"
-cask "google-chrome"  # browser-harness drives Chrome over CDP
 cask "kitty"
 cask "multipass"
 cask "rectangle"
