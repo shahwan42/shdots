@@ -86,6 +86,8 @@ go = "1.27.1"
 {{ end -}}
 # General build, media and inspection utilities belong to both accounts.
 actionlint = "1.7.12"
+# Agents lint shell scripts with it; actionlint also uses it for `run:` steps.
+"aqua:koalaman/shellcheck" = "0.11.0"
 cmake = "4.4.3"
 {{ if eq .kind "mac" }}"aqua:linebender/resvg" = "0.48.1"  # no linux/arm64 prebuilt
 {{ end -}}
