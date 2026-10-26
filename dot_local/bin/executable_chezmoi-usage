@@ -1,0 +1,421 @@
+#!/usr/bin/env python3
+"""chezmoi-usage — which declared config this machine actually uses.
+
+Read-only. Joins what the repo declares (Brewfile, mise tools, aliases,
+~/.local/bin scripts, skills, MCP servers, SSH hosts) with evidence that
+already exists on this machine:
+
+  zsh history       command words, timestamped (EXTENDED_HISTORY format)
+  Claude Code logs  Skill / slash-command / mcp__<server>__ tool calls
+  Codex logs        MCP calls and skill reads
+  Spotlight         last-used date of cask apps (macOS)
+
+  chezmoi-usage [--days N] [--unused] [--source DIR]
+
+--unused lists candidates for removal: nothing in the window and not kept.
+Indirect use (a library, a hook, a language server) is invisible to these
+logs; record it in <source>/.usage-keep instead:
+
+  keep <kind>:<name>  <reason>        never a removal candidate
+  exe  <kind>:<name>  <exe> [<exe>…]  extra command names that count as use
+
+Evidence is per machine: run it on each machine before removing a fleet-wide
+entry. It never deletes anything.
+"""
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+HOME = Path.home()
+NOW = time.time()
+
+# Words that run the next word as the command.
+WRAPPERS = {'sudo', 'command', 'exec', 'time', 'nocorrect', 'noglob', 'env', 'nohup',
+            'builtin', 'then', 'do', 'else', 'if', 'while', 'until', '!', 'xargs', 'watch'}
+SSH_COMMANDS = {'ssh', 'et', 'scp', 'sftp', 'mosh', 'rsync', 'kitten'}
+SEGMENT = re.compile(r'\$\(|[|;&(){}`\n]+')
+ASSIGNMENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
+
+
+class Item:
+    def __init__(self, kind, name, exes=()):
+        self.kind, self.name = kind, name
+        self.exes = set(exes)
+        self.last = 0.0
+        self.uses = 0
+        self.keep = ''
+        self.known = True
+
+    def see(self, ts, window_start):
+        self.last = max(self.last, ts)
+        if ts >= window_start:
+            self.uses += 1
+
+
+# --- inventory -------------------------------------------------------------
+
+def brew_items(source):
+    path = source/'Brewfile.tmpl'
+    items = []
+    if not path.is_file():
+        return items
+    for kind, name in re.findall(r'^(brew|cask) "([^"]+)"', path.read_text(), re.M):
+        short = name.rsplit('/', 1)[-1]
+        items.append(Item(kind, short, [short]))
+    return items
+
+
+def cask_artifacts(casks):
+    """token -> (app paths, binaries), from brew's own metadata."""
+    brew = shutil.which('brew')
+    if not brew or not casks:
+        return {}
+    try:
+        out = subprocess.run([brew, 'info', '--cask', '--json=v2', *casks], text=True,
+                             capture_output=True, timeout=120).stdout
+        data = json.loads(out)['casks']
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        return {}
+    found = {}
+    for cask in data:
+        apps, bins = [], []
+        for artifact in cask.get('artifacts', []):
+            if isinstance(artifact, dict):
+                apps += [a for a in artifact.get('app', []) if isinstance(a, str)]
+                bins += [Path(b).name for b in artifact.get('binary', []) if isinstance(b, str)]
+        found[cask['token']] = (apps, bins)
+    return found
+
+
+def app_last_used(app):
+    mdls = shutil.which('mdls')
+    for base in (Path('/Applications'), HOME/'Applications'):
+        path = base/app
+        if mdls and path.exists():
+            out = subprocess.run([mdls, '-raw', '-name', 'kMDItemLastUsedDate', str(path)],
+                                 text=True, capture_output=True).stdout.strip()
+            try:
+                return datetime.strptime(out, '%Y-%m-%d %H:%M:%S %z').timestamp()
+            except ValueError:
+                return 0.0
+    return None
+
+
+def mise_items():
+    config = HOME/'.config/mise/config.toml'
+    mise = shutil.which('mise') or str(HOME/'.local/bin/mise')
+    items = []
+    if not config.is_file():
+        return items
+    section = re.search(r'^\[tools\]\n(.*?)(?=^\[|\Z)', config.read_text(), re.M | re.S)
+    declared = re.findall(r'^"?([^"\s=#\[]+)"?\s*=', section.group(1) if section else '', re.M)
+    paths = {}
+    try:
+        out = subprocess.run([mise, 'ls', '--current', '--json'], cwd=HOME, text=True,
+                             capture_output=True, timeout=60).stdout
+        paths = {k: Path(v[0]['install_path']) for k, v in json.loads(out).items() if v}
+    except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
+        pass
+    for tool in declared:
+        short = tool.split(':', 1)[-1].rsplit('/', 1)[-1]
+        items.append(Item('mise', tool, [short] + executables(paths.get(tool))))
+    return items
+
+
+def executables(root):
+    """Command names a mise install provides, across its layouts."""
+    if not root or not root.is_dir():
+        return []
+    dirs = [root, root/'bin', root/'node_modules/.bin'] + list(root.glob('*/bin'))
+    names = []
+    for d in dirs:
+        if d.is_dir():
+            names += [p.name for p in d.iterdir()
+                      if p.is_file() and os.access(p, os.X_OK) and '.' not in p.name]
+    return names
+
+
+def alias_items(source):
+    path = source/'dot_zshrc.tmpl'
+    items = []
+    if path.is_file():
+        for flag, name, body in re.findall(r"^\s*alias (-g |-- )?([^=\s]+)=['\"]?([^'\"]*)", path.read_text(), re.M):
+            item = Item('alias', name, [name])
+            item.glob = flag == '-g '
+            item.target = body.split()[0] if body.split() else ''
+            items.append(item)
+    return items
+
+
+def bin_items(source):
+    d = source/'dot_local/bin'
+    if not d.is_dir():
+        return []
+    names = sorted({re.sub(r'\.tmpl$', '', p.name).replace('executable_', '', 1) for p in d.iterdir()})
+    return [Item('bin', n, [n]) for n in names]
+
+
+def skill_items(source):
+    names = set()
+    for d in (source/'dot_agents/skills', source/'dot_claude/skills'):
+        if d.is_dir():
+            names |= {p.name.replace('symlink_', '', 1) for p in d.iterdir()}
+    return [Item('skill', n) for n in sorted(names)]
+
+
+def mcp_items(source):
+    names = set()
+    for script in source.glob('run_onchange_after_4*-*mcp-sync.sh.tmpl'):
+        names |= set(re.findall(r'^\s*(?:\[[^]]*\] && )?add ([A-Za-z0-9_.-]+) ', script.read_text(), re.M))
+    return [Item('mcp', n) for n in sorted(names)]
+
+
+def ssh_items(source):
+    names = set()
+    for path in (source/'private_dot_ssh').rglob('*.tmpl'):
+        for line in re.findall(r'^Host (.+)$', path.read_text(), re.M):
+            names |= {h for h in line.split() if '*' not in h and '?' not in h}
+    return [Item('ssh', n) for n in sorted(names)]
+
+
+def apply_rules(source, items):
+    path = source/'.usage-keep'
+    if not path.is_file():
+        return
+    index = {f'{i.kind}:{i.name}': i for i in items}
+    for line in path.read_text().splitlines():
+        words = line.split('#', 1)[0].split() if line.lstrip().startswith(('keep', 'exe')) else []
+        if len(words) < 2:
+            continue
+        if words[1] not in index:
+            # A rule for something no longer declared is itself clutter.
+            print(f'# stale rule in .usage-keep: {words[0]} {words[1]}', file=sys.stderr)
+            continue
+        item = index[words[1]]
+        if words[0] == 'keep':
+            item.keep = line.split(None, 2)[2].strip() if len(line.split(None, 2)) > 2 else 'kept'
+        elif words[0] == 'exe':
+            item.exes |= set(words[2:])
+
+
+# --- evidence --------------------------------------------------------------
+
+def unmetafy(raw):
+    # zsh writes bytes >= 0x80 as 0x83 followed by byte ^ 0x20.
+    out, meta = bytearray(), False
+    for b in raw:
+        if meta:
+            out.append(b ^ 32)
+            meta = False
+        elif b == 0x83:
+            meta = True
+        else:
+            out.append(b)
+    return out.decode('utf-8', 'replace')
+
+
+def history_entries(path):
+    """(timestamp, command) per entry; continuation lines are joined."""
+    if not path.is_file():
+        return []
+    entries = []
+    for line in unmetafy(path.read_bytes()).split('\n'):
+        m = re.match(r'^: (\d+):\d+;(.*)$', line)
+        if m:
+            entries.append([int(m.group(1)), m.group(2)])
+        elif entries and entries[-1][1].endswith('\\'):
+            entries[-1][1] = entries[-1][1][:-1] + '\n' + line
+    return entries
+
+
+def command_words(cmd):
+    words = []
+    for segment in SEGMENT.split(cmd):
+        tokens = [t.strip('\'"') for t in segment.split()]
+        while tokens and (tokens[0] in WRAPPERS or ASSIGNMENT.match(tokens[0])):
+            tokens.pop(0)
+        if tokens:
+            words.append((os.path.basename(tokens[0]), tokens[1:]))
+    return words
+
+
+def command_matcher(items, window_start):
+    """see(ts, cmd): credit every item a shell command line uses."""
+    by_exe = {}
+    for item in items:
+        if item.kind in ('brew', 'cask', 'mise', 'alias', 'bin'):
+            for exe in item.exes:
+                by_exe.setdefault(exe, []).append(item)
+    aliases = {i.name: i for i in items if i.kind == 'alias'}
+    globs = [i for i in items if i.kind == 'alias' and getattr(i, 'glob', False)]
+    hosts = {i.name: i for i in items if i.kind == 'ssh'}
+    def see(ts, cmd):
+        seen = set()
+        for word, args in command_words(cmd):
+            seen.update(by_exe.get(word, ()))
+            if word in aliases and aliases[word].target:
+                seen.update(by_exe.get(aliases[word].target, ()))
+            if word in SSH_COMMANDS or (word == 'git' and args[:1] in (['clone'], ['remote'])):
+                for arg in args:
+                    host = arg.rsplit('@', 1)[-1].split(':', 1)[0]
+                    if host in hosts:
+                        seen.add(hosts[host])
+        tokens = set(cmd.split())
+        seen.update(g for g in globs if g.name in tokens)
+        for item in seen:
+            item.see(ts, window_start)
+    return see
+
+
+def scan_history(path, see):
+    entries = history_entries(path)
+    for ts, cmd in entries:
+        see(ts, cmd)
+    return entries[0][0] if entries else None
+
+
+TIMESTAMP = re.compile(rb'"timestamp":"([0-9T:.\-]+)Z?"')
+CLAUDE = [
+    ('skill', re.compile(rb'"type":"tool_use","id":"[^"]*","name":"Skill","input":\{"skill":"([^"]+)"')),
+    ('skill', re.compile(rb'<command-name>/([^<\s]+)</command-name>')),
+    ('mcp', re.compile(rb'"type":"tool_use","id":"[^"]*","name":"mcp__(.+?)__')),
+]
+# Shell commands agents ran never reach zsh history; the string is JSON-escaped.
+CLAUDE_SHELL = re.compile(rb'"name":"Bash","input":\{"command":"((?:[^"\\]|\\.)*)"')
+CODEX_SHELL = re.compile(rb'"name":"exec_command","arguments":"((?:[^"\\]|\\.)*)"')
+CODEX = [
+    ('mcp', re.compile(rb'"type":"McpToolCall"[^\n]*?"server":"([^"]+)"')),
+    ('skill', re.compile(rb'"type":"(?:function_call|custom_tool_call)"[^\n]*?skills/([A-Za-z0-9_.-]+)/SKILL\.md')),
+]
+
+
+def line_time(line, fallback):
+    m = TIMESTAMP.search(line)
+    if m:
+        try:
+            return datetime.fromisoformat(m.group(1)[:19].decode()).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            pass
+    return fallback
+
+
+def shell_commands(line, shell):
+    for raw in shell.findall(line):
+        try:
+            text = json.loads(b'"' + raw + b'"')
+            if shell is CODEX_SHELL:
+                text = json.loads(text).get('cmd', '')
+            if isinstance(text, list):
+                text = ' '.join(map(str, text))
+            yield str(text)
+        except (ValueError, AttributeError):
+            continue
+
+
+def scan_logs(root, patterns, shell, see_command, items, window_start):
+    index = {(i.kind, i.name): i for i in items}
+    first = None
+    if not root.is_dir():
+        return first
+    markers = (b'"Skill"', b'<command-name>', b'mcp__', b'McpToolCall', b'SKILL.md',
+               b'"name":"Bash"', b'"exec_command"')
+    for path in root.rglob('*.jsonl'):
+        try:
+            mtime = path.stat().st_mtime
+            with path.open('rb') as f:
+                for line in f:
+                    if not any(m in line for m in markers):
+                        continue
+                    for cmd in shell_commands(line, shell):
+                        ts = line_time(line, mtime)
+                        see_command(ts, cmd)
+                        first = ts if first is None else min(first, ts)
+                    for kind, pattern in patterns:
+                        for name in pattern.findall(line):
+                            name = name.decode('utf-8', 'replace').rsplit(':', 1)[-1]
+                            item = index.get((kind, name))
+                            if item:
+                                ts = line_time(line, mtime)
+                                item.see(ts, window_start)
+                                first = ts if first is None else min(first, ts)
+        except OSError:
+            continue
+    return first
+
+
+# --- report ----------------------------------------------------------------
+
+def day(ts):
+    return datetime.fromtimestamp(ts).strftime('%Y-%m-%d') if ts else 'never'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    parser.add_argument('--days', type=int, default=90)
+    parser.add_argument('--unused', action='store_true', help='only removal candidates')
+    parser.add_argument('--source', type=Path, default=Path(os.environ.get(
+        'CHEZMOI_SOURCE_DIR', HOME/'.local/share/chezmoi')))
+    args = parser.parse_args()
+    source, window_start = args.source.expanduser(), NOW - args.days*86400
+
+    items = (brew_items(source) + mise_items() + alias_items(source) + bin_items(source)
+             + skill_items(source) + mcp_items(source) + ssh_items(source))
+    apply_rules(source, items)
+
+    casks = [i for i in items if i.kind == 'cask']
+    artifacts = cask_artifacts([c.name for c in casks])
+    for cask in casks:
+        apps, bins = artifacts.get(cask.name, ([], []))
+        cask.exes |= set(bins)
+        for app in apps:
+            last = app_last_used(app)
+            if last is not None:
+                cask.see(last, window_start)
+        cask.known = cask.name in artifacts  # no brew metadata: no app to ask about
+
+    history = Path(os.environ.get('HISTFILE', HOME/'.zsh_history'))
+    see_command = command_matcher(items, window_start)
+    starts = {
+        'zsh history': scan_history(history, see_command),
+        'Claude logs': scan_logs(HOME/'.claude/projects', CLAUDE, CLAUDE_SHELL, see_command, items, window_start),
+        'Codex logs': scan_logs(HOME/'.codex/sessions', CODEX, CODEX_SHELL, see_command, items, window_start),
+    }
+
+    print(f'# window: last {args.days} days (since {day(window_start)})')
+    print('# evidence since: ' + '; '.join(f'{k} {day(v)}' for k, v in starts.items()))
+    short = [k for k, v in starts.items() if not v or v > window_start + 86400]
+    if short:
+        print(f'# note: {", ".join(short)} cover less than the window '
+              '(Claude Code prunes transcripts after cleanupPeriodDays, 30 by default)')
+
+    rows = []
+    for item in items:
+        if item.keep:
+            status = 'kept'
+        elif item.uses:
+            status = 'used'
+        elif not item.known:
+            status = 'unknown'
+        else:
+            status = 'unused'
+        if args.unused and status != 'unused':
+            continue
+        rows.append((status, item.kind, item.name, day(item.last), str(item.uses), item.keep))
+    order = {'unused': 0, 'unknown': 1, 'used': 2, 'kept': 3}
+    rows.sort(key=lambda r: (order[r[0]], r[1], r[2]))
+    print(f'{"STATUS":<8} {"KIND":<6} {"NAME":<40} {"LAST USED":<10} {"USES":>5}  NOTE')
+    for status, kind, name, last, uses, note in rows:
+        print(f'{status:<8} {kind:<6} {name:<40} {last:<10} {uses:>5}  {note}')
+    if args.unused and not rows:
+        print('no unused config in this window')
+
+
+if __name__ == '__main__':
+    main()
