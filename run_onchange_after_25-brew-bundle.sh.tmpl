@@ -9,11 +9,31 @@ set -u
 PATH="/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 export PATH
 
-if command -v brew >/dev/null 2>&1; then
-  echo "Installing Homebrew packages from Brewfile…"
-  BREWFILE_TMP="$(mktemp)"
-  chezmoi execute-template "$(cat "{{ .chezmoi.sourceDir }}/Brewfile.tmpl")" >"$BREWFILE_TMP"
-  brew bundle --file="$BREWFILE_TMP"
-  rm -f "$BREWFILE_TMP"
+# Structured history (see AGENTS.md "Fleet health"); no-op until applied.
+HN="$HOME/.local/bin/chezmoi-health"
+hn() { [ -x "$HN" ] && "$HN" note 25-brew-bundle "$@" >/dev/null 2>&1 || :; }
+
+# A failure is recorded, not fatal: a non-zero exit would stop chezmoi apply
+# before scripts 30-50, and a cask that cannot upgrade while its app runs would
+# then block every apply. `chezmoi-health check` surfaces the fail note.
+if ! command -v brew >/dev/null 2>&1; then
+  echo "brew not found — Homebrew packages NOT installed." >&2
+  hn brew skip "brew binary not found"
+  exit 0
+fi
+
+echo "Installing Homebrew packages from Brewfile…"
+BREWFILE_TMP="$(mktemp)" || { hn brewfile fail "mktemp failed"; exit 0; }
+trap 'rm -f "$BREWFILE_TMP"' EXIT
+# CHEZMOI_EXECUTABLE: under the scheduler chezmoi itself may not be on PATH.
+if ! "${CHEZMOI_EXECUTABLE:-chezmoi}" execute-template --file "{{ .chezmoi.sourceDir }}/Brewfile.tmpl" >"$BREWFILE_TMP" \
+    || [ ! -s "$BREWFILE_TMP" ]; then
+  echo "brew bundle: could not render Brewfile.tmpl — nothing installed." >&2
+  hn brewfile fail "could not render Brewfile.tmpl"
+elif brew bundle --file="$BREWFILE_TMP"; then
+  hn brew-bundle ok "brew bundle succeeded"
+else
+  echo "brew bundle: some packages failed (see above); fix them, then rerun 'brew bundle'." >&2
+  hn brew-bundle fail "brew bundle exited non-zero"
 fi
 {{ end -}}
