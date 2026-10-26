@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Claude Code SessionStart hook: start the read-only PR watch in chosen repos.
+
+A hook cannot create a loop itself, so this prints context that tells Claude
+to start one. It does nothing outside the repos below, and only on a fresh or
+resumed session (not after /clear or /compact).
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+
+WATCHED = {
+    "pay/capital-api", "pay/capital-console", "pay/capital-admin",
+    "pay/pay", "pay/pay-console-ksa",
+}
+# The capital folder is not a repo; opening Claude there watches all three.
+CAPITAL_DIR = os.path.expanduser("~/Code/foodics/capital")
+CAPITAL_REPOS = ["pay/capital-api", "pay/capital-console", "pay/capital-admin"]
+
+
+def repos_for(cwd):
+    if os.path.realpath(cwd) == os.path.realpath(CAPITAL_DIR):
+        return CAPITAL_REPOS
+    try:
+        url = subprocess.run(
+            ["git", "-C", cwd, "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return []
+    match = re.search(r"github\.foodics\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+    return [match.group(1)] if match and match.group(1) in WATCHED else []
+
+
+def main():
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return
+    if event.get("source") not in ("startup", "resume"):
+        return
+    repos = repos_for(event.get("cwd") or os.getcwd())
+    if not repos:
+        return
+
+    flags = " ".join(f"--repo {r}" for r in repos)
+    prompt = (
+        "Read-only PR watch. Run `GH_HOST=github.foodics.com gh search prs "
+        f"--author @me --state open {flags} --json repository,number,title,url`. "
+        "For each PR fetch one `gh pr view <n> --repo <repo> --json "
+        "statusCheckRollup,reviewDecision,comments,reviews,mergeable,state`. "
+        "Report ONLY what changed since the previous check: CI newly failing or "
+        "passing, new review comments or change requests, approvals, merge "
+        "conflicts, merged or closed. Keep a snapshot per PR in the scratchpad "
+        "directory to diff against. If nothing changed, reply with the single "
+        'word "quiet". Never push, comment, edit, merge, or rerun anything. '
+        "Lead with a TL;DR of PRs needing action."
+    )
+    context = (
+        f"PR watch: this session is in {', '.join(repos)}. Unless CronList already "
+        "shows a job whose prompt starts with 'Read-only PR watch', start the "
+        "watch now by invoking the loop skill with these args (no confirmation "
+        f"needed, it is read-only): 15m {prompt}"
+    )
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": context,
+    }}))
+
+
+main()

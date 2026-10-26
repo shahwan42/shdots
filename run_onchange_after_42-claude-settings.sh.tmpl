@@ -7,6 +7,9 @@
 #   cleanupPeriodDays  transcripts are chezmoi-usage's evidence for skills and
 #                      MCP servers; the 30-day default is shorter than its
 #                      90-day window.
+#   hooks.SessionStart one entry running ~/.local/bin/pr-watch-hook, which starts
+#                      the read-only PR watch loop in chosen work repos. Added
+#                      only when missing; other hooks are left alone.
 #
 # tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "python3")) }}
 set -u
@@ -35,8 +38,19 @@ import pathlib
 OWNED = {"cleanupPeriodDays": 90}
 
 path = pathlib.Path.home() / ".claude" / "settings.json"
+HOOK = str(pathlib.Path.home() / ".local" / "bin" / "pr-watch-hook")
+
 settings = json.loads(path.read_text()) if path.is_file() else {}
-if any(settings.get(k) != v for k, v in OWNED.items()):
+session_start = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
+hook_missing = not any(
+    h.get("command") == HOOK for entry in session_start for h in entry.get("hooks", [])
+)
+if hook_missing:
+    session_start.append({
+        "matcher": "startup|resume",
+        "hooks": [{"type": "command", "command": HOOK, "timeout": 10}],
+    })
+if hook_missing or any(settings.get(k) != v for k, v in OWNED.items()):
     settings.update(OWNED)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.chezmoi-tmp")
@@ -46,7 +60,7 @@ if any(settings.get(k) != v for k, v in OWNED.items()):
     os.replace(tmp, path)
 PY
 then
-  hn settings ok "cleanupPeriodDays=90"
+  hn settings ok "cleanupPeriodDays=90, pr-watch-hook"
 else
   echo "claude settings: could not update ~/.claude/settings.json (invalid JSON?); left unchanged." >&2
   hn settings fail "could not merge owned keys into settings.json"
