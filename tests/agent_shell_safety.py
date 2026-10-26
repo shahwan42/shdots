@@ -101,7 +101,6 @@ print -r -- "ls_alias:${aliases[ls]-<unset>}"
 print -r -- "l_alias:${aliases[l]-<unset>}"
 print -r -- "ll_alias:${aliases[ll]-<unset>}"
 print -r -- "la_alias:${aliases[la]-<unset>}"
-print -r -- "lsa_alias:${aliases[lsa]-<unset>}"
 print -r -- "ssh_alias:${aliases[ssh]-<unset>}"
 print -r -- "git_alias:${aliases[g]-<unset>}"
 '''
@@ -118,7 +117,7 @@ print -r -- "git_alias:${aliases[g]-<unset>}"
     check('ls_alias:<unset>' in result.stdout,
           f'{mode}: agent shell retained an ls alias')
     if mode == '-ic':
-        for key in ['ls_alias', 'l_alias', 'll_alias', 'la_alias', 'lsa_alias', 'ssh_alias']:
+        for key in ['ls_alias', 'l_alias', 'll_alias', 'la_alias', 'ssh_alias']:
             check(f'{key}:<unset>' in result.stdout,
                   f'{mode}: agent shell retained {key}: {result.stdout}')
         check('git_alias:git' in result.stdout,

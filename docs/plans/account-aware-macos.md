@@ -93,8 +93,7 @@ in shdots by reference, never by copying its value. `.npmrc`, `.aws`, `.ssh/id_*
 AI login/session files, approvals and scheduled tasks are unmanaged.
 
 SSH loads only `.ssh/config.d/personal/*` or `.ssh/config.d/work/*`. It ignores
-the old mixed directory's files. `linux-compat` is an optional alias to
-`fdx-dev.local`; no terminal startup connects to it. `herdr-devbox` requires
+the old mixed directory's files. `herdr-devbox` requires
 an explicit VM name. Work Git authentication points to a future local key;
 company-server hosts and 1Password key selection remain manual provisioning,
 in the unmanaged, ignored `~/.ssh/config.d/work/foodics`. `~/.ssh/config` holds

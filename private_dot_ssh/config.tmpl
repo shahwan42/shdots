@@ -11,11 +11,6 @@ Include ~/.ssh/config.d/personal/*
 {{ if includeTemplate "has-work" . -}}
 Include ~/.ssh/config.d/work/*
 {{ end }}
-# Optional compatibility VM on this machine; never opens a remote session.
-Host linux-compat
-    HostName fdx-dev.local
-    User ubuntu
-
 Host *
     ServerAliveInterval 60
     ServerAliveCountMax 3
