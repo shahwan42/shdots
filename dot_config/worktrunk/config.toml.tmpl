@@ -1,5 +1,15 @@
 {{- /* Worktrunk's own {{ }} variables are escaped as Go raw strings; its {% %} tags pass through untouched. */ -}}
 worktree-path = "~/Code/worktrees/{{ `{{ repo }}` }}/{{ `{{ branch | sanitize_hash }}` }}"
+
+# Every machine: stop what still runs in a worktree being removed (dev servers, watchers,
+# slot servers, agent background tasks). Left alone they keep running from the deleted
+# directory, reparented to launchd. Agent sessions, their MCP servers and anything on a
+# terminal are listed, not stopped. pre-remove, not post-remove: wt renames the worktree
+# into .git/wt/trash before deleting it, so afterwards no cwd matches the path. It runs
+# only once wt has accepted the removal (a dirty worktree is refused first); `|| true`
+# keeps a cleanup failure from blocking the removal.
+[[pre-remove]]
+stop-procs = """"$HOME/.local/bin/stop-worktree-procs" {{ `{{ worktree_path }}` }} || true"""
 {{- if and (eq .kind "mac") (includeTemplate "has-work" .) }}
 
 # Foodics work hooks (Macs with the work role). They need ~/Code/foodics/.dev

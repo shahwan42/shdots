@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+"""stop-worktree-procs — stop what still runs in a worktree being removed.
+
+Worktrunk's pre-remove user hook runs it with {{ worktree_path }}. Dev servers,
+watchers, test browsers and agent background tasks started in a worktree
+otherwise keep running from the deleted directory, reparented to launchd/init.
+It also works by hand after the directory is gone, as long as the processes
+still report the path (a plain `git worktree remove` or `rm -rf`; not
+`wt remove`, which renames the worktree first).
+
+  stop-worktree-procs [--dry-run] [--grace SECONDS] <worktree-path>
+
+Stops this user's processes whose working directory is inside the path, plus
+their descendants: SIGTERM, then SIGKILL after --grace (default 5 s). A process
+group is signalled whole only when every member is a target. Never stopped,
+only listed:
+
+  - this process and its ancestors (whoever ran `wt remove`)
+  - agent sessions (claude, codex, opencode), their ancestors and the non-shell
+    children they own (MCP servers); their shell children (tool calls,
+    background tasks) are stopped
+  - anything attached to a terminal, and its ancestors (an editor, a REPL, a
+    multiplexer server)
+
+Always exits 0: a cleanup hook must never fail the removal.
+"""
+import argparse
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+AGENT_RE = re.compile(r"^(\S*/)?(claude|codex|opencode)( |$)"
+                      r"|/claude-code/.*/MacOS/claude( |$)|^\S*/claude/versions/\S+( |$)")
+SHELLS = {"sh", "bash", "zsh", "dash", "fish"}
+SLOT_REGISTRY = os.path.expanduser("~/.local/share/foodics-dev/registry.toml")
+
+
+def processes():
+    """{pid: (ppid, pgid, uid, tty, args)} for every process."""
+    out = subprocess.run(["ps", "-Aww", "-o", "pid=,ppid=,pgid=,uid=,tty=,args="],
+                         capture_output=True, text=True).stdout
+    table = {}
+    for line in out.splitlines():
+        f = line.split(None, 5)
+        if len(f) >= 5 and f[0].isdigit():
+            table[int(f[0])] = (int(f[1]), int(f[2]), int(f[3]), f[4], f[5] if len(f) > 5 else "")
+    return table
+
+
+def cwd_of(pid):
+    """Working directory, even after it was deleted; None if unreadable."""
+    if sys.platform == "darwin":
+        import ctypes
+        lp = ctypes.CDLL("/usr/lib/libproc.dylib")
+        lp.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+        buf = ctypes.create_string_buffer(2352)
+        if lp.proc_pidinfo(pid, 9, 0, buf, 2352) <= 0:  # PROC_PIDVNODEPATHINFO: cwd path at +152
+            return None
+        return buf.raw[152:1176].split(b"\0")[0].decode("utf-8", "replace") or None
+    try:
+        path = os.readlink("/proc/%d/cwd" % pid)
+    except OSError:
+        return None
+    return path[:-len(" (deleted)")] if path.endswith(" (deleted)") else path
+
+
+def path_forms(path):
+    """The path as given plus its resolved form (/tmp vs /private/tmp), even once it is gone."""
+    path = os.path.abspath(os.path.expanduser(path)).rstrip("/")
+    forms = {path, os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))}
+    if os.path.exists(path):
+        forms.add(os.path.realpath(path))
+    return forms
+
+
+def slot_for(path_set):
+    """`slot` worktree id still registered for this worktree, if any."""
+    try:
+        with open(SLOT_REGISTRY) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return None
+    current = None
+    for line in lines:
+        m = re.match(r"\[slots\.([^\]]+)\]", line.strip())
+        if m:
+            current = m.group(1)
+        m = re.match(r'worktree\s*=\s*"([^"]+)"', line.strip())
+        if m and current and m.group(1).rstrip("/") in path_set:
+            return current
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Stop processes still running from a removed worktree.")
+    ap.add_argument("path")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--grace", type=float, default=5.0)
+    a = ap.parse_args()
+    forms = path_forms(a.path)
+    home = os.path.realpath(os.path.expanduser("~"))
+    # a worktree is at least four levels deep (~/Code/worktrees/<repo>/<branch>); never ~ or ~/Code
+    if any(home.startswith(p + "/") or p == home or p.count("/") < 4 for p in forms):
+        print("stop-worktree-procs: refusing a broad path: %s" % a.path)
+        return
+    tag = "stop-worktree-procs: %s" % a.path
+
+    procs = processes()
+    me, uid = os.getpid(), os.getuid()
+    kids = {}
+    for pid, p in procs.items():
+        kids.setdefault(p[0], []).append(pid)
+
+    def ancestors(pid):
+        out, seen = [], set()
+        pid = procs.get(pid, (0,))[0]
+        while pid > 1 and pid in procs and pid not in seen:
+            out.append(pid)
+            seen.add(pid)
+            pid = procs[pid][0]
+        return out
+
+    def subtree(pid):
+        out, todo = set(), [pid]
+        while todo:
+            p = todo.pop()
+            if p not in out:
+                out.add(p)
+                todo.extend(kids.get(p, []))
+        return out
+
+    why = {me: "this cleanup"}
+    for pid in ancestors(me):
+        why.setdefault(pid, "ran the removal")
+    for pid, p in procs.items():
+        if AGENT_RE.search(p[4]):
+            why.setdefault(pid, "agent session")
+            for anc in ancestors(pid):
+                why.setdefault(anc, "hosts an agent session")
+            for child in kids.get(pid, []):
+                exe = os.path.basename(procs[child][4].split(" ", 1)[0]).lstrip("-")
+                if exe not in SHELLS:
+                    for x in subtree(child):
+                        why.setdefault(x, "owned by an agent session")
+        if p[3] not in ("??", "?", "-", ""):
+            why.setdefault(pid, "on a terminal")
+            for anc in ancestors(pid):
+                why.setdefault(anc, "hosts a terminal")
+
+    def inside(cwd):
+        return cwd is not None and any(cwd == f or cwd.startswith(f + "/") for f in forms)
+
+    found = [pid for pid, p in procs.items() if p[2] == uid and pid > 1 and inside(cwd_of(pid))]
+    targets = set()
+    for pid in found:
+        if pid not in why:
+            targets |= {x for x in subtree(pid) if x not in why and procs[x][2] == uid}
+    caller = {me} | set(ancestors(me))
+    kept = sorted(pid for pid in found if pid in why and pid not in caller)
+
+    def signal_all(pids, sig):
+        groups = {}
+        for pid in pids:
+            groups.setdefault(procs[pid][1], set()).add(pid)
+        for pgid, members in groups.items():
+            whole = {pid for pid, p in procs.items() if p[1] == pgid}
+            try:
+                if pgid > 1 and whole <= targets:
+                    os.killpg(pgid, sig)
+                else:
+                    for pid in members:
+                        os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                pass
+
+    def alive(pid):
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+
+    if targets and not a.dry_run:
+        signal_all(targets, signal.SIGTERM)
+        deadline = time.time() + a.grace
+        while time.time() < deadline and any(alive(p) for p in targets):
+            time.sleep(0.2)
+        left = {p for p in targets if alive(p)}
+        if left:
+            signal_all(left, signal.SIGKILL)
+
+    verb = "would stop" if a.dry_run else "stopped"
+    print("%s: %s %d process(es)" % (tag, verb, len(targets)))
+    for pid in sorted(targets):
+        print("  %s %d  %s" % (verb, pid, procs[pid][4][:150]))
+    for pid in kept:
+        print("  left running %d (%s)  %s" % (pid, why[pid], procs[pid][4][:150]))
+    slot = slot_for(forms)
+    if slot:
+        print("  slot %s is still registered for this worktree; `slot destroy %s` drops its databases"
+              % (slot, slot))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:  # a cleanup hook must never fail the removal
+        print("stop-worktree-procs: skipped: %s" % e)
+    sys.exit(0)

@@ -22,10 +22,12 @@ keep mise:npm:@vtsls/language-server        OpenCode TypeScript language server 
 keep mise:npm:@vue/language-server          OpenCode Vue language server (script 41)
 keep mise:npm:@tailwindcss/language-server  OpenCode Tailwind language server (script 41)
 keep mise:rtk                               Claude Code Bash hook on work VMs (script 46)
+keep mise:npm:@sylphx/citra                 Claude's citra MCP server, launched by its shim (script 40)
 keep bin:chezmoi-health                     zshrc and every run script call it
 keep bin:chezmoi-autoupdate                 launchd agent / systemd timer
 keep bin:chezmoi-usage                      this report
 keep bin:chromium                           stable Chromium path for browser tools
+keep bin:stop-worktree-procs                worktrunk pre-remove user hook
 keep cask:font-meslo-lg-nerd-font           terminal font
 keep cask:1password                         SSH agent for the work-server key
 keep cask:alt-tab                           login item; Spotlight never records a launch
