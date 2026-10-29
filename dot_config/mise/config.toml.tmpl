@@ -60,6 +60,12 @@ python = "3.14.7"
 "npm:@vtsls/language-server" = "0.3.0"
 "npm:@vue/language-server" = "3.3.11"
 "npm:@tailwindcss/language-server" = "0.16.0"
+# citra MCP server, registered by binary in script 40. Pinned here instead of
+# `npx -y @sylphx/citra`, which resolved latest on every start and kept an
+# `npm exec` wrapper (50-80 MB) running beside the server in every agent session.
+# Below mise's 1000-weekly-downloads trust threshold (562 on 2026-10-30); approved
+# at this exact version only, which agents were already running through npx.
+"npm:@sylphx/citra" = { version = "8.5.5", allow_low_downloads = true }
 # Reclassified out of the work-only block 2026-08-29: nothing about these is
 # work-specific — they were simply installed on the work Mac first.
 direnv = "2.37.1"

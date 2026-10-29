@@ -61,11 +61,28 @@ with the listed command; none is repaired by the doctor.
   code), so no Postgres smoke pass exists on this account yet. Same root as
   *Postgres MCP divergence* below. *Verify:* after consolidation,
   `ai-tools-doctor --probe --server postgres`.
-- **`citra` is an `npx -y @sylphx/citra` launcher** in all three clients and
-  reported `CONNECTION_CLOSED` at the start of the audited Claude session. The
-  doctor cannot probe it without installing. *Owner:* scripts 40, 41 and 43.
-  *Repair:* install a pinned binary, register that. *Verify:*
-  `ai-tools-doctor --probe --server citra`.
+- **`citra` and `context7` are `npx -y` launchers in Codex and OpenCode.**
+  Each `npx` start keeps an `npm exec` wrapper (50-80 MB) resident beside the
+  server, once per agent session. Claude moved off them 2026-10-30 (script 40):
+  citra is pinned in mise (`npm:@sylphx/citra`, approved below mise's
+  low-downloads threshold at that exact version) and registered by its shim,
+  which execs the server; context7 uses the hosted endpoint
+  `https://mcp.context7.com/mcp` (no key). The doctor now connects to Claude's
+  citra and discovers its 4 tools; no smoke call is defined for it yet.
+  *Owner:* scripts 41 and 43 (plus `create_private_opencode.jsonc.tmpl`).
+  *Repair:* register the same shim and URL there. *Verify:*
+  `ai-tools-doctor --probe --server citra --server context7`.
+- **`citra` is on a usage trial until 2027-01-28.** `chezmoi-usage --unused`
+  found no citra MCP calls in the 90 days to 2026-10-30; Ahmed kept it for
+  another 90. *Decide then:* if `chezmoi-usage --unused` still lists
+  `mcp citra`, retire it from scripts 40/41/43, `create_private_opencode.jsonc.tmpl`,
+  the mise pin and `.usage-keep`.
+- **Doctor misreads Claude's native status.** `claude mcp get` now prints
+  `Status: ✔ Connected`; `native_status()` in `ai_tools_doctor/probe.py`
+  matches `^connected`, so every Claude server reports `native_status_failed`
+  (all passed on 2026-10-08, before the format change). *Repair:* strip the
+  leading status glyph before matching. *Verify:* `ai-tools-doctor --probe
+  --server codebase-memory-mcp` shows `claude mcp get` passed.
 - **Not defects, but limits to remember.** Codex has no per-server status
   command, so Codex native-client proof needs a call from a Codex session
   (`--native-note`). `opencode mcp list` health-checks every server including

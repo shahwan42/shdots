@@ -47,8 +47,17 @@ for _retired in shadcn-ui playwright github github-enterprise postgres; do
 done
 
 # --- shared everywhere (mac + vm, personal + work) ---
-add context7 -- npx -y @upstash/context7-mcp
-add citra -- npx -y @sylphx/citra
+# Hosted streamable-HTTP endpoint (no key needed): no local process per session.
+add context7 --transport http https://mcp.context7.com/mcp
+# Pinned by mise (dot_config/mise). The shim execs the binary, so no `npm exec`
+# wrapper stays resident per session the way `npx -y` did.
+CITRA_BIN="$HOME/.local/share/mise/shims/citra"
+if [ -x "$CITRA_BIN" ]; then
+  add citra -- "$CITRA_BIN"
+else
+  echo "citra: $CITRA_BIN missing; run 'mise install' (script 20) and re-run this script" >&2
+  hn citra fail "mise-pinned binary missing"
+fi
 
 # Pin the validated binary release; installation never runs upstream main.
 {{ includeTemplate "codebase-memory-install.sh" . }}
