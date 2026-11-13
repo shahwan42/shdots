@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.as.claude-personal-relaunch</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{ .chezmoi.homeDir }}/.local/bin/claude-personal-relaunch</string>
+	</array>
+	<!-- Claude.app's Info.plist is rewritten by every auto-update. -->
+	<key>WatchPaths</key>
+	<array>
+		<string>/Applications/Claude.app/Contents/Info.plist</string>
+	</array>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<key>StandardErrorPath</key>
+	<string>{{ .chezmoi.homeDir }}/.cache/claude-personal-relaunch.log</string>
+	<key>StandardOutPath</key>
+	<string>{{ .chezmoi.homeDir }}/.cache/claude-personal-relaunch.log</string>
+</dict>
+</plist>

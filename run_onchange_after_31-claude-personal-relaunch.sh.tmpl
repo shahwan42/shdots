@@ -1,0 +1,16 @@
+#!/bin/sh
+{{ if eq .kind "mac" -}}
+# (Re)load the agent that reopens the Claude Personal profile after app updates.
+# Non-fatal: a launchd hiccup must not fail `chezmoi apply`.
+#
+# plist hash: {{ include "Library/LaunchAgents/com.as.claude-personal-relaunch.plist.tmpl" | sha256sum }}
+set -u
+PLIST="$HOME/Library/LaunchAgents/com.as.claude-personal-relaunch.plist"
+if [ -f "$PLIST" ]; then
+  launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$PLIST" \
+    && echo "launchd: claude-personal-relaunch agent loaded" \
+    || echo "launchd: could not load $PLIST (load it manually)"
+fi
+{{ end -}}
+exit 0

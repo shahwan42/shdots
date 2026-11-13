@@ -1,0 +1,17 @@
+#!/bin/sh
+# Reopen the "Claude Personal" desktop profile after Claude.app auto-updates.
+# The updater (ShipIt) quits every instance and relaunches only the main profile;
+# launchd runs this when /Applications/Claude.app/Contents/Info.plist changes.
+set -u
+LOG="$HOME/.cache/claude-personal-relaunch.log"
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# Let ShipIt finish installing and relaunching the main profile.
+sleep 25
+
+if pgrep -f -- '--user-data-dir=.*/Claude-Personal' >/dev/null 2>&1; then
+  log "personal profile already running; nothing to do"
+  exit 0
+fi
+log "personal profile not running after update; relaunching"
+exec "$HOME/.local/bin/claude-personal-desktop"

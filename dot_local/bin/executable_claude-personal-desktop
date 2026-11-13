@@ -1,0 +1,3 @@
+#!/bin/sh
+# Second Claude desktop instance for the personal login (own data folder + own Claude Code config dir).
+exec open -n -a Claude --env CLAUDE_CONFIG_DIR="$HOME/.claude-personal" --args --user-data-dir="$HOME/Library/Application Support/Claude-Personal"
