@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Claude Code PreToolUse hook: refuse two Bash commands that always fail on macOS.
+
+Blocks `sed -i` without a backup suffix argument (BSD sed treats the next word
+as the suffix) and `git rev-parse --short|--verify` given more than one
+revision. The refusal tells the agent the working form.
+"""
+import json
+import re
+import shlex
+import sys
+
+def segments(command):
+    for segment in re.split(r"[;&|\n]+", command):
+        try:
+            yield shlex.split(segment)
+        except ValueError:
+            continue
+
+
+def sed_problem(command):
+    for words in segments(command):
+        if not words or words[0] != "sed":
+            continue
+        for index, word in enumerate(words[1:], start=1):
+            if re.fullmatch(r"-[a-zA-Z]*i", word) and index + 1 < len(words) and words[index + 1] != "":
+                return "BSD sed needs `sed -i '' 's/a/b/' file`; for multi-line edits use a short Python script."
+    return None
+
+
+def rev_parse_problem(command):
+    for words in segments(command):
+        if "rev-parse" not in words:
+            continue
+        rest = words[words.index("rev-parse") + 1:]
+        if not any(w in ("--short", "--verify") or w.startswith("--short=") for w in rest):
+            continue
+        revisions = [w for w in rest if not w.startswith("-")]
+        if len(revisions) > 1:
+            return "`git rev-parse --short|--verify` takes one revision; run it once per revision."
+    return None
+
+
+def main():
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return 0
+    if event.get("tool_name") != "Bash":
+        return 0
+    command = (event.get("tool_input") or {}).get("command") or ""
+    problem = sed_problem(command) or rev_parse_problem(command)
+    if problem:
+        print(f"Blocked: {problem}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

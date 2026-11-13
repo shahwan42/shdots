@@ -10,6 +10,10 @@
 #   hooks.SessionStart one entry running ~/.local/bin/pr-watch-hook, which starts
 #                      the read-only PR watch loop in chosen work repos. Added
 #                      only when missing; other hooks are left alone.
+#   hooks.PreToolUse   one Bash entry running ~/.local/bin/shell-guard-hook, which
+#                      refuses `sed -i` without a suffix argument and a
+#                      two-revision `git rev-parse --short`. Added only when
+#                      missing.
 #   permissions.allow  read-only MCP tools (search, get, read, list). Entries
 #                      are only added, never removed or reordered. The Foodics
 #                      tools (Sentry, Datadog, Atlassian, Slack, Laravel Boost)
@@ -45,6 +49,7 @@ OWNED = {"cleanupPeriodDays": 90}
 
 path = pathlib.Path.home() / ".claude" / "settings.json"
 HOOK = str(pathlib.Path.home() / ".local" / "bin" / "pr-watch-hook")
+GUARD = str(pathlib.Path.home() / ".local" / "bin" / "shell-guard-hook")
 
 ALLOW = [
     "mcp__codebase-memory-mcp__trace_path",
@@ -83,7 +88,16 @@ if hook_missing:
         "matcher": "startup|resume",
         "hooks": [{"type": "command", "command": HOOK, "timeout": 10}],
     })
-if hook_missing or allow_missing or any(settings.get(k) != v for k, v in OWNED.items()):
+pre_tool_use = settings["hooks"].setdefault("PreToolUse", [])
+guard_missing = not any(
+    h.get("command") == GUARD for entry in pre_tool_use for h in entry.get("hooks", [])
+)
+if guard_missing:
+    pre_tool_use.append({
+        "matcher": "Bash",
+        "hooks": [{"type": "command", "command": GUARD, "timeout": 5}],
+    })
+if hook_missing or guard_missing or allow_missing or any(settings.get(k) != v for k, v in OWNED.items()):
     settings.update(OWNED)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.chezmoi-tmp")
@@ -93,7 +107,7 @@ if hook_missing or allow_missing or any(settings.get(k) != v for k, v in OWNED.i
     os.replace(tmp, path)
 PY
 then
-  hn settings ok "cleanupPeriodDays=90, pr-watch-hook, allowlist"
+  hn settings ok "cleanupPeriodDays=90, pr-watch-hook, shell-guard-hook, allowlist"
 else
   echo "claude settings: could not update ~/.claude/settings.json (invalid JSON?); left unchanged." >&2
   hn settings fail "could not merge owned keys into settings.json"
