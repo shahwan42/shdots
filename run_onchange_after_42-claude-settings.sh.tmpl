@@ -2,6 +2,8 @@
 # Sets the Claude Code settings shdots owns in ~/.claude/settings.json. Claude
 # writes that file itself (permissions, plugins, theme), so chezmoi cannot own
 # it whole; this merges only the keys below and leaves every other key alone.
+# Applies to ~/.claude and to every ~/.claude-* account directory that already
+# has a settings.json (a second Claude account keeps its own config directory).
 # Re-runs whenever this rendered script changes.
 #
 #   cleanupPeriodDays  transcripts are chezmoi-usage's evidence for skills and
@@ -40,6 +42,7 @@ if [ ! -x "$PYTHON" ]; then
   exit 0
 fi
 
+apply_settings() {
 if "$PYTHON" - <<'PY'
 import json
 import os
@@ -47,7 +50,7 @@ import pathlib
 
 OWNED = {"cleanupPeriodDays": 90}
 
-path = pathlib.Path.home() / ".claude" / "settings.json"
+path = pathlib.Path(os.environ["CLAUDE_SETTINGS_DIR"]) / "settings.json"
 HOOK = str(pathlib.Path.home() / ".local" / "bin" / "pr-watch-hook")
 GUARD = str(pathlib.Path.home() / ".local" / "bin" / "shell-guard-hook")
 
@@ -109,8 +112,15 @@ PY
 then
   hn settings ok "cleanupPeriodDays=90, pr-watch-hook, shell-guard-hook, allowlist"
 else
-  echo "claude settings: could not update ~/.claude/settings.json (invalid JSON?); left unchanged." >&2
+  echo "claude settings: could not update $CLAUDE_SETTINGS_DIR/settings.json (invalid JSON?); left unchanged." >&2
   hn settings fail "could not merge owned keys into settings.json"
 fi
+}
+
+for CLAUDE_SETTINGS_DIR in "$HOME/.claude" "$HOME"/.claude-*; do
+  [ "$CLAUDE_SETTINGS_DIR" = "$HOME/.claude" ] || [ -f "$CLAUDE_SETTINGS_DIR/settings.json" ] || continue
+  export CLAUDE_SETTINGS_DIR
+  apply_settings
+done
 
 exit 0
