@@ -5,6 +5,9 @@
 - External conditions (CI, PR state, ports): use Monitor with a bounded until-loop when available; otherwise use one bounded background Bash until-loop. Act on its notification, not repeated Bash polls.
 - Foreground `sleep` and `sleep N; check` are forbidden, including server-readiness waits; use the external-condition rule above.
 
+**Deferred tools**
+- A tool listed by name only has no schema yet: load it with `ToolSearch` (`select:<name>`) before its first call, or the call goes out with empty arguments and fails. For PR binding, load `mcp__ccd_pr__bind_pr` and pass the PR URL printed by `gh pr create`.
+
 **Briefing subagents**
 - Every subagent brief says: "Do not call `update_plan` or `wrap_up`; the main session owns the task list and the wrap-up. Return your findings as your final message." Subagents that call them are refused and waste the call.
 {{ if and (eq .kind "vm") (eq .role "work") }}
