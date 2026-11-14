@@ -103,6 +103,13 @@ Library
 .claude/skills/browser-harness
 {{ end -}}
 
+{{ if not (and (eq .kind "mac") (includeTemplate "has-personal" .) (stat (joinPath .chezmoi.homeDir ".paseo/config.json"))) -}}
+# The Paseo "Claude (personal)" provider merges into the config Paseo writes on
+# first launch. Before that file exists (or without a personal login) there is
+# nothing to merge into, and creating ~/.paseo here would pre-empt Paseo's defaults.
+.paseo
+{{ end -}}
+
 {{ if not (includeTemplate "has-combined" .) -}}
 # Dedicated accounts carry one identity. Only a combined account renders the
 # remote-matched work include (the old directory-based override is retired).

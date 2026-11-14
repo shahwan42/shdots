@@ -1,0 +1,16 @@
+#!/bin/sh
+# Paseo owns ~/.paseo/config.json (its UI rewrites it), so chezmoi merges one key
+# instead of managing the file: a "Claude (personal)" provider that reads the
+# second Claude login's sessions. Paseo's daemon starts without the shell's
+# CLAUDE_CONFIG_DIR, so its built-in Claude provider only sees ~/.claude.
+# Keys already on the provider (models, order, enabled) are kept; jq preserves
+# key order and Paseo's 2-space layout, so a converged file stays byte-identical.
+# Gated in .chezmoiignore.tmpl: Macs with a personal identity, after Paseo has
+# created the file (an empty stdin never reaches this script).
+exec jq --arg dir "$HOME/.claude-personal" '
+  .agents.providers["claude-personal"] |= ((. // {}) + {
+    extends: "claude",
+    label: "Claude (personal)",
+    env: ((.env // {}) + {CLAUDE_CONFIG_DIR: $dir})
+  })
+'
