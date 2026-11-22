@@ -97,4 +97,17 @@ stopped.send_signal(signal.SIGTERM)
 assert stopped.wait(timeout=5) == 128 + signal.SIGTERM, stopped.returncode
 assert 'slot 1: free' in heavy('status').stdout
 
+# Every run leaves one log line, and the report sums them up per project.
+import json
+log = [json.loads(line) for line in (Path(state) / 'log.jsonl').read_text().splitlines()]
+outcomes = [event['outcome'] for event in log]
+assert outcomes.count('gave_up') == 2 and 'not_started' in outcomes, outcomes
+assert all({'at', 'label', 'cwd', 'waited', 'ahead', 'load_arrived'} <= set(event) for event in log), log
+three = next(event for event in log if 'echo three' in event['label'])
+assert three['outcome'] == 'ran' and three['exit'] == 0 and three['waited'] >= 1 and three['ahead'] == 3, three
+assert next(event for event in log if event.get('exit') == 143)
+text = heavy('report').stdout
+assert f'{len(log)} runs' in text and '2 gave up' in text and 'by project:' in text, text
+assert 'no runs logged' in heavy('report', HEAVY_STATE_DIR=tempfile.mkdtemp(prefix='heavy-empty-')).stdout
+
 print('heavy: ok')

@@ -8,6 +8,7 @@ work queues here instead of colliding.
   heavy run [--wait SECONDS] [--label TEXT] -- <command> [args...]
   heavy status
   heavy procs
+  heavy report [--days N]
 
 `run` takes a slot, runs the command at a lower CPU priority, and returns its
 exit code. With no slot free it waits, printing who holds them, and gives up
@@ -17,6 +18,11 @@ so a hook that calls a gated script cannot deadlock.
 
 `procs` prints the worker count, for a caller that builds the command line
 before it has a slot.
+
+Every run adds one line to ~/.local/state/heavy/log.jsonl: when it arrived, how
+long it waited and ran, how many were ahead, the machine load before and after,
+and how it ended. `report` sums those up per project, so the slot and worker
+counts can follow what the queue really does.
 
 The command sees HEAVY_HELD=1 and HEAVY_PROCS (how many workers it may start).
 
@@ -35,6 +41,7 @@ numbered ticket in queue/ the same way, and only the oldest live ticket may take
 a slot; a waiter that dies drops out of the line.
 """
 import argparse
+import datetime
 import errno
 import fcntl
 import json
@@ -49,6 +56,8 @@ QUEUE_DIR = os.path.join(STATE_DIR, "queue")
 EXIT_BUSY = 75  # EX_TEMPFAIL: try again later
 POLL_SECONDS = 0.5
 REMIND_SECONDS = 60
+LOG_PATH = os.path.join(STATE_DIR, "log.jsonl")
+LOG_MAX_BYTES = 5_000_000
 
 
 def setting(name, default):
@@ -152,20 +161,24 @@ def leave_queue(number, handle):
 
 
 def acquire(slots, wait):
+    """(slot number, its locked file, how many were ahead on arrival); no slot in time gives (None, None, ahead)."""
     started = time.monotonic()
     reminded = None
+    first_ahead = None
     number, ticket = join_queue()
     try:
         while True:
             ahead = ahead_of(number)
+            if first_ahead is None:
+                first_ahead = ahead
             if ahead == 0:
                 for index in range(1, slots + 1):
                     handle = try_lock(index)
                     if handle:
-                        return index, handle
+                        return index, handle, first_ahead
             waited = time.monotonic() - started
             if waited >= wait:
-                return None, None
+                return None, None, first_ahead
             if reminded is None or waited - reminded >= REMIND_SECONDS:
                 reminded = waited
                 now = time.time()
@@ -177,6 +190,20 @@ def acquire(slots, wait):
         leave_queue(number, ticket)
 
 
+def record(**event):
+    """Add one line to the log. A full log is set aside once, so the files stay small."""
+    try:
+        if os.path.getsize(LOG_PATH) > LOG_MAX_BYTES:
+            os.replace(LOG_PATH, LOG_PATH + ".1")
+    except OSError:
+        pass
+    try:
+        with open(LOG_PATH, "a") as log:
+            log.write(json.dumps(event) + "\n")
+    except OSError:
+        pass
+
+
 def run(args):
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
@@ -186,24 +213,34 @@ def run(args):
 
     os.makedirs(QUEUE_DIR, mode=0o700, exist_ok=True)
     wait = args.wait if args.wait is not None else setting("HEAVY_WAIT", 900)
-    index, handle = acquire(setting("HEAVY_SLOTS", 1), wait)
+    slots = setting("HEAVY_SLOTS", 1)
+    label = args.label or " ".join(command)[:80]
+    arrived = time.time()
+    load_arrived = round(os.getloadavg()[0], 1)
+    index, handle, ahead = acquire(slots, wait)
+    began = time.time()
+    event = {"at": round(arrived), "label": label, "cwd": os.getcwd(), "ahead": ahead,
+             "waited": round(began - arrived, 1), "slots": slots, "load_arrived": load_arrived}
     if handle is None:
+        record(**event, outcome="gave_up")
         print(f"heavy: no slot came free in {wait}s; nothing was run. Try again, or see `heavy status`.",
               file=sys.stderr)
         return EXIT_BUSY
 
     handle.seek(0)
     handle.truncate()
-    json.dump({"pid": os.getpid(), "cwd": os.getcwd(), "since": time.time(),
-               "label": args.label or " ".join(command)[:80]}, handle)
+    json.dump({"pid": os.getpid(), "cwd": os.getcwd(), "since": began, "label": label}, handle)
     handle.flush()
 
-    env = dict(os.environ, HEAVY_HELD="1", HEAVY_PROCS=str(setting("HEAVY_PROCS", 10)))
+    workers = setting("HEAVY_PROCS", 10)
+    event.update(procs=workers, load_start=round(os.getloadavg()[0], 1))
+    env = dict(os.environ, HEAVY_HELD="1", HEAVY_PROCS=str(workers))
     niceness = setting("HEAVY_NICE", 10)
     try:
         child = subprocess.Popen(command, env=env, preexec_fn=lambda: os.nice(niceness))
     except OSError as error:
         print(f"heavy: cannot run {command[0]}: {error.strerror}", file=sys.stderr)
+        record(**event, outcome="not_started")
         return 127
 
     # Pass a stop request on to the command, then report how it ended.
@@ -213,7 +250,10 @@ def run(args):
     handle.seek(0)
     handle.truncate()
     handle.close()
-    return 128 - code if code < 0 else code
+    code = 128 - code if code < 0 else code
+    record(**event, outcome="ran", ran=round(time.time() - began, 1), exit=code,
+           load_end=round(os.getloadavg()[0], 1))
+    return code
 
 
 def status(_args):
@@ -239,6 +279,93 @@ def procs(_args):
     return 0
 
 
+def project(cwd):
+    """The repository a run belongs to: the folder after `worktrees`, else the last folder of its path."""
+    parts = [part for part in cwd.split(os.sep) if part]
+    if "worktrees" in parts[:-1]:
+        return parts[parts.index("worktrees") + 1]
+    return parts[-1] if parts else "/"
+
+
+def events(days):
+    since = time.time() - days * 86400
+    found = []
+    for path in (LOG_PATH + ".1", LOG_PATH):
+        try:
+            with open(path) as log:
+                for line in log:
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(event, dict) and event.get("at", 0) >= since:
+                        found.append(event)
+        except OSError:
+            continue
+    return found
+
+
+def spread(values):
+    """Median, 95th percentile and largest of a list of seconds, as whole seconds."""
+    ordered = sorted(values)
+    if not ordered:
+        return "-"
+    pick = lambda share: ordered[min(len(ordered) - 1, int(share * len(ordered)))]
+    return f"median {pick(0.5):.0f}s, p95 {pick(0.95):.0f}s, max {ordered[-1]:.0f}s"
+
+
+def report(args):
+    found = events(args.days)
+    if not found:
+        print(f"heavy: no runs logged in the last {args.days} day(s)")
+        return 0
+    ran = [e for e in found if e.get("outcome") == "ran"]
+    gave_up = [e for e in found if e.get("outcome") == "gave_up"]
+    waits = [e.get("waited", 0) for e in found]
+    queued = [e for e in found if e.get("waited", 0) >= 5]
+    held = sum(e.get("ran", 0) for e in ran)
+    span = max(time.time() - min(e["at"] for e in found), 1)
+    cores = os.cpu_count() or 1
+
+    print(f"heavy: last {args.days} day(s): {len(found)} runs, {len(queued)} waited 5s or more, "
+          f"{len(gave_up)} gave up, {sum(1 for e in ran if e.get('exit'))} failed")
+    print(f"  wait   {spread(waits)}")
+    print(f"  run    {spread([e.get('ran', 0) for e in ran])}")
+    print(f"  slot   in use {100 * held / span:.0f}% of the time since the first run; "
+          f"longest line {max(e.get('ahead') or 0 for e in found)} ahead")
+    free_starts = [e["load_start"] for e in ran if e.get("waited", 0) < 5 and "load_start" in e]
+    crowded = [load for load in free_starts if load > cores * 0.7]
+    print(f"  load   {len(crowded)} of {len(free_starts)} runs that did not wait started on a machine "
+          f"already above load {cores * 0.7:.0f}")
+
+    print("  by project:")
+    groups = {}
+    for event in found:
+        groups.setdefault(project(event.get("cwd", "?")), []).append(event)
+    for name, group in sorted(groups.items(), key=lambda item: -len(item[1])):
+        runs = [e.get("ran", 0) for e in group if e.get("outcome") == "ran"]
+        print(f"    {name:<28} {len(group):>4} runs   wait {spread([e.get('waited', 0) for e in group])}   "
+              f"run {spread(runs)}")
+
+    by_hour = {}
+    for event in found:
+        hour = datetime.datetime.fromtimestamp(event["at"]).strftime("%a %H:00")
+        by_hour.setdefault(hour, []).append(event.get("waited", 0))
+    hour, hour_waits = max(by_hour.items(), key=lambda item: sum(item[1]))
+    if sum(hour_waits) >= 60:
+        print(f"  worst hour: {hour}, {len(hour_waits)} runs waited {sum(hour_waits):.0f}s in all")
+
+    ordered = sorted(waits)
+    p95 = ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
+    if gave_up or p95 > 300:
+        print("  read: waits are long. Run fewer full suites (a narrow run, or CI) before adding a slot: "
+              "two suites at once measured slower per run than one after the other.")
+    if len(crowded) * 4 > len(free_starts) > 0:
+        print("  read: the machine was often busy while the slot was free, so heavy work is running "
+              "outside the gate. Check what filled the cores at those times.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(prog="heavy", description="Machine-wide gate for commands that fill the CPU.")
     actions = parser.add_subparsers(dest="action", required=True)
@@ -249,6 +376,9 @@ def main():
     runner.set_defaults(handler=run)
     actions.add_parser("status", help="show who holds the slots and how many wait").set_defaults(handler=status)
     actions.add_parser("procs", help="print how many workers one command may start").set_defaults(handler=procs)
+    reporter = actions.add_parser("report", help="sum up the logged runs: waits, run times, who queued")
+    reporter.add_argument("--days", type=int, default=7, help="how far back to look (default 7)")
+    reporter.set_defaults(handler=report)
     args = parser.parse_args()
     return args.handler(args)
 
