@@ -3,14 +3,23 @@
 
 Blocks `sed -i` without a backup suffix argument (BSD sed treats the next word
 as the suffix) and `git rev-parse --short|--verify` given more than one
-revision, which always fail on macOS. Also blocks a parallel PHP test run that
-skips the machine-wide `heavy` gate, because several of those at once fill every
-core. The refusal tells the agent the working form.
+revision, which always fail on macOS. Also blocks a full test run that skips
+the machine-wide `heavy` gate, because several of those at once fill every
+core: a parallel PHP test run, a repository's own full-suite script, and a push
+from a repository whose pre-push hook runs the suite. The refusal tells the
+agent the working form.
 """
 import json
 import re
 import shlex
 import sys
+
+# Repositories whose pre-push hook runs the full suite, and the scripts in them that do.
+SUITE_ON_PUSH = ("capital-api",)
+SUITE_SCRIPTS = ("scripts/tests", "scripts/pre-push")
+PARTIAL_MODES = ("arch", "shard")
+QUEUE_HINT = "Put `heavy run --` in front of the same command, and run it in the background if the wait may be long."
+
 
 def segments(command):
     for segment in re.split(r"[;&|\n]+", command):
@@ -53,8 +62,50 @@ def parallel_tests_problem(command):
         pest = "pest" in names and "--parallel" in words
         if artisan or pest or "paratest" in names:
             return ("a parallel test run fills the cores, so it queues behind the machine-wide gate. "
-                    "Put `heavy run --` in front of the same command, and run it in the background if the wait "
-                    "may be long. `scripts/tests` and `slot test --parallel` queue by themselves.")
+                    f"{QUEUE_HINT} `slot test --parallel` queues by itself.")
+    return None
+
+
+def command_words(words):
+    """The words of one command without its parentheses and leading VAR=value assignments."""
+    words = [word.strip("(){}") for word in words]
+    words = [word for word in words if word]
+    while words and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[0]):
+        words = words[1:]
+    return words
+
+
+def suite_script_problem(command):
+    for words in segments(command):
+        words = command_words(words)
+        names = [word.rsplit("/", 1)[-1] for word in words]
+        if not words or "heavy" in names:
+            continue
+        runner = names[0].startswith("php") or names[0] in ("sh", "bash", "zsh", "sail")
+        for index, word in enumerate(words):
+            if not any(word == script or word.endswith("/" + script) for script in SUITE_SCRIPTS):
+                continue
+            if index and not runner:
+                continue
+            if words[index + 1:index + 2] and words[index + 1] in PARTIAL_MODES:
+                continue
+            return f"`{word}` runs the full test suite, which queues behind the machine-wide gate. {QUEUE_HINT}"
+    return None
+
+
+def push_problem(command, cwd):
+    if not any(name in cwd or name in command for name in SUITE_ON_PUSH):
+        return None
+    for words in segments(command):
+        words = command_words(words)
+        if not words or words[0].rsplit("/", 1)[-1] != "git":
+            continue
+        rest = words[1:]
+        while rest and rest[0].startswith("-"):
+            rest = rest[2:] if rest[0] in ("-C", "-c") else rest[1:]
+        if rest[:1] == ["push"] and "--dry-run" not in rest:
+            return ("a push from this repository runs the full test suite in its pre-push hook, which queues "
+                    f"behind the machine-wide gate. {QUEUE_HINT}")
     return None
 
 
@@ -66,7 +117,8 @@ def main():
     if event.get("tool_name") != "Bash":
         return 0
     command = (event.get("tool_input") or {}).get("command") or ""
-    problem = sed_problem(command) or rev_parse_problem(command) or parallel_tests_problem(command)
+    problem = (sed_problem(command) or rev_parse_problem(command) or parallel_tests_problem(command)
+               or suite_script_problem(command) or push_problem(command, event.get("cwd") or ""))
     if problem:
         print(f"Blocked: {problem}", file=sys.stderr)
         return 2
