@@ -13,6 +13,19 @@ BLOCKED = [
     "sed -i -e 's/a/b/' file",
     "git rev-parse --short origin/main HEAD",
     "git fetch -q && git rev-parse --verify a b",
+    "php artisan test --parallel --compact",
+    "cd repo && /opt/homebrew/opt/php@8.4/bin/php artisan test --parallel --processes=14",
+    "(cd repo && APP_ENV=testing php artisan test --parallel)",
+    "vendor/bin/sail artisan test --parallel",
+    "vendor/bin/pest --parallel",
+    "php vendor/bin/paratest --processes=14 > log 2>&1",
+    "php scripts/tests",
+    "cd repo && APP_ENV=testing /opt/homebrew/opt/php@8.4/bin/php scripts/tests > log 2>&1",
+    "./scripts/tests all",
+    "vendor/bin/sail php scripts/tests",
+    "sh scripts/pre-push </dev/null",
+    "cd ~/Code/worktrees/capital-api/x && git push -u origin x",
+    "GIT_SSH_COMMAND='ssh -o ServerAliveInterval=20' git -C ~/Code/foodics/capital/capital-api push",
 ]
 ALLOWED = [
     "sed -i '' 's/a/b/' file",
@@ -25,11 +38,28 @@ ALLOWED = [
     "ls -i file",
     "git commit -m 'avoid sed -i x on macOS'",
     "echo 'sed -i s/a/b/ f' > note.txt",
+    "heavy run -- php artisan test --parallel --compact",
+    "cd repo && ~/.local/bin/heavy run --label suite -- vendor/bin/pest --parallel",
+    "php artisan test --compact tests/Feature/FooTest.php",
+    "vendor/bin/pest --filter=testName",
+    "heavy run -- php scripts/tests",
+    "php scripts/tests arch",
+    "php scripts/tests shard",
+    "rg -n processes scripts/tests",
+    "git add scripts/tests scripts/pre-push",
+    "cat scripts/pre-push",
+    "cd ~/Code/worktrees/capital-api/x && heavy run -- git push -u origin x",
+    "cd ~/Code/worktrees/capital-api/x && git push --dry-run origin x",
+    "cd ~/Code/worktrees/capital-api/x && git status && git log --oneline -3",
+    "cd ~/Code/worktrees/chezmoi/x && git push -u origin x",
+    "slot test cp-api --parallel phpunit",
+    "git commit -m 'stop running artisan test --parallel twice'",
+    "rg -n 'artisan test --parallel' scripts",
 ]
 
 
-def run(command, tool='Bash'):
-    event = {'tool_name': tool, 'tool_input': {'command': command}}
+def run(command, tool='Bash', cwd='/tmp'):
+    event = {'tool_name': tool, 'tool_input': {'command': command}, 'cwd': cwd}
     return subprocess.run(['python3', str(HOOK)], input=json.dumps(event),
                           text=True, capture_output=True)
 
@@ -41,6 +71,10 @@ for command in ALLOWED:
     result = run(command)
     assert result.returncode == 0 and not result.stderr, (command, result)
 assert run("sed -i 's/a/b/' f", tool='Read').returncode == 0
+# A push is judged by where it runs: only a repository whose pre-push hook runs the suite.
+assert run('git push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 2
+assert run('heavy run -- git push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 0
+assert run('git push', cwd='/Users/x/Code/foodics/capital/capital-admin').returncode == 0
 bad = subprocess.run(['python3', str(HOOK)], input='not json', text=True, capture_output=True)
 assert bad.returncode == 0
 print('shell guard hook ok')
