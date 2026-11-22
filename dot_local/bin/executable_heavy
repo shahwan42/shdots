@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""heavy — machine-wide gate for commands that fill the CPU.
+
+Agents and people on this Mac share one set of cores. Two full test suites at
+once take as long as running them back to back and double the load, so heavy
+work queues here instead of colliding.
+
+  heavy run [--wait SECONDS] [--label TEXT] -- <command> [args...]
+  heavy status
+  heavy procs
+
+`run` takes a slot, runs the command at a lower CPU priority, and returns its
+exit code. With no slot free it waits, printing who holds them, and gives up
+with exit 75 after --wait seconds. Waiting commands start strictly in the order
+they arrived. A `heavy run` started inside another one runs straight through,
+so a hook that calls a gated script cannot deadlock.
+
+`procs` prints the worker count, for a caller that builds the command line
+before it has a slot.
+
+The command sees HEAVY_HELD=1 and HEAVY_PROCS (how many workers it may start).
+
+Tuning, by environment variable:
+  HEAVY_SLOTS  commands allowed at once          (default 1)
+  HEAVY_PROCS  workers one command may start     (default 10)
+  HEAVY_WAIT   seconds to wait for a slot        (default 900)
+  HEAVY_NICE   niceness added to the command     (default 10)
+
+Measured on the 14-core M4 Pro: one Capital suite at 10 workers takes 57 s at
+load 9; two at once take 100 s each at load 20.
+
+A slot is an exclusive flock on ~/.local/state/heavy/slot-N.lock, so a holder
+that crashes or is killed frees its slot at once. Each waiting command holds a
+numbered ticket in queue/ the same way, and only the oldest live ticket may take
+a slot; a waiter that dies drops out of the line.
+"""
+import argparse
+import errno
+import fcntl
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+
+STATE_DIR = os.environ.get("HEAVY_STATE_DIR") or os.path.expanduser("~/.local/state/heavy")
+QUEUE_DIR = os.path.join(STATE_DIR, "queue")
+EXIT_BUSY = 75  # EX_TEMPFAIL: try again later
+POLL_SECONDS = 0.5
+REMIND_SECONDS = 60
+
+
+def setting(name, default):
+    try:
+        value = int(os.environ.get(name, default))
+    except ValueError:
+        sys.exit(f"heavy: {name} must be a whole number")
+    if value < 0 or (name == "HEAVY_SLOTS" and value < 1):
+        sys.exit(f"heavy: {name} is out of range")
+    return value
+
+
+def slot_path(index):
+    return os.path.join(STATE_DIR, f"slot-{index}.lock")
+
+
+def try_lock(index):
+    """An open, locked file for the slot, or None while someone else holds it."""
+    handle = open(slot_path(index), "a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        handle.close()
+        if error.errno in (errno.EWOULDBLOCK, errno.EACCES):
+            return None
+        raise
+    return handle
+
+
+def holder(index):
+    try:
+        with open(slot_path(index)) as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def describe(index, now):
+    info = holder(index)
+    if not info:
+        return f"slot {index}: held"
+    age = int(now - info.get("since", now))
+    return f"slot {index}: {info.get('label', '?')} in {info.get('cwd', '?')} (pid {info.get('pid', '?')}, {age}s)"
+
+
+def queue_lock():
+    """Hold this while reading or changing the line, so nobody sees a ticket half made."""
+    handle = open(os.path.join(STATE_DIR, "queue.lock"), "a+")
+    fcntl.flock(handle, fcntl.LOCK_EX)
+    return handle
+
+
+def tickets():
+    """Ticket numbers in the line, oldest first. Call with the queue lock held."""
+    return sorted(int(name) for name in os.listdir(QUEUE_DIR) if name.isdigit())
+
+
+def ticket_path(number):
+    return os.path.join(QUEUE_DIR, f"{number:012d}")
+
+
+def ahead_of(number):
+    """How many live waiters arrived before this ticket; None waits for every ticket.
+
+    A ticket nobody holds a lock on belongs to a waiter that died, so it is removed.
+    """
+    ahead = 0
+    with queue_lock():
+        for other in tickets():
+            if number is not None and other >= number:
+                break
+            try:
+                handle = open(ticket_path(other), "a+")
+            except OSError:
+                continue
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                ahead += 1
+            else:
+                os.unlink(ticket_path(other))
+            handle.close()
+    return ahead
+
+
+def join_queue():
+    with queue_lock():
+        number = max(tickets(), default=0) + 1
+        handle = open(ticket_path(number), "a+")
+        fcntl.flock(handle, fcntl.LOCK_EX)
+    return number, handle
+
+
+def leave_queue(number, handle):
+    with queue_lock():
+        try:
+            os.unlink(ticket_path(number))
+        except OSError:
+            pass
+        handle.close()
+
+
+def acquire(slots, wait):
+    started = time.monotonic()
+    reminded = None
+    number, ticket = join_queue()
+    try:
+        while True:
+            ahead = ahead_of(number)
+            if ahead == 0:
+                for index in range(1, slots + 1):
+                    handle = try_lock(index)
+                    if handle:
+                        return index, handle
+            waited = time.monotonic() - started
+            if waited >= wait:
+                return None, None
+            if reminded is None or waited - reminded >= REMIND_SECONDS:
+                reminded = waited
+                now = time.time()
+                print(f"heavy: waiting for a slot ({int(waited)}s of {wait}s), {ahead} ahead in line", file=sys.stderr)
+                for index in range(1, slots + 1):
+                    print(f"heavy:   {describe(index, now)}", file=sys.stderr)
+            time.sleep(POLL_SECONDS)
+    finally:
+        leave_queue(number, ticket)
+
+
+def run(args):
+    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    if not command:
+        sys.exit("heavy: nothing to run; usage: heavy run -- <command> [args...]")
+    if os.environ.get("HEAVY_HELD"):
+        os.execvp(command[0], command)
+
+    os.makedirs(QUEUE_DIR, mode=0o700, exist_ok=True)
+    wait = args.wait if args.wait is not None else setting("HEAVY_WAIT", 900)
+    index, handle = acquire(setting("HEAVY_SLOTS", 1), wait)
+    if handle is None:
+        print(f"heavy: no slot came free in {wait}s; nothing was run. Try again, or see `heavy status`.",
+              file=sys.stderr)
+        return EXIT_BUSY
+
+    handle.seek(0)
+    handle.truncate()
+    json.dump({"pid": os.getpid(), "cwd": os.getcwd(), "since": time.time(),
+               "label": args.label or " ".join(command)[:80]}, handle)
+    handle.flush()
+
+    env = dict(os.environ, HEAVY_HELD="1", HEAVY_PROCS=str(setting("HEAVY_PROCS", 10)))
+    niceness = setting("HEAVY_NICE", 10)
+    try:
+        child = subprocess.Popen(command, env=env, preexec_fn=lambda: os.nice(niceness))
+    except OSError as error:
+        print(f"heavy: cannot run {command[0]}: {error.strerror}", file=sys.stderr)
+        return 127
+
+    # Pass a stop request on to the command, then report how it ended.
+    for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(number, lambda received, _frame: child.send_signal(received))
+    code = child.wait()
+    handle.seek(0)
+    handle.truncate()
+    handle.close()
+    return 128 - code if code < 0 else code
+
+
+def status(_args):
+    os.makedirs(QUEUE_DIR, mode=0o700, exist_ok=True)
+    slots = setting("HEAVY_SLOTS", 1)
+    now = time.time()
+    busy = 0
+    for index in range(1, slots + 1):
+        handle = try_lock(index)
+        if handle:
+            handle.close()
+            print(f"slot {index}: free")
+        else:
+            busy += 1
+            print(describe(index, now))
+    print(f"{busy} of {slots} slot(s) in use; {ahead_of(None)} waiting; "
+          f"{setting('HEAVY_PROCS', 10)} workers per command")
+    return 0
+
+
+def procs(_args):
+    print(setting("HEAVY_PROCS", 10))
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="heavy", description="Machine-wide gate for commands that fill the CPU.")
+    actions = parser.add_subparsers(dest="action", required=True)
+    runner = actions.add_parser("run", help="wait for a slot, then run a command")
+    runner.add_argument("--wait", type=int, help="seconds to wait for a slot (default HEAVY_WAIT or 900)")
+    runner.add_argument("--label", help="what `heavy status` shows for this run")
+    runner.add_argument("command", nargs=argparse.REMAINDER)
+    runner.set_defaults(handler=run)
+    actions.add_parser("status", help="show who holds the slots and how many wait").set_defaults(handler=status)
+    actions.add_parser("procs", help="print how many workers one command may start").set_defaults(handler=procs)
+    args = parser.parse_args()
+    return args.handler(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

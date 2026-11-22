@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Claude Code PreToolUse hook: refuse two Bash commands that always fail on macOS.
+"""Claude Code PreToolUse hook: refuse Bash commands that fail or hurt on this Mac.
 
 Blocks `sed -i` without a backup suffix argument (BSD sed treats the next word
 as the suffix) and `git rev-parse --short|--verify` given more than one
-revision. The refusal tells the agent the working form.
+revision, which always fail on macOS. Also blocks a parallel PHP test run that
+skips the machine-wide `heavy` gate, because several of those at once fill every
+core. The refusal tells the agent the working form.
 """
 import json
 import re
@@ -41,6 +43,21 @@ def rev_parse_problem(command):
     return None
 
 
+def parallel_tests_problem(command):
+    for words in segments(command):
+        words = [word.strip("()") for word in words]
+        names = [word.rsplit("/", 1)[-1] for word in words]
+        if "heavy" in names:
+            continue
+        artisan = "artisan" in names and "test" in words and "--parallel" in words
+        pest = "pest" in names and "--parallel" in words
+        if artisan or pest or "paratest" in names:
+            return ("a parallel test run fills the cores, so it queues behind the machine-wide gate. "
+                    "Put `heavy run --` in front of the same command, and run it in the background if the wait "
+                    "may be long. `scripts/tests` and `slot test --parallel` queue by themselves.")
+    return None
+
+
 def main():
     try:
         event = json.load(sys.stdin)
@@ -49,7 +66,7 @@ def main():
     if event.get("tool_name") != "Bash":
         return 0
     command = (event.get("tool_input") or {}).get("command") or ""
-    problem = sed_problem(command) or rev_parse_problem(command)
+    problem = sed_problem(command) or rev_parse_problem(command) or parallel_tests_problem(command)
     if problem:
         print(f"Blocked: {problem}", file=sys.stderr)
         return 2

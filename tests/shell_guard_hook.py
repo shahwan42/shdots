@@ -13,6 +13,12 @@ BLOCKED = [
     "sed -i -e 's/a/b/' file",
     "git rev-parse --short origin/main HEAD",
     "git fetch -q && git rev-parse --verify a b",
+    "php artisan test --parallel --compact",
+    "cd repo && /opt/homebrew/opt/php@8.4/bin/php artisan test --parallel --processes=14",
+    "(cd repo && APP_ENV=testing php artisan test --parallel)",
+    "vendor/bin/sail artisan test --parallel",
+    "vendor/bin/pest --parallel",
+    "php vendor/bin/paratest --processes=14 > log 2>&1",
 ]
 ALLOWED = [
     "sed -i '' 's/a/b/' file",
@@ -25,6 +31,14 @@ ALLOWED = [
     "ls -i file",
     "git commit -m 'avoid sed -i x on macOS'",
     "echo 'sed -i s/a/b/ f' > note.txt",
+    "heavy run -- php artisan test --parallel --compact",
+    "cd repo && ~/.local/bin/heavy run --label suite -- vendor/bin/pest --parallel",
+    "php artisan test --compact tests/Feature/FooTest.php",
+    "vendor/bin/pest --filter=testName",
+    "php scripts/tests",
+    "slot test cp-api --parallel phpunit",
+    "git commit -m 'stop running artisan test --parallel twice'",
+    "rg -n 'artisan test --parallel' scripts",
 ]
 
 

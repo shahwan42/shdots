@@ -13,9 +13,10 @@
 #                      the read-only PR watch loop in chosen work repos. Added
 #                      only when missing; other hooks are left alone.
 #   hooks.PreToolUse   one Bash entry running ~/.local/bin/shell-guard-hook, which
-#                      refuses `sed -i` without a suffix argument and a
-#                      two-revision `git rev-parse --short`. Added only when
-#                      missing.
+#                      refuses `sed -i` without a suffix argument, a
+#                      two-revision `git rev-parse --short`, and a parallel
+#                      PHP test run that skips the `heavy` gate. Added only
+#                      when missing.
 #   permissions.allow  read-only MCP tools (search, get, read, list). Entries
 #                      are only added, never removed or reordered. The Foodics
 #                      tools (Sentry, Datadog, Atlassian, Slack, Laravel Boost)
