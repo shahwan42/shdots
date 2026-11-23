@@ -24,6 +24,12 @@ BLOCKED = [
     "./scripts/tests all",
     "vendor/bin/sail php scripts/tests",
     "sh scripts/pre-push </dev/null",
+    "php scripts/phpunit",
+    "cd ~/Code/foodics/pay/pay && CI_NODE_INDEX=2 php scripts/phpunit > log 2>&1",
+    "scripts/ci-local --base origin/main",
+    "cd ~/Code/worktrees/farm_management_system/x && pnpm ci:local --base origin/main",
+    "cd ~/Code/worktrees/farm_management_system/x && mise exec -- pnpm run test:e2e",
+    "cd ~/Code/worktrees/farm_management_system/x; pnpm test",
     "cd ~/Code/worktrees/capital-api/x && git push -u origin x",
     "GIT_SSH_COMMAND='ssh -o ServerAliveInterval=20' git -C ~/Code/foodics/capital/capital-api push",
 ]
@@ -55,6 +61,18 @@ ALLOWED = [
     "slot test cp-api --parallel phpunit",
     "git commit -m 'stop running artisan test --parallel twice'",
     "rg -n 'artisan test --parallel' scripts",
+    'rg -n "phpunit|artisan test|--parallel|paratest" scripts/pre-push | head -20',
+    "rg -n paratest scripts/phpunit scripts/tests",
+    "echo done; cat scripts/phpunit | head",
+    "php scripts/phpunit --plan",
+    "scripts/ci-local --stop",
+    "cd ~/Code/worktrees/farm_management_system/x && heavy run -- pnpm ci:local --base origin/main",
+    "cd ~/Code/worktrees/farm_management_system/x && pnpm --filter api test",
+    "cd ~/Code/worktrees/farm_management_system/x && pnpm test apps/api/src/one.test.ts",
+    "cd ~/Code/worktrees/farm_management_system/x && pnpm lint && pnpm typecheck",
+    "cd ~/Code/worktrees/farm_management_system/x && git push -u origin x",
+    "cd ~/Code/worktrees/capital-console/x && pnpm test",
+    "cd ~/Code/foodics/pay/pay && git push -u origin x",
 ]
 
 
@@ -75,6 +93,13 @@ assert run("sed -i 's/a/b/' f", tool='Read').returncode == 0
 assert run('git push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 2
 assert run('heavy run -- git push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 0
 assert run('git push', cwd='/Users/x/Code/foodics/capital/capital-admin').returncode == 0
+# A `cd` or `git -C` to another repository wins over the folder the session started in.
+assert run('cd ~/Code/worktrees/chezmoi/x && git push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 0
+assert run('git -C ~/Code/worktrees/chezmoi/x push', cwd='/Users/x/Code/foodics/capital/capital-api').returncode == 0
+assert run('cd ~/Code/worktrees/capital-api/x && git push', cwd='/Users/x/Code/chezmoi').returncode == 2
+# A package script is judged the same way: only where it runs the whole suite.
+assert run('pnpm test', cwd='/Users/x/Code/side-hustle/fms/repos/farm_management_system').returncode == 2
+assert run('pnpm test', cwd='/Users/x/Code/foodics/capital/capital-console').returncode == 0
 bad = subprocess.run(['python3', str(HOOK)], input='not json', text=True, capture_output=True)
 assert bad.returncode == 0
 print('shell guard hook ok')

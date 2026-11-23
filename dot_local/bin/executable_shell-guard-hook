@@ -5,28 +5,70 @@ Blocks `sed -i` without a backup suffix argument (BSD sed treats the next word
 as the suffix) and `git rev-parse --short|--verify` given more than one
 revision, which always fail on macOS. Also blocks a full test run that skips
 the machine-wide `heavy` gate, because several of those at once fill every
-core: a parallel PHP test run, a repository's own full-suite script, and a push
-from a repository whose pre-push hook runs the suite. The refusal tells the
-agent the working form.
+core: a parallel PHP test run, a repository's own full-suite script, a package
+script that runs the whole suite, and a push from a repository whose pre-push
+hook runs the suite. The refusal tells the agent the working form.
 """
 import json
 import re
 import shlex
 import sys
 
-# Repositories whose pre-push hook runs the full suite, and the scripts in them that do.
-SUITE_ON_PUSH = ("capital-api",)
-SUITE_SCRIPTS = ("scripts/tests", "scripts/pre-push")
-PARTIAL_MODES = ("arch", "shard")
+# Scripts that run a full suite wherever they exist, and the arguments that make them light.
+SUITE_SCRIPTS = ("scripts/tests", "scripts/pre-push", "scripts/phpunit", "scripts/ci-local", "scripts/verify-ci")
+PARTIAL_MODES = ("arch", "shard", "--plan", "--help", "--stop")
+# Per repository, by folder name: whether its pre-push hook runs the suite, and which of its
+# package scripts do. A new repository is one more line here.
+REPOSITORIES = {
+    "capital-api": {"push": True},
+    "farm_management_system": {"package_scripts": ("ci:local", "test", "test:e2e", "test:storybook")},
+}
+PACKAGE_RUNNERS = ("pnpm", "npm", "yarn")
+# Commands that only read or record text, so a suite's name among their words runs nothing.
+READERS = ("rg", "grep", "cat", "echo", "printf", "head", "tail", "wc", "ls", "fd", "find", "jq", "sed", "awk",
+           "less", "bat")
 QUEUE_HINT = "Put `heavy run --` in front of the same command, and run it in the background if the wait may be long."
 
 
+def tokens(text):
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=";&|")
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
 def segments(command):
-    for segment in re.split(r"[;&|\n]+", command):
+    """The words of each command in the line. Quoted text stays one word, whatever it holds."""
+    try:
+        lines = [tokens(line) for line in command.split("\n")]
+    except ValueError:
         try:
-            yield shlex.split(segment)
+            lines = [tokens(command)]
         except ValueError:
-            continue
+            lines = [part.split() for part in re.split(r"[;&|\n]+", command)]
+    for line in lines:
+        words = []
+        for word in [*line, ";"]:
+            if word and not word.strip(";&|"):
+                if words:
+                    yield words
+                words = []
+            else:
+                words.append(word)
+
+
+def located(command, cwd):
+    """Each command's words with the folder it runs in: the session's, or the last `cd` before it."""
+    for words in segments(command):
+        words = command_words(words)
+        if words[:1] == ["cd"] and len(words) > 1:
+            cwd = words[1]
+        elif words:
+            yield words, cwd
+
+
+def repositories(where):
+    return [rules for name, rules in REPOSITORIES.items() if name in where]
 
 
 def sed_problem(command):
@@ -54,9 +96,9 @@ def rev_parse_problem(command):
 
 def parallel_tests_problem(command):
     for words in segments(command):
-        words = [word.strip("()") for word in words]
+        words = command_words(words)
         names = [word.rsplit("/", 1)[-1] for word in words]
-        if "heavy" in names:
+        if not words or "heavy" in names or names[0] in READERS:
             continue
         artisan = "artisan" in names and "test" in words and "--parallel" in words
         pest = "pest" in names and "--parallel" in words
@@ -93,17 +135,37 @@ def suite_script_problem(command):
     return None
 
 
+def package_script_problem(command, cwd):
+    for words, where in located(command, cwd):
+        scripts = [script for rules in repositories(where) for script in rules.get("package_scripts", ())]
+        names = [word.rsplit("/", 1)[-1] for word in words]
+        runner = next((index for index, name in enumerate(names) if name in PACKAGE_RUNNERS), None)
+        if runner is None or "heavy" in names or names[0] in READERS:
+            continue
+        rest = words[runner + 1:]
+        # A run narrowed to one package or one file is a targeted run, and those go straight through.
+        if any(word in ("--filter", "-F") or word.startswith("--filter=") for word in rest):
+            continue
+        rest = [word for word in rest if word != "run"]
+        if not rest or rest[0] not in scripts or any(word in PARTIAL_MODES for word in rest):
+            continue
+        # The local CI run takes option values; for the test scripts a bare argument names one file.
+        if rest[0].startswith("ci:") or all(word.startswith("-") for word in rest[1:]):
+            return (f"`{names[runner]} {rest[0]}` runs this repository's whole suite, which queues behind the "
+                    f"machine-wide gate. {QUEUE_HINT}")
+    return None
+
+
 def push_problem(command, cwd):
-    if not any(name in cwd or name in command for name in SUITE_ON_PUSH):
-        return None
-    for words in segments(command):
-        words = command_words(words)
-        if not words or words[0].rsplit("/", 1)[-1] != "git":
+    for words, where in located(command, cwd):
+        if words[0].rsplit("/", 1)[-1] != "git":
             continue
         rest = words[1:]
         while rest and rest[0].startswith("-"):
+            if rest[0] == "-C" and len(rest) > 1:
+                where = rest[1]
             rest = rest[2:] if rest[0] in ("-C", "-c") else rest[1:]
-        if rest[:1] == ["push"] and "--dry-run" not in rest:
+        if rest[:1] == ["push"] and "--dry-run" not in rest and any(r.get("push") for r in repositories(where)):
             return ("a push from this repository runs the full test suite in its pre-push hook, which queues "
                     f"behind the machine-wide gate. {QUEUE_HINT}")
     return None
@@ -118,7 +180,8 @@ def main():
         return 0
     command = (event.get("tool_input") or {}).get("command") or ""
     problem = (sed_problem(command) or rev_parse_problem(command) or parallel_tests_problem(command)
-               or suite_script_problem(command) or push_problem(command, event.get("cwd") or ""))
+               or suite_script_problem(command) or package_script_problem(command, event.get("cwd") or "")
+               or push_problem(command, event.get("cwd") or ""))
     if problem:
         print(f"Blocked: {problem}", file=sys.stderr)
         return 2
