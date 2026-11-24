@@ -9,6 +9,9 @@
 .agents/skills/expect
 .claude/skills/expect
 .claude-*/skills/expect
+# Retired Command Code agent: last used 2026-10-11. Removes the mise-installed
+# copy only; ~/.commandcode (API key, history) is removed by hand after logout.
+.local/share/mise/installs/npm-command-code
 {{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics
