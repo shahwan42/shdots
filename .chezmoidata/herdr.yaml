@@ -53,8 +53,6 @@ herdr:
         - { source: crokily/herdr-lazygit,               ref: a13e12c99e5e469edd73165cabba413c2a2fd698, rev: a13e12c99e5e469edd73165cabba413c2a2fd698 }
       integrations:
         - claude
-        - codex
-        - opencode
 
     fdx-host:                 # fallback workstation: twin of as-host
       enabled: true

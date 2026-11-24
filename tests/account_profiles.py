@@ -196,7 +196,7 @@ def profile(label, username, role, kind='mac', extra=None):
         check(before == after == [], f'{label}: dry run changed destination')
     # Retired integrations: GitHub goes through gh, databases through psql, and
     # Caveman is pruned rather than installed.
-    declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
+    declared = ''.join(entries[n]['contents'] for n in ('40-claude-mcp-sync.sh', '44-caveman-prune.sh', '.config/mise/config.toml'))
     for needle in ['github-mcp-server', 'server-postgres', 'postgres-mcp', 'JuliusBrussee/caveman']:
         check(needle not in declared, f'{label}: retired integration declared: {needle}')
     # Server hosts are local-only: no managed SSH file carries an IPv4 address.
@@ -210,7 +210,7 @@ def profile(label, username, role, kind='mac', extra=None):
     check(f'mise config hash: {mise_hash}' in entries['20-mise-install.sh']['contents'], f'{label}: script 20 does not hash the rendered mise config')
     # A script that skips on a missing tool must rerun once the tool appears, and
     # find it then under the scheduler's bare PATH.
-    for name in ('20-mise-install.sh', '40-claude-mcp-sync.sh', '41-opencode-mcp-sync.sh', '43-codex-mcp-sync.sh', '44-caveman-prune.sh', '45-herdr-plugins.sh') + (('25-brew-bundle.sh',) if '25-brew-bundle.sh' in entries and 'brew bundle' in entries['25-brew-bundle.sh']['contents'] else ()):
+    for name in ('20-mise-install.sh', '40-claude-mcp-sync.sh', '44-caveman-prune.sh', '45-herdr-plugins.sh') + (('25-brew-bundle.sh',) if '25-brew-bundle.sh' in entries and 'brew bundle' in entries['25-brew-bundle.sh']['contents'] else ()):
         script = entries[name]['contents']
         check('tools present at render' in script, f'{label}: {name} has no tool-presence rerun trigger')
         check(name.startswith('20-') or '\nPATH="' in script, f'{label}: {name} does not extend PATH for bare-shell applies')
@@ -222,11 +222,10 @@ def profile(label, username, role, kind='mac', extra=None):
         check('.ssh/authorized_keys' not in entries, f'{label}: legacy host access grant')
         check('export GH_HOST=github.foodics.com' in entries['.zshenv']['contents'], f'{label}: Enterprise CLI default missing')
         check('brew bundle' not in entries['25-brew-bundle.sh']['contents'], f'{label}: Homebrew mutation')
-        check('op_read \'op://' not in entries['40-claude-mcp-sync.sh']['contents'] + entries['43-codex-mcp-sync.sh']['contents'], f'{label}: automatic PAT acquisition')
+        check('op_read \'op://' not in entries['40-claude-mcp-sync.sh']['contents'], f'{label}: automatic PAT acquisition')
     if kind == 'mac' and role == 'personal':
         for needle in ['i4fkk5sxnoihinvcnv2evqg7be', 'cuhmbyox773pricvf6xmm5nfba', 'vxwnzlffnicehkjjd5jjmg63xe']:
             check(needle not in all_text, f'{label}: work token consumer')
-        check('servers["gmail"]' in entries['41-opencode-mcp-sync.sh']['contents'], f'{label}: personal Gmail missing')
         check('.claude/skills/qa-manual/SKILL.md' in entries, f'{label}: personal QA missing')
     if kind == 'mac' and role == 'combined':
         work_git = entries['.config/git/work.gitconfig']['contents']
@@ -234,12 +233,7 @@ def profile(label, username, role, kind='mac', extra=None):
         check('id_ed25519_work.pub' in work_git, f'{label}: work signing key missing')
         check('id_ed25519.pub' in gitconfig, f'{label}: personal signing key missing')
         check('GH_HOST' not in entries['.zshenv']['contents'], f'{label}: global CLI host default')
-        for script in ('40-claude-mcp-sync.sh', '43-codex-mcp-sync.sh'):
-            contents = entries[script]['contents']
-            check('mcp remove gmail' not in contents, f'{label}: {script} strips a role')
-        opencode = entries['41-opencode-mcp-sync.sh']['contents']
-        check('servers["gmail"]' in opencode, f'{label}: OpenCode lacks a role')
-        check('for name in ("gmail"' not in opencode, f'{label}: OpenCode strips a role')
+        check('mcp remove gmail' not in entries['40-claude-mcp-sync.sh']['contents'], f'{label}: 40-claude-mcp-sync.sh strips a role')
         check('awscli' in entries['.config/mise/config.toml']['contents'], f'{label}: work tools missing')
         check('brew bundle' in entries['25-brew-bundle.sh']['contents'], f'{label}: sole account cannot maintain Homebrew')
         check('foodics@as-host' in entries['.config/git/allowed_signers']['contents'], f'{label}: work signer untrusted')

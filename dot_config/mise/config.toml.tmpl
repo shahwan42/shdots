@@ -50,10 +50,10 @@ python = "3.14.7"
 # puppeteer never downloads one. See the mermaid-cli block in
 # run_onchange_after_20-mise-install.sh.tmpl.
 "npm:@mermaid-js/mermaid-cli" = "11.17.0"
-# Frontend + PHP LSP servers for opencode. Self-provisioning via the npm
-# backend: pure-JS shims with no postinstall download, so no probe-and-repair
-# block is needed in run_onchange_after_20 (unlike claude-code / mermaid-cli).
-# Registered as opencode `lsp` entries in run_onchange_after_41, not here.
+# Frontend + PHP LSP servers. Self-provisioning via the npm backend: pure-JS
+# shims with no postinstall download, so no probe-and-repair block is needed
+# in run_onchange_after_20 (unlike claude-code / mermaid-cli). Neovim's PHP
+# setup uses this intelephense directly (Mason disabled for it).
 # vtsls is the Volta TypeScript LSP: the npm package is @vtsls/language-server
 # (binary `vtsls`) — there is no plain `vtsls` package on the registry.
 "npm:intelephense" = "1.18.5"
@@ -73,16 +73,12 @@ hunk = "0.21.1"
 # Promoted out of the work-only block 2026-08-31: a database TUI is useful on
 # every machine class, not just work.
 "github:jorgerojas26/lazysql" = "0.5.6"
-# OpenCode is mise-owned on every machine class (Macs: codex via cask, claude
-# via its native installer; VMs: all three agents via mise, see below).
-opencode = "1.18.29"
 {{ if ne .kind "mac" }}btop = "1.4.7"  # aqua prebuilt is linux-only; Mac gets btop from Homebrew
 {{ end -}}
 {{ if eq .kind "vm" }}
-# --- VM only: Claude Code + Codex (Macs: codex via cask; claude-code via its
-# self-updating native installer, deliberately unmanaged) ---
+# --- VM only: Claude Code (Macs: claude-code via its self-updating native
+# installer, deliberately unmanaged) ---
 "npm:@anthropic-ai/claude-code" = "2.1.261"
-codex = "0.155.1"
 # op CLI: Macs get it from the 1password-cli cask; VMs via the vfox plugin
 # (the aqua backend can't fetch it — op ships from 1Password's own CDN).
 "vfox:mise-plugins/vfox-1password" = "2.39.0"

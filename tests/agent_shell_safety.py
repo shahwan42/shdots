@@ -45,8 +45,7 @@ git_signing = false
         target = home/name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(entries[name]['contents'])
-    for name in ['.claude/CLAUDE.md', '.codex/AGENTS.md',
-                 '.config/opencode/instructions/baseline.md']:
+    for name in ['.claude/CLAUDE.md']:
         check('**zsh shell note**' in entries[name]['contents'],
               f'{name}: rendered baseline omitted the shell note')
         check('KSH_ARRAYS' in entries[name]['contents'],

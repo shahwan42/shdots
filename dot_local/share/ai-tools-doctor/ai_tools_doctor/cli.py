@@ -6,6 +6,7 @@ import getpass
 import importlib.util
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--probe", action="store_true", help="live bounded checks; needs --server")
     p.add_argument("--server", action="append", default=[], help="server name to probe (repeatable)")
     p.add_argument("--client", action="append", choices=CLIENT_CHOICES, default=[],
-                   help="client to inspect/probe (repeatable; default all)")
+                   help="client to inspect/probe (repeatable; default: claude plus any installed codex/opencode)")
     p.add_argument("--output-dir", help="report directory (default: timestamped under $XDG_STATE_HOME/ai-tools-doctor)")
     p.add_argument("--deadline", type=float, default=600, help="overall deadline in seconds (default 600)")
     p.add_argument("--kind", choices=("mac", "vm"), help="override detected machine kind (for fixtures)")
@@ -51,7 +52,12 @@ def progress(message: str) -> None:
 
 
 def selected_clients(args) -> list[str]:
-    chosen = args.client or ["all"]
+    # With no --client, Claude is always checked; Codex and OpenCode are no
+    # longer fleet-installed, so they are checked only where still present.
+    if not args.client:
+        return [c for c in context.CLIENTS
+                if c == "claude" or shutil.which(install.BINARY[c])]
+    chosen = args.client
     return list(context.CLIENTS) if "all" in chosen else [c for c in context.CLIENTS if c in chosen]
 
 
