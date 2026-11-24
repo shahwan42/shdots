@@ -3,7 +3,7 @@
 # (Re)load the agent that reopens the Claude Personal profile after app updates.
 # Non-fatal: a launchd hiccup must not fail `chezmoi apply`.
 #
-# plist hash: {{ include "Library/LaunchAgents/com.as.claude-personal-relaunch.plist.tmpl" | sha256sum }}
+# plist hash: {{ include "private_Library/LaunchAgents/com.as.claude-personal-relaunch.plist.tmpl" | sha256sum }}
 set -u
 PLIST="$HOME/Library/LaunchAgents/com.as.claude-personal-relaunch.plist"
 if [ -f "$PLIST" ]; then

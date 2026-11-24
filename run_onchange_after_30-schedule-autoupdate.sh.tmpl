@@ -3,7 +3,7 @@
 # (Re)wire the chezmoi auto-update schedule whenever its units change.
 # Non-fatal throughout: a scheduling hiccup must not fail `chezmoi apply`.
 #
-# plist hash: {{ include "Library/LaunchAgents/com.shahwan42.chezmoi-update.plist.tmpl" | sha256sum }}
+# plist hash: {{ include "private_Library/LaunchAgents/com.shahwan42.chezmoi-update.plist.tmpl" | sha256sum }}
 # units hash: {{ include "dot_config/systemd/user/chezmoi-update.service" | sha256sum }} {{ include "dot_config/systemd/user/chezmoi-update.timer" | sha256sum }}
 set -u
 
