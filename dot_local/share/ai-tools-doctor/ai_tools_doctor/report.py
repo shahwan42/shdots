@@ -48,8 +48,6 @@ def proof_levels(servers: list[dict], rows: list[dict]) -> list[dict]:
         name, client = server["server"], server["client"]
         mine = [r for r in rows if r.get("server") == name and r["client"] == client]
         level = "configured" if server.get("enabled") else "none"
-        if level == "configured" and client in ("codex", "opencode"):
-            level = "discoverable"   # the client's own resolved export lists it
         native = next((r for r in mine if r["layer"] == "native"), None)
         if native and native["outcome"] in ("passed", "failed", "auth_required") and level == "configured":
             level = "discoverable"   # Claude recognised the server when asked directly

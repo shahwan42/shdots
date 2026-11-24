@@ -9,10 +9,7 @@ from .context import Context
 from .model import result
 from .redact import tilde
 
-GLOBAL_ROOTS = {
-    "canonical": ".agents/skills", "claude": ".claude/skills",
-    "opencode": ".config/opencode/skills", "codex": ".codex/skills",
-}
+GLOBAL_ROOTS = {"canonical": ".agents/skills", "claude": ".claude/skills"}
 PROJECT_ROOTS = {"project-agents": ".agents/skills", "project-claude": ".claude/skills"}
 
 
@@ -85,7 +82,7 @@ def analyze(ctx: Context) -> tuple[list[dict], dict]:
                 and any(not e["root"].startswith("project") for e in good)
             rows.append(result(client="all", check=f"skill {name}", layer="skills", outcome="failed",
                                detail=f"Same-named skill has different content across roots ({where})."
-                                      + (" A global copy shadows the project skill in Claude and OpenCode."
+                                      + (" A global copy shadows the project skill in Claude."
                                          if project_shadow else ""),
                                next_action="Rename or remove one implementation; owner is the repo that ships it "
                                            "(dotfiles dot_agents/skills or the project .agents/skills).",

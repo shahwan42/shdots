@@ -84,44 +84,36 @@ class OwnershipTests(Tmp):
     def test_version_failures_keep_codes_and_drop_command_output(self):
         ctx = make_ctx(self.home, [])
         secret = "version-output-sentinel-92"
-        failed = write_exec(self.tmp / "codex-failed",
+        failed = write_exec(self.tmp / "claude-failed",
                             f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{secret}'; exit 23; fi\nexit 0\n")
         check = install.version_of(ctx, str(failed))
         self.assertEqual((check["reason_code"], check["exit_code"]), ("version_command_failed", 23))
         self.assertNotIn(secret, json.dumps(check))
-        malformed = write_exec(self.tmp / "codex-malformed",
+        malformed = write_exec(self.tmp / "claude-malformed",
                                f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{secret}'; exit 0; fi\nexit 0\n")
         check = install.version_of(ctx, str(malformed))
         self.assertEqual((check["reason_code"], check["version"]), ("unparseable_version", None))
         self.assertNotIn(secret, json.dumps(check))
 
-    def test_homebrew_codex_native_claude_mise_opencode_pass_on_mac(self):
-        brew = self.tmp / "opt/homebrew/bin"
-        write_exec(brew / "codex", sh())
+    def test_native_claude_passes_on_mac(self):
         write_exec(self.home / ".local/share/claude/versions/2.1.0", sh("2.1.0"))
         (self.home / ".local/bin").mkdir(parents=True)
         (self.home / ".local/bin/claude").symlink_to(self.home / ".local/share/claude/versions/2.1.0")
-        write_exec(self.home / ".local/share/mise/shims/opencode", sh("1.18.0"))
-        ctx = make_ctx(self.home, [brew, self.home / ".local/bin", self.home / ".local/share/mise/shims"])
-        # Homebrew prefix is fixed in the classifier, so model it by realpath under a Caskroom path.
-        cask = write_exec(self.tmp / "Caskroom/codex/0.1/codex", sh("0.160.1"))
-        (brew / "codex").unlink()
-        (brew / "codex").symlink_to(cask)
-        rows, records = install.inventory(ctx, ["codex", "claude", "opencode"])
-        self.assertEqual([r["outcome"] for r in rows], ["passed"] * 3, rows)
+        ctx = make_ctx(self.home, [self.home / ".local/bin"])
+        rows, records = install.inventory(ctx, ["claude"])
+        self.assertEqual([r["outcome"] for r in rows], ["passed"], rows)
         self.assertEqual(records["claude"]["owner"], "native")
-        self.assertEqual(records["codex"]["owner"], "homebrew")
 
     def test_missing_executable_fails_with_owner_instruction(self):
-        ctx = make_ctx(self.home, [])
-        rows, _ = install.inventory(ctx, ["opencode"])
+        ctx = make_ctx(self.home, [], kind="vm")   # VMs expect mise, whose fix is chezmoi apply
+        rows, _ = install.inventory(ctx, ["claude"])
         self.assertEqual(rows[0]["outcome"], "failed")
         self.assertIn("chezmoi apply", rows[0]["next_action"])
 
     def test_broken_shim_is_a_failure_not_a_pass(self):
         shims = self.home / ".local/share/mise/shims"
-        write_exec(shims / "opencode", "#!/bin/sh\necho 'mise ERROR: no version set' >&2\nexit 1\n")
-        rows, _ = install.inventory(make_ctx(self.home, [shims]), ["opencode"])
+        write_exec(shims / "claude", "#!/bin/sh\necho 'mise ERROR: no version set' >&2\nexit 1\n")
+        rows, _ = install.inventory(make_ctx(self.home, [shims], kind="vm"), ["claude"])
         self.assertEqual(rows[0]["outcome"], "failed")
         self.assertIn("does not run", rows[0]["detail"])
 
@@ -139,24 +131,22 @@ class OwnershipTests(Tmp):
         self.assertEqual(rows[0]["outcome"], "passed")
         self.assertIn("Inactive copies", rows[0]["detail"])
 
-    def test_vm_expects_mise_for_all_three(self):
+    def test_vm_expects_mise_for_claude(self):
         shims = self.home / ".local/share/mise/shims"
-        for name in ("codex", "claude", "opencode"):
-            write_exec(shims / name, sh())
-        rows, _ = install.inventory(make_ctx(self.home, [shims], kind="vm", role="work"),
-                                    ["codex", "claude", "opencode"])
-        self.assertEqual([r["outcome"] for r in rows], ["passed"] * 3)
+        write_exec(shims / "claude", sh())
+        rows, _ = install.inventory(make_ctx(self.home, [shims], kind="vm", role="work"), ["claude"])
+        self.assertEqual([r["outcome"] for r in rows], ["passed"])
 
     def test_project_mise_override_is_intentional(self):
         shims = self.home / ".local/share/mise/shims"
-        write_exec(shims / "opencode", sh("1.0.0"))
-        pinned = write_exec(self.home / ".local/share/mise/installs/opencode/9.9.9/opencode", sh("9.9.9"))
+        write_exec(shims / "claude", sh("1.0.0"))
+        pinned = write_exec(self.home / ".local/share/mise/installs/claude/9.9.9/claude", sh("9.9.9"))
         project = self.tmp / "proj"
         project.mkdir()
-        (project / "mise.toml").write_text('[tools]\nopencode = "9.9.9"\n')
+        (project / "mise.toml").write_text('[tools]\nclaude = "9.9.9"\n')
         write_exec(self.tmp / "bin/mise", f"#!/bin/sh\necho {pinned}\n")
-        ctx = make_ctx(self.home, [self.tmp / "bin", shims], project=project)
-        rows, _ = install.inventory(ctx, ["opencode"])
+        ctx = make_ctx(self.home, [self.tmp / "bin", shims], kind="vm", project=project)
+        rows, _ = install.inventory(ctx, ["claude"])
         self.assertEqual(rows[0]["outcome"], "passed")
         self.assertIn("project mise override", rows[0]["provenance"])
 
@@ -209,34 +199,26 @@ class TruthRegressionTests(Tmp):
         from ai_tools_doctor import smoke
         self.assertIsNotNone(smoke.blocked_by_client("s", "get_me", servers[0].tool_restrictions))
 
-    def test_codex_project_tool_restrictions_are_read(self):
-        project = self.tmp / "proj"
-        (project / ".codex").mkdir(parents=True)
-        (project / ".codex/config.toml").write_text('[mcp_servers.github]\ndisabled_tools = ["get_me"]\n')
-        restrictions = config.codex_restrictions(make_ctx(self.home, [], project=project))
-        self.assertEqual(restrictions["github"]["deny"], ["get_me"])
-
     def test_known_location_off_path_is_not_selected(self):
-        write_exec(self.home / ".local/share/mise/shims/opencode", sh())
-        rows, record = install.inventory(make_ctx(self.home, []), ["opencode"])
+        write_exec(self.home / ".local/share/mise/shims/claude", sh())
+        rows, record = install.inventory(make_ctx(self.home, []), ["claude"])
         self.assertEqual(rows[0]["outcome"], "failed")
         self.assertIn("not on PATH", rows[0]["detail"])
 
     def test_project_override_cannot_mask_a_wrong_owner(self):
-        other = write_exec(self.tmp / "opt/other/bin/opencode", sh())
-        pinned = write_exec(self.home / ".local/share/mise/installs/opencode/9.9.9/opencode", sh("9.9.9"))
+        other = write_exec(self.tmp / "opt/other/bin/claude", sh())
+        pinned = write_exec(self.home / ".local/share/mise/installs/claude/9.9.9/claude", sh("9.9.9"))
         project = self.tmp / "proj"
         project.mkdir()
-        (project / "mise.toml").write_text('[tools]\nopencode = "9.9.9"\n')
+        (project / "mise.toml").write_text('[tools]\nclaude = "9.9.9"\n')
         write_exec(self.tmp / "bin/mise", f"#!/bin/sh\necho {pinned}\n")
-        ctx = make_ctx(self.home, [other.parent, self.tmp / "bin"], project=project)
-        rows, _ = install.inventory(ctx, ["opencode"])
+        ctx = make_ctx(self.home, [other.parent, self.tmp / "bin"], kind="vm", project=project)
+        rows, _ = install.inventory(ctx, ["claude"])
         self.assertEqual(rows[0]["outcome"], "failed")
 
     def test_mistyped_server_name_is_not_a_clean_exit(self):
         bins = self.tmp / "bins"
-        for tool in ("codex", "claude", "opencode"):
-            write_exec(bins / tool, "#!/bin/sh\n[ \"$1\" = --version ] && echo 'x 1.0.0' && exit 0\necho '[]'\n")
+        write_exec(bins / "claude", "#!/bin/sh\n[ \"$1\" = --version ] && echo 'x 1.0.0' && exit 0\necho '[]'\n")
         (self.home / ".claude.json").write_text("{}")
         env = {"HOME": str(self.home), "PATH": f"{bins}:/usr/bin:/bin", "PYTHONPATH": str(PACKAGE),
                "PYTHONDONTWRITEBYTECODE": "1"}
@@ -412,7 +394,7 @@ class ProtocolTests(Tmp):
 
     def test_unsupported_transport_and_oauth_and_launcher_and_empty_credential_never_start(self):
         marker = self.tmp / "started"
-        base = dict(client="codex", enabled=True, provenance="test")
+        base = dict(client="claude", enabled=True, provenance="test")
         cases = [
             ServerConfig(name="sse", transport="sse", url="http://x", **base),
             ServerConfig(name="oauth", transport="http", url="https://x/mcp", auth="o_auth", **base),
@@ -490,8 +472,7 @@ class CleanupTests(Tmp):
             "type": "stdio", "command": sys.executable, "args": [script, mode],
             "env": {"FIXTURE_PIDFILE": str(pidfile)}}}}))
         bins = self.tmp / "bins"
-        for tool in ("claude", "codex", "opencode"):
-            write_exec(bins / tool, sh() if tool != "codex" else "#!/bin/sh\n[ \"$1\" = --version ] && echo 'x 1.0.0' && exit 0\necho '[]'\n")
+        write_exec(bins / "claude", sh())
         env = {"HOME": str(self.home), "PATH": f"{bins}:/usr/bin:/bin:{Path(sys.executable).parent}",
                "PYTHONPATH": str(PACKAGE), "PYTHONDONTWRITEBYTECODE": "1", "FIXTURE_PIDFILE": str(pidfile)}
         return env, self.tmp / "cli-out"
@@ -507,28 +488,19 @@ class ReadOnlyAndRedactionTests(Tmp):
         marker = self.tmp / "side-effects.log"
         for tool in ("npx", "open", "xdg-open", "uv", "pip", "npm"):
             write_exec(bins / tool, f"#!/bin/sh\necho {tool} >> {marker}\n")
-        codex_json = [{"name": "github", "enabled": True, "disabled_reason": None, "auth_status": "unsupported",
-                       "transport": {"type": "stdio", "command": "github-mcp-server", "args": ["stdio"],
-                                     "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": GH_TOKEN, "DB_PASSWORD": SHORT_SECRET},
-                                     "env_vars": [], "cwd": None}},
-                      {"name": "postgres", "enabled": True, "disabled_reason": None, "auth_status": "unsupported",
-                       "transport": {"type": "stdio", "command": "npx", "args": ["-y", "server-postgres", PG_URL],
-                                     "env": None, "env_vars": [], "cwd": None}},
-                      {"name": "remote", "enabled": True, "disabled_reason": None, "auth_status": "bearer",
-                       "transport": {"type": "streamable_http", "url": f"https://api.example.com/mcp?key={QUERY_SECRET}",
-                                     "http_headers": {"Authorization": f"Bearer {HEADER_SECRET}"}}},
-                      {"name": "codebase-memory-mcp", "enabled": True, "disabled_reason": None, "auth_status": "unsupported",
-                       "transport": {"type": "stdio", "command": sys.executable,
-                                     "args": [str(FIXTURE), "ok"], "env": {"FIXTURE_STDERR_SECRET": STDERR_SECRET},
-                                     "env_vars": [], "cwd": None}}]
-        write_exec(bins / "codex", "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'codex 0.1.0'; exit 0; fi\n"
-                   f"cat <<'EOF'\n{json.dumps(codex_json)}\nEOF\n")
+        servers = {
+            "github": {"type": "stdio", "command": "github-mcp-server", "args": ["stdio"],
+                       "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": GH_TOKEN, "DB_PASSWORD": SHORT_SECRET}},
+            "postgres": {"type": "stdio", "command": "npx", "args": ["-y", "server-postgres", PG_URL]},
+            "remote": {"type": "http", "url": f"https://api.example.com/mcp?key={QUERY_SECRET}",
+                       "headers": {"Authorization": f"Bearer {HEADER_SECRET}"}},
+            "codebase-memory-mcp": {"type": "stdio", "command": sys.executable, "args": [str(FIXTURE), "ok"],
+                                    "env": {"FIXTURE_STDERR_SECRET": STDERR_SECRET}},
+            "cl": {"type": "stdio", "command": "tool", "args": ["--password=" + PG_PASSWORD],
+                   "env": {"K": HEADER_SECRET}},
+        }
         write_exec(bins / "claude", sh())
-        write_exec(bins / "opencode", sh())
-        (self.home / ".claude.json").write_text(json.dumps({"mcpServers": {"cl": {
-            "type": "stdio", "command": "tool", "args": ["--password=" + PG_PASSWORD], "env": {"K": HEADER_SECRET}}}}))
-        (self.home / ".codex").mkdir()
-        (self.home / ".codex/config.toml").write_text('[projects."/x"]\ntrust_level = "trusted"\n')
+        (self.home / ".claude.json").write_text(json.dumps({"mcpServers": servers}))
         return bins, marker
 
     def run_cli(self, bins, *extra):
@@ -556,29 +528,29 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertFalse(marker.exists(), "inventory ran an installer/browser/launcher")
         doc = json.loads((out / "result.json").read_text())
         self.assertEqual(doc["mode"], "inventory")
-        github = next(s for s in doc["servers"] if s["server"] == "github" and s["client"] == "codex")
+        github = next(s for s in doc["servers"] if s["server"] == "github" and s["client"] == "claude")
         self.assertEqual(github["env_keys"], ["DB_PASSWORD", "GITHUB_PERSONAL_ACCESS_TOKEN"])
         self.assertEqual(github["credential_values_present"], ["DB_PASSWORD", "GITHUB_PERSONAL_ACCESS_TOKEN"])
         self.assertEqual(doc["diagnostic_policy"], "structured")
         github_proof = next(p["proof"] for p in doc["proof"]
-                            if (p["client"], p["server"]) == ("codex", "github"))
-        self.assertEqual(github_proof, "discoverable")
+                            if (p["client"], p["server"]) == ("claude", "github"))
+        self.assertEqual(github_proof, "configured")   # inventory alone never asks Claude about the server
         self.assertEqual(oct((out / "result.json").stat().st_mode & 0o777), "0o600")
         self.assertEqual(oct(out.stat().st_mode & 0o777), "0o700")
 
     def test_native_note_text_and_parser_values_are_discarded(self):
         bins, _ = self.setup_account()
         sentinel = "argument-sentinel-81"
-        done, out = self.run_cli(bins, "--native-note", f"codex/github=passed:{sentinel}")
+        done, out = self.run_cli(bins, "--native-note", f"claude/github=passed:{sentinel}")
         self.assert_clean(done, out)
         self.assertNotIn(sentinel, done.stdout + done.stderr)
         doc = json.loads((out / "result.json").read_text())
         note = next(row for row in doc["results"] if row["provenance"] == "--native-note")
         self.assertEqual((note["outcome"], note["detail"], note["client"], note["server"]),
-                         ("passed", "User-recorded result.", "codex", "github"))
+                         ("passed", "User-recorded result.", "claude", "github"))
         self.assertNotIn(sentinel, json.dumps(doc))
 
-        table_value, table_out = self.run_cli(bins, "--native-note", "codex/github|<column>=passed:discard-me")
+        table_value, table_out = self.run_cli(bins, "--native-note", "claude/github|<column>=passed:discard-me")
         self.assert_clean(table_value, table_out)
         self.assertIn("github\\|\\<column\\>", table_value.stdout)
         table_doc = json.loads((table_out / "result.json").read_text())
@@ -587,7 +559,7 @@ class ReadOnlyAndRedactionTests(Tmp):
 
         import shutil
         shutil.rmtree(out)
-        invalid, invalid_out = self.run_cli(bins, "--native-note", f"codex/github=bad:{sentinel}")
+        invalid, invalid_out = self.run_cli(bins, "--native-note", f"claude/github=bad:{sentinel}")
         self.assertNotIn(sentinel, invalid.stdout + invalid.stderr)
         self.assertFalse(invalid_out.exists())
         parser_error, parser_out = self.run_cli(bins, "--client", sentinel)
@@ -595,7 +567,7 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertFalse(parser_out.exists())
 
         invalid_server, invalid_server_out = self.run_cli(
-            bins, "--native-note", f"codex/github\n{sentinel}=passed")
+            bins, "--native-note", f"claude/github\n{sentinel}=passed")
         self.assertNotIn(sentinel, invalid_server.stdout + invalid_server.stderr)
         self.assertFalse(invalid_server_out.exists())
 
@@ -618,13 +590,12 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertEqual(diagnostic["results"][0]["detail"],
                          "Doctor failed unexpectedly; internal messages and tracebacks withheld.")
 
-    def test_malformed_client_export_becomes_fixed_unexpected_failure(self):
+    def test_malformed_client_config_becomes_fixed_unexpected_failure(self):
         bins, _ = self.setup_account()
         sentinel = "malformed-export-sentinel-64"
-        write_exec(bins / "codex", "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'codex 0.1.0'; exit 0; fi\n"
-                   f"printf '%s\\n' '[{{\"name\":\"broken\",\"transport\":{{\"type\":\"stdio\","
-                   f"\"command\":\"server\",\"env\":\"{sentinel}\"}}}}]'\n")
-        done, out = self.run_cli(bins, "--client", "codex")
+        (self.home / ".claude.json").write_text(json.dumps({"mcpServers": {"broken": {
+            "type": "stdio", "command": "server", "env": sentinel}}}))
+        done, out = self.run_cli(bins, "--client", "claude")
         self.assertEqual(done.returncode, 1)
         self.assertNotIn(sentinel, done.stdout + done.stderr)
         self.assertNotIn("Traceback", done.stderr)
@@ -634,24 +605,11 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertEqual(row["detail"], "Doctor failed unexpectedly; internal messages and tracebacks withheld.")
         self.assertNotIn(sentinel, json.dumps(doc))
 
-    def test_malformed_opencode_entry_is_a_structured_inventory_failure(self):
-        sentinel = "malformed-opencode-sentinel-82"
-        bins = self.tmp / "bins"
-        payloads = (f'{{"mcp":{{"broken":"{sentinel}"}}}}', '{"mcp":[]}', '{"mcp":null}')
-        for payload in payloads:
-            write_exec(bins / "opencode", f"#!/bin/sh\ncat <<'EOF'\n{payload}\nEOF\n")
-            servers, rows = config.read_opencode(make_ctx(self.home, [bins]))
-            self.assertEqual(servers, [])
-            self.assertEqual((rows[0]["outcome"], rows[0]["reason_code"]),
-                             ("unverified", "malformed_client_export"))
-            self.assertEqual(report.exit_code(rows, None), report.EXIT_INCOMPLETE)
-            self.assertNotIn(sentinel, json.dumps(rows))
-
     def test_probe_leaks_nothing_installs_nothing_and_skips_launchers(self):
         bins, marker = self.setup_account()
         before = self.snapshot(self.home)
         done, out = self.run_cli(bins, "--probe", "--server", "codebase-memory-mcp", "--server", "postgres",
-                                 "--server", "remote", "--client", "codex")
+                                 "--server", "remote", "--client", "claude")
         self.assert_clean(done, out)
         self.assertEqual(before, self.snapshot(self.home))
         self.assertFalse(marker.exists(), "probe invoked npx/open/uv/pip")
@@ -741,7 +699,7 @@ class ReadOnlyAndRedactionTests(Tmp):
         self.assertEqual(row["detail"], "Claude reports a failed server status.")
 
     def test_empty_credential_detected_by_config_reader(self):
-        cfg = ServerConfig(client="opencode", name="x", enabled=True, transport="stdio", provenance="t",
+        cfg = ServerConfig(client="claude", name="x", enabled=True, transport="stdio", provenance="t",
                            command="srv", env={"DATABASE_URI": "", "LOG_LEVEL": ""})
         config._flag_empty_credentials(cfg)
         self.assertEqual(cfg.unresolved, ["DATABASE_URI (empty)"])

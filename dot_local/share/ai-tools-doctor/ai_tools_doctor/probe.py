@@ -307,11 +307,5 @@ def native_status(ctx: Context, cfg: ServerConfig) -> dict:
         return result(check="claude mcp get", outcome="unverified", reason_code="native_status_unavailable",
                       detail="Claude did not return a recognized status.",
                       **{**common, **({"exit_code": out.returncode} if type(out.returncode) is int else {})})
-    if cfg.client == "opencode":
-        return result(check="opencode mcp list", outcome="unverified", reason_code="status_would_start_servers",
-                      detail="OpenCode status checks every server, including package launchers; the doctor did not run it.",
-                      next_action="Use opencode mcp list only when starting every configured server is acceptable.", **base)
-    return result(check="codex mcp list", outcome="unverified", reason_code="status_is_configuration_only",
-                  detail="Codex MCP inventory reports configuration and auth metadata, not connectivity.",
-                  next_action="Call the tool from a Codex session and record only its structured outcome with --native-note.",
-                  **base)
+    return result(check="native status", outcome="unverified", reason_code="native_status_unsupported",
+                  detail=f"No native status interface is known for client {cfg.client}.", **base)

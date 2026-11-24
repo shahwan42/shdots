@@ -1,24 +1,20 @@
 """Configuration inspection: resolved MCP server declarations per client.
 
-Codex and OpenCode expose resolved exports; Claude lacks one, so only the
-necessary sections of ~/.claude.json, .mcp.json and settings are read.
+Claude has no resolved export, so only the necessary sections of
+~/.claude.json, .mcp.json and settings are read.
 Every secret-bearing value is registered with the redactor on read.
 """
 from __future__ import annotations
 
 import fnmatch
 import json
-import os
 import re
-import tomllib
 from pathlib import Path
 
-from . import proc
 from .context import Context
 from .model import ServerConfig, result
 
 ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
-OC_ENV_REF = re.compile(r"\{env:([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def _register(ctx: Context, cfg: ServerConfig) -> None:
@@ -68,167 +64,6 @@ def _finish(ctx: Context, cfg: ServerConfig, expander=None) -> ServerConfig:
     _flag_empty_credentials(cfg)
     _register(ctx, cfg)
     return cfg
-
-
-# ---- Codex ---------------------------------------------------------------
-
-def codex_trust(ctx: Context) -> str:
-    path = Path(ctx.home) / ".codex/config.toml"
-    try:
-        projects = tomllib.loads(path.read_text()).get("projects", {})
-    except (OSError, tomllib.TOMLDecodeError):
-        return "unknown (codex config unreadable)"
-    for candidate in [Path(ctx.project), *Path(ctx.project).parents]:
-        level = projects.get(str(candidate), {}).get("trust_level")
-        if level:
-            return f"{level} ({'project' if candidate == Path(ctx.project) else 'ancestor'})"
-    return "no trust record"
-
-
-def codex_restrictions(ctx: Context) -> dict:
-    """Tool allow/deny lists from the user config ($CODEX_HOME) and, when present, the project config."""
-    merged: dict = {}
-    home = Path(ctx.env.get("CODEX_HOME") or Path(ctx.home) / ".codex")
-    for path in (home / "config.toml", Path(ctx.project) / ".codex/config.toml"):
-        try:
-            data = tomllib.loads(path.read_text())
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        for name, s in data.get("mcp_servers", {}).items():
-            entry = {k: v for k, v in (("allow", s.get("enabled_tools")), ("deny", s.get("disabled_tools"))) if v}
-            if entry:
-                merged.setdefault(name, {}).update(entry)
-    return merged
-
-
-def _export_failure(client: str, out: proc.Outcome, provenance: str, malformed: bool = False) -> dict:
-    if malformed:
-        reason_code, detail = "malformed_client_export", f"{client} MCP inventory returned an invalid export."
-    elif out.timed_out:
-        reason_code, detail = "timeout", f"{client} MCP inventory exceeded its 15 s time limit."
-    elif out.spawn_error:
-        reason_code, detail = "client_export_start_failed", f"{client} MCP inventory could not be started."
-    else:
-        reason_code, detail = "client_export_failed", f"{client} MCP inventory failed (exit {out.returncode})."
-    numeric = {}
-    if type(out.returncode) is int:
-        numeric["exit_code"] = out.returncode
-    return result(client=client, check="config export", layer="configuration", outcome="unverified",
-                  reason_code=reason_code, detail=detail, next_action="Check the client version and supported status interface.",
-                  provenance=provenance, elapsed_ms=out.elapsed_ms, **numeric)
-
-
-AUTH_METADATA = {"supported", "unsupported", "bearer", "oauth", "o_auth", "unknown", "none"}
-
-
-def _safe_auth_metadata(value):
-    if isinstance(value, str) and value.lower() in AUTH_METADATA:
-        return value.lower()
-    return None
-
-
-def read_codex(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
-    out = proc.run(["codex", "mcp", "list", "--json"], timeout=15, env=ctx.env, cwd=ctx.project)
-    prov = f"codex mcp list --json (cwd={ctx.project}); project trust: {codex_trust(ctx)}"
-    if out.returncode != 0 or out.spawn_error or out.timed_out:
-        return [], [_export_failure("codex", out, prov)]
-    try:
-        items = json.loads(out.stdout)
-    except json.JSONDecodeError:
-        return [], [_export_failure("codex", out, prov, malformed=True)]
-    if not isinstance(items, list) or any(not isinstance(item, dict) or not isinstance(item.get("name"), str)
-                                          or not isinstance(item.get("transport") or {}, dict) for item in items):
-        return [], [_export_failure("codex", out, prov, malformed=True)]
-    restrictions = codex_restrictions(ctx)
-    servers = []
-    for item in items:
-        t = item.get("transport") or {}
-        kind = t.get("type")
-        cfg = ServerConfig(client="codex", name=item["name"], enabled=item.get("enabled", True) is not False,
-                           transport="stdio" if kind == "stdio" else "http" if kind in ("streamable_http", "http")
-                           else "sse" if kind == "sse" else "unknown",
-                           provenance=prov, auth=_safe_auth_metadata(item.get("auth_status")),
-                           tool_restrictions=restrictions.get(item["name"], {}))
-        if item.get("disabled_reason"):
-            cfg.notes.append("disabled by client configuration")
-        if cfg.transport == "stdio":
-            cfg.command, cfg.args = t.get("command"), list(t.get("args") or [])
-            cfg.env = {k: str(v) for k, v in (t.get("env") or {}).items()}
-            cfg.forwarded_env = list(t.get("env_vars") or [])
-            cfg.cwd = t.get("cwd")
-        else:
-            cfg.url = t.get("url")
-            cfg.headers = {k: str(v) for k, v in (t.get("http_headers") or {}).items()}
-            for header, var in (t.get("env_http_headers") or {}).items():
-                if ctx.env.get(var):
-                    cfg.headers[header] = ctx.env[var]
-                else:
-                    cfg.unresolved.append(var)
-            bearer = t.get("bearer_token_env_var")
-            if bearer:
-                if ctx.env.get(bearer):
-                    cfg.headers["Authorization"] = f"Bearer {ctx.env[bearer]}"
-                else:
-                    cfg.unresolved.append(bearer)
-            if t.get("http_headers_helper"):
-                cfg.unresolved.append("http_headers_helper")
-        servers.append(_finish(ctx, cfg))
-    return servers, []
-
-
-# ---- OpenCode ------------------------------------------------------------
-
-def read_opencode(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
-    out = proc.run(["opencode", "debug", "config"], timeout=15, env=ctx.env, cwd=ctx.project)
-    prov = f"opencode debug config (resolved, cwd={ctx.project})"
-    data = None
-    if out.returncode == 0 and not out.timed_out:
-        start = out.stdout.find("{")
-        try:
-            data = json.loads(out.stdout[start:]) if start >= 0 else None
-        except json.JSONDecodeError:
-            data = None
-    if data is None:
-        return [], [_export_failure("opencode", out, prov, malformed=not out.spawn_error and not out.timed_out
-                                    and out.returncode == 0)]
-    if not isinstance(data, dict):
-        return [], [_export_failure("opencode", out, prov, malformed=True)]
-    mcp = data.get("mcp", {})
-    if not isinstance(mcp, dict):
-        return [], [_export_failure("opencode", out, prov, malformed=True)]
-    if any(not isinstance(name, str) or not isinstance(item, dict) for name, item in mcp.items()):
-        return [], [_export_failure("opencode", out, prov, malformed=True)]
-    def lookup(match):
-        return ctx.env.get(match.group(1))
-    def expander(value, cfg):
-        return _expand(value, OC_ENV_REF, lookup, cfg)
-    tools_map = data.get("tools") or {}
-    denied = {k for k, v in tools_map.items() if v is False}
-    enabled_overrides = [k for k, v in tools_map.items() if v is True]
-    servers = []
-    for name, item in mcp.items():
-        kind = item.get("type")
-        cfg = ServerConfig(client="opencode", name=name, enabled=item.get("enabled", True) is not False,
-                           transport="stdio" if kind == "local" else "http" if kind == "remote" else "unknown",
-                           provenance=prov)
-        mine = sorted(k for k in denied if k == "*" or k == name or k.startswith(f"{name}_")
-                      or fnmatch.fnmatch(f"{name}_probe", k))
-        if mine:
-            cfg.tool_restrictions = {"deny": mine, "allow_override": [k for k in enabled_overrides
-                                                                      if k.startswith(f"{name}_")]}
-        if data.get("permission"):
-            cfg.notes.append("OpenCode permission rules are not interpreted for tool restrictions")
-        if cfg.transport == "stdio":
-            command = list(item.get("command") or [])
-            cfg.command, cfg.args = (command[0] if command else None), command[1:]
-            cfg.env = {k: str(v) for k, v in (item.get("environment") or {}).items()}
-        else:
-            cfg.url = item.get("url")
-            cfg.headers = {k: str(v) for k, v in (item.get("headers") or {}).items()}
-            if item.get("oauth") is not False and not cfg.headers:
-                cfg.auth = "client-owned OAuth possible"
-        servers.append(_finish(ctx, cfg, expander))
-    return servers, []
 
 
 # ---- Claude --------------------------------------------------------------
@@ -336,4 +171,4 @@ def read_claude(ctx: Context) -> tuple[list[ServerConfig], list[dict]]:
     return servers, rows
 
 
-READERS = {"codex": read_codex, "claude": read_claude, "opencode": read_opencode}
+READERS = {"claude": read_claude}

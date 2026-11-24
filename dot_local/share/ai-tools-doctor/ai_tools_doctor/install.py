@@ -11,19 +11,17 @@ from .context import CLIENTS, Context
 from .model import result
 from .redact import tilde
 
-BINARY = {"codex": "codex", "claude": "claude", "opencode": "opencode"}
+BINARY = {"claude": "claude"}
 EXPECTED = {
-    "mac": {"codex": "homebrew", "claude": "native", "opencode": "mise"},
-    "vm": {"codex": "mise", "claude": "mise", "opencode": "mise"},
+    "mac": {"claude": "native"},
+    "vm": {"claude": "mise"},
 }
 OWNER_FIX = {
-    "homebrew": "Install with Homebrew (see Brewfile): brew install --cask codex",
     "native": "Install with the vendor native installer: curl -fsSL https://claude.ai/install.sh | bash",
     "mise": "Declare it in dot_config/mise/config.toml.tmpl and run: chezmoi apply",
 }
 VERSION_TOKEN = r"v?\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.+-]*)?"
-VERSION_PREFIXES = {"codex": ("codex", "codex cli"), "claude": ("claude", "claude code"),
-                    "opencode": ("opencode",)}
+VERSION_PREFIXES = {"claude": ("claude", "claude code")}
 
 
 def approved_version(text: str, tool: str) -> str | None:

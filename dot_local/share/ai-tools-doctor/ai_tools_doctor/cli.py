@@ -6,7 +6,6 @@ import getpass
 import importlib.util
 import json
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from . import config, context, install, probe, proc, report, skills
 from .model import result
 from .redact import origin, tilde
 
-CLIENT_CHOICES = ("codex", "claude", "opencode", "all")
+CLIENT_CHOICES = ("claude", "all")
 
 
 class SafeArgumentParser(argparse.ArgumentParser):
@@ -37,13 +36,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--probe", action="store_true", help="live bounded checks; needs --server")
     p.add_argument("--server", action="append", default=[], help="server name to probe (repeatable)")
     p.add_argument("--client", action="append", choices=CLIENT_CHOICES, default=[],
-                   help="client to inspect/probe (repeatable; default: claude plus any installed codex/opencode)")
+                   help="client to inspect/probe (repeatable; default all)")
     p.add_argument("--output-dir", help="report directory (default: timestamped under $XDG_STATE_HOME/ai-tools-doctor)")
     p.add_argument("--deadline", type=float, default=600, help="overall deadline in seconds (default 600)")
     p.add_argument("--kind", choices=("mac", "vm"), help="override detected machine kind (for fixtures)")
     p.add_argument("--role", choices=("personal", "work", "combined"), help="override detected role (for fixtures)")
     p.add_argument("--native-note", action="append", default=[], metavar="CLIENT/SERVER=OUTCOME:TEXT",
-                   help="record a native-client call you made yourself, e.g. codex/codebase-memory-mcp=passed:list_projects ok")
+                   help="record a native-client call you made yourself, e.g. claude/codebase-memory-mcp=passed:list_projects ok")
     return p
 
 
@@ -52,12 +51,7 @@ def progress(message: str) -> None:
 
 
 def selected_clients(args) -> list[str]:
-    # With no --client, Claude is always checked; Codex and OpenCode are no
-    # longer fleet-installed, so they are checked only where still present.
-    if not args.client:
-        return [c for c in context.CLIENTS
-                if c == "claude" or shutil.which(install.BINARY[c])]
-    chosen = args.client
+    chosen = args.client or ["all"]
     return list(context.CLIENTS) if "all" in chosen else [c for c in context.CLIENTS if c in chosen]
 
 

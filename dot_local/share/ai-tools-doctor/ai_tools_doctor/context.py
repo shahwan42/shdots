@@ -10,7 +10,7 @@ from pathlib import Path
 from . import proc
 from .redact import Redactor
 
-CLIENTS = ("codex", "claude", "opencode")
+CLIENTS = ("claude",)
 
 
 @dataclass
