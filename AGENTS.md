@@ -168,8 +168,10 @@ changes and the script reruns. The launchd agent and systemd service set `PATH`
 to include mise shims, `~/.local/bin` and Homebrew, and the scripts prepend the
 same directories, so a bare-shell apply finds what the fingerprint saw.
 
-Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, only when
-a fast-forward was refused) and this log (every run's outcome). A green marker
+Two independent surfaces: `~/.cache/chezmoi-stale` (one-line human nag, written
+when a fast-forward was refused or, on notify-only accounts, when a `.claude/`,
+`.agents/` or `.local/bin/` target differs from the source) and this log (every
+run's outcome). A green marker
 does not imply a green log.
 
 Registration health is not runtime health. `chezmoi-health` records that a

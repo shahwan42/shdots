@@ -4,6 +4,14 @@
 - Finite commands, including long builds/tests: use Bash `run_in_background: true`, a sufficient bounded timeout, and a log file; act on the completion notification. Make the real command the background command (`cmd > log 2>&1`), not a `( … ) &` or `nohup` wrapper, so the completion notification carries its exit status; still confirm from the log or result file.
 - External conditions (CI, PR state, ports): use Monitor with a bounded until-loop when available; otherwise use one bounded background Bash until-loop. Act on its notification, not repeated Bash polls.
 - Foreground `sleep` and `sleep N; check` are forbidden, including server-readiness waits; use the external-condition rule above.
+- Terminal tabs (`run_in_terminal`) take the session's working directory as `cwd`, or no `cwd`; reach scratchpad or other-worktree scripts by absolute path in the command.
+
+**Tool inputs**
+- `browser_batch` takes `actions` as a JSON array of `{name, input}` objects.
+- `rm -r` takes a literal absolute path. The built-in safety check refuses any target it cannot resolve, such as `"$d"` set from another variable, and a `${d:?}` guard does not satisfy it.
+
+**Unreachable sources**
+- When a connector cannot reach a source (`channel_not_found`, an artifact 404, access denied), tell the user once, ask them to paste it or grant access, and mark it unreachable in any summary or handoff note so later sessions skip the retry.
 
 **Deferred tools**
 - A tool listed by name only has no schema yet: load it with `ToolSearch` (`select:<name>`) before its first call, or the call goes out with empty arguments and fails. For PR binding, load `mcp__ccd_pr__bind_pr` and pass the PR URL printed by `gh pr create`.
