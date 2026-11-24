@@ -82,8 +82,6 @@ if [[ -z ${_SHDOTS_AGENT_SHELL:-} && -n ${KITTY_WINDOW_ID:-} &&
       ${HERDR_ENV:-} != 1 ]] && (( $+commands[kitten] )); then
   alias ssh='kitten ssh'
 fi
-{{ if eq .kind "mac" }}alias mp='multipass'
-{{ end -}}
 {{ if includeTemplate "has-work" . }}
 # Work aliases and environment.
 alias a='php artisan'
