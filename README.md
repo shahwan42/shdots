@@ -53,8 +53,6 @@ SSH keys, package credentials, AWS logins, AI sessions, approvals and scheduled
 AI tasks remain unmanaged. Native profiles install no update LaunchAgent by
 default; the update helper also exits before doing work when disabled.
 
-Legacy VM provisioning remains in `provision/` for compatibility research only.
-It creates machines, copies broad legacy credentials and applies configuration:
-it is not a native-account bootstrap path. The [old fleet plan](docs/plans/fleet-topology.md)
-is historical. Legacy update timers follow `origin/main`; publishing a migration
+Legacy VM provisioning (`provision/`, built on Multipass) was retired on
+2026-11-24. The [old fleet plan](docs/plans/fleet-topology.md) is historical. Legacy update timers follow `origin/main`; publishing a migration
 branch does not deploy it. Changes to `main` require an explicit rollout review.

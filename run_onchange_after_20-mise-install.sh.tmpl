@@ -82,8 +82,8 @@ fi
 # mermaid-cli's browser on Linux. Chrome for Testing ships no linux/arm64 build,
 # so puppeteer's own download can never satisfy this box — Playwright does build
 # arm64 chromium, and ~/.local/bin/mmdc points at it. The system libraries it
-# needs are installed by cloud-init (see provision/dev-vm-cloud-init.yaml);
-# this script never sudo's.
+# needs are installed when the box is provisioned (the retired
+# provision/dev-vm-cloud-init.yaml listed them); this script never sudo's.
 if [ -x "$HOME/.local/share/mise/shims/mmdc" ]; then
   probe="$(mktemp -d)"
   printf 'flowchart LR\n  A --> B\n' >"$probe/p.mmd"

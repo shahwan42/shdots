@@ -1,16 +1,16 @@
 # Native macOS account profiles
 
 Current architecture (2026-10-03): `as-host/as` is personal; `as-host/foodics`
-is work. macOS is the primary development platform. `as-host/fdx-dev` is the
-only temporary canonical Linux compatibility VM; the duplicate on `fdx-host`
-is stopped and preserved. Tailscale identity remains unchanged.
+is work. macOS is the primary development platform. as-host has no Linux
+compatibility VM since Multipass was removed (2026-11-24); the stopped
+`fdx-host/fdx-dev` may remain as preserved state. Tailscale identity remains
+unchanged.
 
 ```text
 as-host
   shared: /opt/homebrew, /Applications, physical hardware
   as       -> personal config + personal authentication + local development
   foodics  -> work config + work authentication + local development
-  fdx-dev  -> optional Linux compatibility (explicit invocation)
 ```
 
 ## Data and account boundaries
@@ -93,8 +93,7 @@ in shdots by reference, never by copying its value. `.npmrc`, `.aws`, `.ssh/id_*
 AI login/session files, approvals and scheduled tasks are unmanaged.
 
 SSH loads only `.ssh/config.d/personal/*` or `.ssh/config.d/work/*`. It ignores
-the old mixed directory's files. `herdr-devbox` requires
-an explicit VM name. Work Git authentication points to a future local key;
+the old mixed directory's files. Work Git authentication points to a future local key;
 company-server hosts and 1Password key selection remain manual provisioning,
 in the unmanaged, ignored `~/.ssh/config.d/work/foodics`. `~/.ssh/config` holds
 only shared settings; each role's Git hosts render to `config.d/<role>/github`.
@@ -161,7 +160,7 @@ approvals and agent plugin trust need local review; none are transplanted.
 Herdr defaults to local sessions. Native plugin onboarding is deferred rather
 than importing VM plugin/runtime state. Native shell startup never runs SSH
 into a VM. The old default `as-dev` helper and active workflow-launch keybind
-are removed; `herdr-devbox <vm-name>` remains optional. Native cleanup scripts
+are removed, and `herdr-devbox` is retired. Native cleanup scripts
 are disabled: historical state is reviewed manually, not deleted at bootstrap.
 
 Native `auto_update=false` excludes the update LaunchAgent; the installer is

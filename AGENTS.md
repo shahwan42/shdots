@@ -125,10 +125,12 @@ review, and apply as above; do not use `chezmoi re-add` on this template.
 
 ## Linux compatibility
 
-`as-host/fdx-dev` is the temporary canonical compatibility VM. The stopped
-`fdx-host/fdx-dev` is legacy preserved state. Leave VM lifecycle and Tailscale
-identity unchanged unless explicitly requested. `provision/` retains the old
-VM-first tooling; it is not used for native account onboarding.
+as-host has no Linux compatibility VM: Multipass was removed on 2026-11-24,
+taking its VMs (`as-host/fdx-dev`, `as-dev`) with it, and the old VM-first
+tooling (`provision/`) is retired. The stopped `fdx-host/fdx-dev` may still
+exist on fdx-host as legacy preserved state. `kind=vm` templates stay so a
+future Linux box can be onboarded by hand. Leave Tailscale identity unchanged
+unless explicitly requested.
 
 ## Fleet health
 

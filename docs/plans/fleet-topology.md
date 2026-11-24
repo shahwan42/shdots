@@ -1,5 +1,9 @@
 # Historical fleet topology plan
 
+2026-11-24: Multipass and `provision/` (new-box, launch-dev-vm.sh, the dev
+cloud-init) are retired; as-host's VMs no longer exist. Commands below that
+use them are history.
+
 Superseded on 2026-10-03 by [native account profiles](account-aware-macos.md).
 The decisions below describe the previous VM-first architecture. D1/D2/D8/D14
 and VM recreation/retirement phases are not instructions for native onboarding.

@@ -47,8 +47,8 @@ exit 0
 # Everything below is inside this {{`{{ else }}`}}: a bare {{`{{ if not $h }}`}}...{{`{{ end }}`}}
 # above does NOT stop the template engine from still rendering $h.plugins/$h.integrations
 # further down (Go templates have no early "return"), so a host absent from
-# .chezmoidata/herdr.yaml — every box `provision/new-box` creates, by design (Q5,
-# fleet-topology.md) — made chezmoi apply fail here with "nil data; no entry for
+# .chezmoidata/herdr.yaml — every new box, by design (Q5, fleet-topology.md) —
+# made chezmoi apply fail here with "nil data; no entry for
 # key 'plugins'" instead of printing the message above and exiting. Field-tested
 # 2026-09-25 on a fresh box.
 
