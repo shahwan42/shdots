@@ -31,30 +31,8 @@ cache_display = true
 # label = "Claude (secondary)"
 # config_dir = "~/.claude-secondary"
 
-# Multi-account Codex: uncomment and add one block per CODEX_HOME.
-# Absence of any profile keeps the single default account at ~/.codex.
-# Once any profile exists, declare the default account too: bare `codex`
-# sets no CODEX_HOME, so ~/.codex is only recorded if a profile claims
-# that dir. `usagebar setup` warns when it is uncovered.
-#
-# [[codex.profiles]]
-# id = "codex"
-# label = "personal"
-# codex_home = "~/.codex"
-#
-# [[codex.profiles]]
-# id = "dev"
-# label = "product"
-# codex_home = "~/.codex-dev"
-
 # Multi-account Grok: one GROK_HOME per profile.
 # [[grok.profiles]]
 # id = "grok"
 # label = "personal"
 # grok_home = "~/.grok"
-#
-# Multi-account OpenCode: one OPENCODE_DATA_DIR per profile.
-# [[opencode.profiles]]
-# id = "opencode"
-# label = "personal"
-# data_dir = "~/.local/share/opencode"

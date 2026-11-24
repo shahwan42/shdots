@@ -1,8 +1,7 @@
 # Portable AI skills
 
 Portable skills live in `dot_agents/skills/<name>` and render to
-`~/.agents/skills/<name>`. Codex and OpenCode read that directory natively.
-Claude reads selected skills through symlink adapters in
+`~/.agents/skills/<name>`. Claude reads selected skills through symlink adapters in
 `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
 
 Claude Code discovers symlinked skill directories. This was verified on
@@ -93,7 +92,7 @@ the domain-modeling rename from `CONTEXT` to `GLOSSARY`.
 
 | Skill | Adaptation | Reason |
 | --- | --- | --- |
-| `handoff` | Ignored `.ai-output/prompts` save location, checkpoint export, portable skill names, reference repository rules, and checkpoint transfer | Agent handoffs between Codex and Claude |
+| `handoff` | Ignored `.ai-output/prompts` save location, checkpoint export, portable skill names, reference repository rules, and checkpoint transfer | Agent handoffs between sessions |
 | `code-review` | Tracker fallback and repository standards sources | No `/setup-matt-pocock-skills` dependency |
 | `pr` | Repository rules and GitHub templates win; optional glossary wording | FMS and other repos own their PR body |
 | `pr-diagrams` | `77fefcc` repository precedence and one diagram per fold; local validation only | Repo rules win; Ahmed decided 2026-10-15 |
@@ -127,10 +126,7 @@ then re-apply the bullet and keep the reference file.
 `browser-harness` is not vendored: the browser-harness install writes the
 canonical copy to `~/.agents/skills/browser-harness` (newer releases print it
 with `browser-harness skill`). Claude gets a symlink adapter only where that
-file exists (`.chezmoiignore.tmpl` uses `stat`). Script 49
-(`run_onchange_after_49-codex-skill-dedupe.sh.tmpl`) renders only once the
-canonical copy exists, then removes the older `~/.codex/skills/browser-harness`
-on that apply, so Codex lists it once.
+file exists (`.chezmoiignore.tmpl` uses `stat`).
 
 ## Locally authored companions
 
@@ -153,12 +149,9 @@ codebase-memory-mcp tool schemas. Recheck them when those schemas change.
 
 ## Name clashes with project skills
 
-Project skills must win. Neither Claude nor OpenCode guarantees that:
-
-- Claude runs a personal skill (`~/.claude/skills`) over a project skill
-  (`.claude/skills`) with the same name.
-- OpenCode resolved `tdd` to `~/.agents/skills/tdd` inside
-  `foodics/repos/cashflow/cashflow-api`, over that project's `.claude/skills/tdd`.
+Project skills must win, and Claude does not guarantee that: it runs a
+personal skill (`~/.claude/skills`) over a project skill (`.claude/skills`)
+with the same name.
 
 So a global skill must not use a name that any project defines. `tdd`
 (mattpocock `skills/engineering/tdd`, skillFolderHash
@@ -168,7 +161,7 @@ to the project's skill where one exists. Before adding a global skill, check:
 
 ```sh
 find ~/Code -maxdepth 7 -not -path '*/node_modules/*' \( -path '*/.claude/skills/<name>' \
-  -o -path '*/.agents/skills/<name>' -o -path '*/.opencode/skills/<name>' \
+  -o -path '*/.agents/skills/<name>' \
   -o -path '*/.claude/commands/<name>.md' \)
 ```
 

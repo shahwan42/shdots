@@ -10,19 +10,15 @@ logout flows.
 Check the client version and help first:
 
 ```sh
-codex --version
-codex mcp --help
 claude --version
 claude mcp --help
-opencode --version
-opencode mcp --help
 ```
 
 Use `ai-tools-doctor` for MCP inventory and its private report directory:
 
 ```sh
 ai-tools-doctor
-ai-tools-doctor --client codex --client claude --client opencode
+ai-tools-doctor --client claude
 ```
 
 Inventory shows configuration evidence. It does not prove that a server connects. A live
@@ -33,7 +29,7 @@ Record the required client action and stop that probe; do not run login or logou
 diagnosis.
 
 Prefer version/help and supported status interfaces. Do not paste raw output from
-`codex mcp list --json`, `opencode debug config`, or `claude mcp get` into a chat, issue,
+`claude mcp get` into a chat, issue,
 checkpoint, screenshot, or report. These commands may expose resolved configuration or start a
 server. Route inventory through `ai-tools-doctor`, which parses exports internally and reports
 selected metadata.
@@ -70,8 +66,7 @@ Required action: authenticate in the owning client, then retry only if requested
 Keep the doctor's `reason_code` and outcome unchanged. Unknown failures stay failures with
 `unexpected_failure`; do not replace them with a guess based on an exception message.
 
-OAuth login is a separate operation. Codex documents `codex mcp login <server-name>` for
-servers that support OAuth in its [official MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+OAuth login is a separate operation, done by the user inside the owning client.
 Authentication setup is outside this diagnostic workflow.
 
 Known credential exposure follow-ups and their unverified rotation status are tracked in

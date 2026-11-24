@@ -150,11 +150,9 @@ No additional configuration repository is introduced.
 
 Worktrunk uses `~/Code/worktrees/{{ repo }}/{{ branch | sanitize_hash }}` in
 both accounts. Client references are `$HOME` or chezmoi home/source templates;
-there are no portable absolute paths into the other user's home. Codex only
-gets portable instructions and role-scoped MCP registration; its existing
-config/trust records stay account-local. Fresh trust is reviewed in each
-account, as [documented by OpenAI](https://developers.openai.com/codex/config-basic/).
-Claude and OpenCode generated configuration also stays local. Worktrunk project
+there are no portable absolute paths into the other user's home. Claude
+generated configuration stays local (Codex and OpenCode were retired on
+2026-11-24). Worktrunk project
 approvals and agent plugin trust need local review; none are transplanted.
 
 Herdr defaults to local sessions. Native plugin onboarding is deferred rather

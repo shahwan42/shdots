@@ -10,6 +10,13 @@ state.
 Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
 **P3** is optional.
 
+## Retired 2026-11-24
+
+Codex and OpenCode are retired fleet-wide: Claude Code is the only managed
+agent, and scripts 41, 43 and 49 are gone. Every item below about Codex or
+OpenCode parity, configuration or skills is closed by that, not done. Items
+about Claude, shared MCP servers and credentials still stand.
+
 ## Retired 2026-10-25
 
 The `github`, `github-enterprise` and `postgres` MCP servers and the Caveman

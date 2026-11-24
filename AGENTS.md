@@ -224,27 +224,23 @@ client configuration and trust records remain local; the source never copies the
 Global agent instructions and portable skills are owned here; project repos own
 their own `AGENTS.md`, `.agents/skills`, and MCP config.
 
+- **Claude Code is the only managed agent.** Codex and OpenCode were retired
+  on 2026-11-24: nothing here installs, configures or syncs them.
 - **Shared instruction baseline:** `.chezmoitemplates/ai-baseline.md` (output
-  preferences, mermaid rule, codebase-memory graph guidance). Rendered into
-  each tool's native global file: `dot_codex/AGENTS.md.tmpl`,
-  `dot_claude/CLAUDE.md.tmpl` (plus Claude-only lines), and
-  `dot_config/opencode/instructions/baseline.md.tmpl` (referenced from
-  `opencode.jsonc` `instructions` by script 41). Edit the baseline once.
-  `~/.config/opencode/AGENTS.md` is create-only (`create_AGENTS.md`): it must
-  exist, or OpenCode falls back to `~/.claude/CLAUDE.md` and loads the
-  baseline twice.
+  preferences, mermaid rule, codebase-memory graph guidance), rendered into
+  `dot_claude/CLAUDE.md.tmpl` with the Claude-only lines. Edit the baseline
+  there, not in the rendered file.
 - **Codebase Memory** is installed with `--skip-config` (script 40), so it
-  never writes instruction files; scripts 40/41/43 register its MCP server.
-- **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, read
-  natively by Codex and OpenCode. Provenance and the upgrade flow are in
+  never writes instruction files; script 40 registers its MCP server.
+- **Portable skills:** `dot_agents/skills/<name>` → `~/.agents/skills`, the
+  canonical skill location. Provenance and the upgrade flow are in
   `docs/ai/skills.md`. Never make `dot_agents/skills` `exact_`: installers
   (`npx skills`, herdr, browser-harness) also write there. Caveman is retired;
   script 44 prunes what its old installer left behind.
 - **Claude adapter:** `dot_claude/skills/symlink_<name>` → `../../.agents/skills/<name>`.
   Claude-only skills (`eod`, `qa-manual`) stay under `dot_claude/skills`.
-- **Project skills win.** Claude and OpenCode both let a global skill beat a
+- **Project skills win.** Claude lets a global skill beat a
   same-named project skill, so never deploy a global skill (or adapter) whose
   name a project under `~/Code` already uses. See `docs/ai/skills.md`.
-- **Ownership (Mac):** Codex = Homebrew cask, Claude = native installer,
-  OpenCode = mise. VMs: all three via mise.
+- **Ownership:** Claude = native installer on Macs, mise on VMs.
 - **Deferred parity work:** `docs/plans/ai-tooling-followups.md`.
