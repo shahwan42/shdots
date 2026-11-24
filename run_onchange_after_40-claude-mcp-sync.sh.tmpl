@@ -6,6 +6,12 @@
 # `claude mcp add` errors on a name that already exists, so each server is
 # removed then re-added — that's what makes this idempotent.
 #
+# Applies to the default account (~/.claude, server list in ~/.claude.json) and
+# to every ~/.claude-* account directory that already has a .claude.json: a
+# second Claude account (CLAUDE_CONFIG_DIR=~/.claude-personal) keeps its own
+# server list, which a bare `claude mcp` call never touches. Script 42 does the
+# same for settings.
+#
 # tools present at render (reruns once a missing one appears): {{ includeTemplate "tools-present" (dict "home" .chezmoi.homeDir "tools" (list "claude")) }}
 set -u
 
@@ -23,50 +29,80 @@ if ! command -v "$CLAUDE" >/dev/null 2>&1 && [ ! -x "$CLAUDE" ]; then
   exit 0
 fi
 
+# Health items keep their bare name for the default account and gain
+# "@<directory>" for the others, so existing records still close.
+ACCOUNT_SUFFIX=""
+ACCOUNT_LABEL=""
+
 add() {
   name="$1"; shift
   "$CLAUDE" mcp remove "$name" --scope user >/dev/null 2>&1
   if "$CLAUDE" mcp add "$name" --scope user "$@" >/dev/null 2>&1; then
-    echo "mcp: $name registered"
-    hn "$name" ok "claude mcp add succeeded"
+    echo "mcp: $name registered$ACCOUNT_LABEL"
+    hn "$name$ACCOUNT_SUFFIX" ok "claude mcp add succeeded"
   else
-    echo "mcp: $name registration failed" >&2
-    hn "$name" fail "claude mcp add failed"
+    echo "mcp: $name registration failed$ACCOUNT_LABEL" >&2
+    hn "$name$ACCOUNT_SUFFIX" fail "claude mcp add failed"
   fi
 }
 
-{{ if not (includeTemplate "has-personal" .) -}}
-"$CLAUDE" mcp remove gmail --scope user >/dev/null 2>&1 || :
-"$CLAUDE" mcp remove google-calendar --scope user >/dev/null 2>&1 || :
-{{ end -}}
-
-# Remove MCP servers retired from the shared declaration. GitHub goes through
-# the gh CLI and databases through psql instead.
-for _retired in shadcn-ui playwright github github-enterprise postgres; do
-  "$CLAUDE" mcp remove "$_retired" --scope user >/dev/null 2>&1 || :
-done
-
-# --- shared everywhere (mac + vm, personal + work) ---
-# Hosted streamable-HTTP endpoint (no key needed): no local process per session.
-add context7 --transport http https://mcp.context7.com/mcp
-# Pinned by mise (dot_config/mise). The shim execs the binary, so no `npm exec`
-# wrapper stays resident per session the way `npx -y` did.
-CITRA_BIN="$HOME/.local/share/mise/shims/citra"
-if [ -x "$CITRA_BIN" ]; then
-  add citra -- "$CITRA_BIN"
-else
-  echo "citra: $CITRA_BIN missing; run 'mise install' (script 20) and re-run this script" >&2
-  hn citra fail "mise-pinned binary missing"
-fi
-
 # Pin the validated binary release; installation never runs upstream main.
+# Installed once here; each account below only registers it.
 {{ includeTemplate "codebase-memory-install.sh" . }}
 CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 if install_codebase_memory; then
-  add codebase-memory-mcp -- "$CBM_BIN"
+  CBM_OK=1
 else
+  CBM_OK=0
   echo "codebase-memory-mcp: pinned installation failed; re-run this script after fixing the reported error" >&2
   hn codebase-memory-mcp fail "pinned binary installation failed"
 fi
+
+# Pinned by mise (dot_config/mise). The shim execs the binary, so no `npm exec`
+# wrapper stays resident per session the way `npx -y` did.
+CITRA_BIN="$HOME/.local/share/mise/shims/citra"
+
+sync_account() {
+{{- if not (includeTemplate "has-personal" .) }}
+  "$CLAUDE" mcp remove gmail --scope user >/dev/null 2>&1 || :
+  "$CLAUDE" mcp remove google-calendar --scope user >/dev/null 2>&1 || :
+{{- end }}
+
+  # Remove MCP servers retired from the shared declaration. GitHub goes through
+  # the gh CLI and databases through psql instead.
+  for _retired in shadcn-ui playwright github github-enterprise postgres; do
+    "$CLAUDE" mcp remove "$_retired" --scope user >/dev/null 2>&1 || :
+  done
+
+  # --- shared everywhere (mac + vm, personal + work) ---
+  # Hosted streamable-HTTP endpoint (no key needed): no local process per session.
+  add context7 --transport http https://mcp.context7.com/mcp
+  if [ -x "$CITRA_BIN" ]; then
+    add citra -- "$CITRA_BIN"
+  else
+    echo "citra: $CITRA_BIN missing; run 'mise install' (script 20) and re-run this script" >&2
+    hn "citra$ACCOUNT_SUFFIX" fail "mise-pinned binary missing"
+  fi
+  if [ "$CBM_OK" = 1 ]; then
+    add codebase-memory-mcp -- "$CBM_BIN"
+  fi
+}
+
+for account_dir in "$HOME/.claude" "$HOME"/.claude-*; do
+  if [ "$account_dir" = "$HOME/.claude" ]; then
+    # Drop an inherited CLAUDE_CONFIG_DIR (an apply started from a second
+    # account's session) so this pass reaches the default account.
+    unset CLAUDE_CONFIG_DIR
+    ACCOUNT_SUFFIX=""
+    ACCOUNT_LABEL=""
+  else
+    [ -f "$account_dir/.claude.json" ] || continue
+    CLAUDE_CONFIG_DIR="$account_dir"
+    export CLAUDE_CONFIG_DIR
+    ACCOUNT_SUFFIX="@${account_dir##*/}"
+    ACCOUNT_LABEL=" (${account_dir##*/})"
+  fi
+  sync_account
+done
 
 exit 0
