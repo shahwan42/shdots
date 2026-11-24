@@ -20,7 +20,7 @@ hn() { [ -x "$HN" ] && "$HN" note 48-ai-legacy-prune "$@" >/dev/null 2>&1 || :; 
 # baseline; require the adapters to carry it before deleting.
 BASELINE_MARK="## Codebase Knowledge Graph"
 adapters_ok=1
-for a in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
+for a in "$HOME/.claude/CLAUDE.md"; do
   grep -qF "$BASELINE_MARK" "$a" 2>/dev/null || adapters_ok=0
 done
 

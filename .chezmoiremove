@@ -1,5 +1,7 @@
 # Retired GitHub MCP registration helper; gh replaces the GitHub MCP servers.
 .local/bin/mcp-github-register
+# Retired Multipass dev-box helper; Multipass is no longer used.
+.config/zsh/functions/herdr-devbox.zsh
 {{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics
