@@ -28,6 +28,15 @@ SRC="$("$CZ" source-path 2>/dev/null)" || {
   hn run skip "notify-only; source unavailable"
   exit 0
 }
+# Agent-facing targets that differ from the source mean committed fixes never
+# reached $HOME (a month-stale ~/.claude/CLAUDE.md, 2026-11-24). A failed status
+# (e.g. another apply holds the lock) leaves no marker; the next run retries.
+PENDING="$("$CZ" status --no-tty 2>/dev/null | awk '$NF ~ /^\.(claude|agents)\// || $NF ~ /^\.local\/bin\// { print $NF }')"
+if [ -n "$PENDING" ]; then
+  printf "chezmoi: %s agent-facing target(s) not applied (%s) — review 'chezmoi diff', then 'chezmoi apply'\n" \
+    "$(printf '%s\n' "$PENDING" | wc -l | tr -d ' ')" \
+    "$(printf '%s\n' "$PENDING" | head -3 | paste -sd ',' - | sed 's/,/, /g')" > "$HOME/.cache/chezmoi-stale"
+fi
 if ! git -C "$SRC" fetch -q origin >/dev/null 2>&1; then
   rm -f "$BEHIND_MARKER"
   hn run skip "notify-only; fetch failed"

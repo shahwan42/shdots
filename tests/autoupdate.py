@@ -118,6 +118,25 @@ marker = autoupdate()
 check(head() == before and "on 'feature', not main" in marker, f'feature branch not skipped: {marker!r}')
 print('PASS: non-main checkout skipped')
 
+# 6. Notify-only: an unapplied agent-facing target leaves a marker; other drift
+# and a converged home do not.
+notify = tmp/'chezmoi-autoupdate-notify'
+notify.write_text(run([CHEZMOI, '--source', str(ROOT), 'execute-template', '--override-data',
+                       json.dumps({'kind': 'vm', 'role': 'personal', 'auto_update': False}),
+                       '--file', str(ROOT/'dot_local/bin/executable_chezmoi-autoupdate.tmpl')]))
+updater = notify
+(src/'dot_claude').mkdir()
+(src/'dot_claude/CLAUDE.md').write_text('rule one\n')
+run([CHEZMOI, 'apply', '--no-tty'])
+check(autoupdate() == '', 'converged home left a marker')
+(src/'dot_claude/CLAUDE.md').write_text('rule one\nrule two\n')
+marker = autoupdate()
+check('1 agent-facing target(s) not applied (.claude/CLAUDE.md)' in marker, f'stale CLAUDE.md not flagged: {marker!r}')
+run([CHEZMOI, 'apply', '--no-tty'])
+(src/'dot_zshrc.tmpl').write_text(GOOD_ZSHRC.format(9))
+check(autoupdate() == '', 'non-agent drift flagged as agent-facing')
+print('PASS: notify-only flags unapplied agent-facing targets only')
+
 check(not any((tmp/'t').iterdir()), f'temp files left behind: {list((tmp/"t").iterdir())}')
 print('PASS: no temp files left behind')
 shutil.rmtree(tmp)
