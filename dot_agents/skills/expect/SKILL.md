@@ -1,15 +1,16 @@
 ---
 name: expect
-description: Run adversarial browser tests after browser-facing changes to components, pages, forms, routes, API calls, data fetching, styles, layouts, bug fixes, or refactors. Diagnose Expect failures and retain browser evidence. Prefer this for agent-driven browser verification; preserve project test and evidence requirements.
+description: Optional exploratory browser check for one named risk that project stories and tests can't reach cheaply, such as URL or refresh state, concurrent edits, unusual input, or mobile layout. Not a default step after browser-facing changes; prefer deterministic stories or tests for fault paths you can control. Diagnose Expect failures and retain browser evidence.
 license: MIT
 metadata:
   author: millionco
-  version: "2.0.0-shdots.1"
+  version: "2.0.0-shdots.2"
 ---
 
 # Expect
 
-Use the shdots-owned `expect-check` runner for adversarial browser verification.
+Use the shdots-owned `expect-check` runner for an optional exploratory check of a
+named risk. It adds evidence; it never replaces project stories, tests or local CI.
 It privately builds pinned Expect source with the maintained Codex adapter. See
 [provenance and rollout](references/ownership.md) when installing or updating it.
 
