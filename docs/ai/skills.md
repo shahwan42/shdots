@@ -151,12 +151,6 @@ baseline (`ai-baseline.md`, `codebase-memory.md`) and continuity section 5 point
 keep the details there. Its recipes were checked on 2026-10-09 against the
 codebase-memory-mcp tool schemas. Recheck them when those schemas change.
 
-## Expect
-
-`expect` is shdots-owned, with the standard Claude adapter. Its CLI workflow,
-source patch, private runtime, migration, and acceptance evidence are documented
-in [Expect runner](expect-check.md). Upstream MCP-first instructions are not imported.
-
 ## Name clashes with project skills
 
 Project skills must win. Neither Claude nor OpenCode guarantees that:

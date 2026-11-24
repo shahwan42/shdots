@@ -2,6 +2,13 @@
 .local/bin/mcp-github-register
 # Retired Multipass dev-box helper; Multipass is no longer used.
 .config/zsh/functions/herdr-devbox.zsh
+# Retired Expect browser checker and its 1.6 GB runtime: no real run since the
+# 2026-10-16 usefulness test narrowed it. The glob covers second Claude accounts.
+.local/bin/expect-check
+.local/share/expect-check
+.agents/skills/expect
+.claude/skills/expect
+.claude-*/skills/expect
 {{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics
