@@ -17,7 +17,7 @@ Question → Authority → Suitable tool → Bounded retrieval
 | Error text, configuration, docs, literals | Search the files directly; filename discovery when the location is unknown | Hit read in context; widen scope only if the first scope was insufficient |
 | Current or archived chat history | Native index and reader: select conversations, follow cursors, read needed turns | Conversation identity matches and the needed turns are read |
 | Supported external operation, unknown tool capability | Purpose-built tool, API, or CLI; focused `--help` or schema when the signature is unknown; capability search only where one is provided | Signature confirmed before the call |
-| Interactive or visual work | `browser-driving`, `pencil-workflow`, computer-use for native dialogs; repeatable checks live in project-local tests | Per that skill |
+| Interactive or visual work | `browser-driving`, computer-use for native dialogs; repeatable checks live in project-local tests | Per that skill |
 
 Authentication questions follow `ai-tools-doctor` and the baseline's
 authentication diagnostics. Keep stage, reason, outcome, codes, counts, timings, and

@@ -37,7 +37,9 @@ with the listed command; none is repaired by the doctor.
 - **Pencil login-token report (unverified).** The archived chat *Review remaining UI studio
   steps* (`01a0f726-346f-7f81-8a7f-3d82233ce646`) quotes an earlier agent's report that Pencil
   setup inspection exposed a login token. The exposure and any rotation have not been verified.
-  Do not reopen credential files or reproduce the report as part of diagnostics.
+  Do not reopen credential files or reproduce the report as part of diagnostics. Pencil (Pen.app,
+  `~/.pencil`, the `pen` CLI and the `pencil-workflow` skill) was removed on 2026-11-25; removing
+  the app does not revoke a token on the pen.dev side.
 - **GitHub token printed during the doctor audit.** The audit recorded that `codex mcp list
   --json` output printed the inline GitHub token; the canonical registration scripts confirm
   inline credential delivery. Rotation status is unknown. The structured-output prevention
@@ -157,10 +159,9 @@ with the listed command; none is repaired by the doctor.
   `~/.agents/skills`. The Mac installs only script 44's `--skill` subset.
   Decide which of the extra skills belong in that list. `v2.7.0` exists, and
   bumping to it is a separate reviewed change.
-- **Linear and Pencil MCP are not declared in chezmoi.** Linear comes from a
-  claude.ai connector. Pencil writes `~/.config/opencode/opencode.json` itself
-  (the Pen.app binary path). Both are Mac-native and work today. Only declare
-  them if a new Mac needs them without manual setup.
+- **Linear MCP is not declared in chezmoi.** It comes from a claude.ai
+  connector, is Mac-native and works today. Only declare it if a new Mac needs
+  it without manual setup.
 - **MCP inventory as data.** Scripts 40, 41, and 43 repeat the shared server
   list. A `.chezmoidata` inventory that each script ranges over is safe only if
   `chezmoi execute-template` output stays byte-identical per script.

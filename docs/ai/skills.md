@@ -18,13 +18,9 @@ init event.
 
 | Skill | Source | Claude adapter |
 |---|---|---|
-| `pencil-workflow` | `dot_agents/skills/pencil-workflow` | yes |
 | `agent-continuity` | `dot_agents/skills/agent-continuity` | yes |
 
-`pencil-workflow` is model-invoked so Pencil and `.pen` work can discover it
-automatically.
-
-`agent-continuity` is also model-invoked, covering resumption after interruption
+`agent-continuity` is model-invoked, covering resumption after interruption
 or handoff, user scope corrections, and resource cleanup that preserves evidence.
 It is a guide with a checkpoint template and cleanup reference; it has no
 checker, hooks, or memory system. The agent verifies live state itself. Projects

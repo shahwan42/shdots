@@ -16,7 +16,6 @@ project's Playwright setup.
 Chat history / structured data → native reader or API
 Interactive website work      → browser-harness + browser-driving
 Repeatable application tests  → project-local Playwright
-Pencil canvas work            → pencil-workflow
 Native application dialogs    → computer-use tools when needed
 ```
 
