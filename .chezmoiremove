@@ -12,6 +12,11 @@
 # Retired Command Code agent: last used 2026-10-11. Removes the mise-installed
 # copy only; ~/.commandcode (API key, history) is removed by hand after logout.
 .local/share/mise/installs/npm-command-code
+# Retired Pencil skill: Pencil was removed on 2026-11-25. The glob covers second
+# Claude accounts. Pen.app, ~/.pencil and the pen CLI are removed by hand.
+.agents/skills/pencil-workflow
+.claude/skills/pencil-workflow
+.claude-*/skills/pencil-workflow
 {{ if eq .kind "vm" -}}
 {{ if not (includeTemplate "has-work" .) -}}
 .ssh/config.d/foodics
