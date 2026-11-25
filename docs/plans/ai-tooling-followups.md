@@ -4,8 +4,8 @@ Phase 1 (branch `chore/ai-tooling-consolidation`) set up the shared instruction
 baseline, the portable skill source, the Claude symlink adapters, and the
 normalized tool ownership. See "AI tooling layout" in `AGENTS.md` and
 `docs/ai/skills.md`. The items below were deliberately left out of that phase.
-as-dev is migration input only; nothing here requires copying its generated
-state.
+as-dev no longer exists (2026-11-24), so items below that read or port from
+as-dev are closed; nothing here requires copying its generated state.
 
 Priority: **P1** fixes a live gap or a correctness risk, **P2** improves parity,
 **P3** is optional.

@@ -1,9 +1,9 @@
 # Native macOS account profiles
 
 Current architecture (2026-10-03): `as-host/as` is personal; `as-host/foodics`
-is work. macOS is the primary development platform. as-host has no Linux
-compatibility VM since Multipass was removed (2026-11-24); the stopped
-`fdx-host/fdx-dev` may remain as preserved state. Tailscale identity remains
+is work. macOS is the primary development platform. Since 2026-11-24 the
+fleet has no Linux VMs: Multipass is removed and `as-dev`/`fdx-dev` no longer
+exist. fdx-host is a migrated copy of as-host. Tailscale identity remains
 unchanged.
 
 ```text

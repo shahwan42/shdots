@@ -125,11 +125,10 @@ review, and apply as above; do not use `chezmoi re-add` on this template.
 
 ## Linux compatibility
 
-as-host has no Linux compatibility VM: Multipass was removed on 2026-11-24,
-taking its VMs (`as-host/fdx-dev`, `as-dev`) with it, and the old VM-first
-tooling (`provision/`) is retired. The stopped `fdx-host/fdx-dev` may still
-exist on fdx-host as legacy preserved state. `kind=vm` templates stay so a
-future Linux box can be onboarded by hand. Leave Tailscale identity unchanged
+The fleet has no Linux VMs. It is two Macs: as-host and fdx-host, a migrated
+copy of as-host. Multipass was removed on 2026-11-24, the `as-dev` and `fdx-dev`
+VMs no longer exist, and the old VM-first tooling (`provision/`) is retired.
+`kind=vm` templates stay so a future Linux box can be onboarded by hand. Leave Tailscale identity unchanged
 unless explicitly requested.
 
 ## Fleet health
